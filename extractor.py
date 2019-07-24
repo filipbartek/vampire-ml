@@ -71,10 +71,10 @@ complete = MultiExtractor({
     'strategy': (lambda s: s.partition('\n')[0], True),
     'termination': (termination, True),
     'time_elapsed': (time_elapsed, True),
-    'function_names': (function_names, True),
-    'function_precedence': (function_precedence, True),
     'predicate_names': (predicate_names, True),
-    'predicate_precedence': (predicate_precedence, True)
+    'predicate_precedence': (predicate_precedence, True),
+    'function_names': (function_names, True),
+    'function_precedence': (function_precedence, True)
 })
 
 # TODO: Parse run statistics, namely activation count.
