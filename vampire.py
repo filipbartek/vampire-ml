@@ -38,6 +38,7 @@ class Vampire:
                 'data': extractor.complete(cp.stdout)
             }
         }
+        # TODO: Make the paths in the result JSON document relative to the document.
         self.save_str(parameters['paths']['stdout'], cp.stdout)
         self.save_str(parameters['paths']['stderr'], cp.stderr)
         if parameters['paths']['data'] is not None:
