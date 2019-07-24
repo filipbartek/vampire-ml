@@ -34,7 +34,7 @@ class MultiExtractor:
                 result[name] = extractor(s)
             except RuntimeError as err:
                 if required:
-                    logging.warning(f'Extracting {name} failed: {err}')
+                    logging.debug(f'Extracting {name} failed: {err}')
                 result[name] = None
         return result
 
