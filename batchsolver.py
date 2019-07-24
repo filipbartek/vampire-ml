@@ -48,6 +48,7 @@ class BatchSolver:
                             runs_file.write('%s\n' % '\n'.join(result))
             finally:
                 if outpath is not None:
+                    os.makedirs(outpath, exist_ok=True)
                     with open(os.path.join(outpath, 'result.json'), 'w') as result_file:
                         json.dump(results, result_file, indent=4)
 
