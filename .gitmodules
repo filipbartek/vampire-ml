@@ -1,0 +1,3 @@
+[submodule "TPTP-ANTLR4-Grammar"]
+	path = TPTP-ANTLR4-Grammar
+	url = https://github.com/TobiasGleissner/TPTP-ANTLR4-Grammar.git
