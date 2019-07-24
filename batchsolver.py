@@ -39,10 +39,13 @@ class BatchSolver:
         results = []
         with multiprocessing.Pool(jobs) as p:
             try:
-                for result in p.imap_unordered(self.solve_problem_tuple,
-                                               self.generate_tasks(problem_paths, parameters, outpath)):
-                    results.append(result)
-                # TODO: Save a CSV continuously.
+                os.makedirs(outpath, exist_ok=True)
+                with open(os.path.join(outpath, 'solve_runs.txt'), 'w') as runs_file:
+                    for result in p.imap_unordered(self.solve_problem_tuple,
+                                                   self.generate_tasks(problem_paths, parameters, outpath)):
+                        results.append(result)
+                        if len(result) > 0:
+                            runs_file.write('%s\n' % '\n'.join(result))
             finally:
                 if outpath is not None:
                     with open(os.path.join(outpath, 'result.json'), 'w') as result_file:
@@ -51,7 +54,6 @@ class BatchSolver:
     def solve_problem(self, parameters, outpath):
         results = []
         probe_result = self.run_vampire_once(parameters, self.time_limit_probe, None, os.path.join(outpath, 'probe'))
-        results.append(probe_result['parameters']['paths']['data'])
         probe_result_termination = probe_result['output']['data']['termination']
         if probe_result_termination['phase'] == 'Parsing':
             logging.warning(
