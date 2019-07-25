@@ -1,0 +1,158 @@
+# This graph captures a CNF fragment of TPTP syntax that is expected to be sufficient for vampire-ml.
+# Source grammar document in Antlr4 format: ./TPTP-ANTLR4-Grammar/tptp_v7_0_0_0.g4
+# Original TPTP grammar in BNF: $TPTP/Documents/SyntaxBNF
+# Node shapes:
+# * Active rule: oval
+# * Ignored rule (out of scope of vampire-ml): diamond
+# * Terminal: box
+
+# TODO: Mark the arcs as single-occurrence or list-occurrence.
+
+digraph {
+
+# EOF seems to be defined by Antlr4.
+EOF [shape=box]
+
+# TPTP terminals
+Or [shape=box]
+Not [shape=box]
+Infix_inequality [shape=box]
+Infix_equality [shape=box]
+Assignment [shape=box]
+Real [shape=box]
+Rational [shape=box]
+Integer [shape=box]
+Dollar_word [shape=box]
+Dollar_dollar_word [shape=box]
+Upper_word [shape=box]
+Lower_word [shape=box]
+Single_quoted [shape=box]
+Distinct_object [shape=box]
+
+tptp_file -> tptp_input
+tptp_file -> EOF
+
+tptp_input -> annotated_formula
+tptp_input -> include
+include [shape=diamond]
+
+annotated_formula -> thf_annotated
+annotated_formula -> tfx_annotated
+annotated_formula -> tff_annotated
+annotated_formula -> tcf_annotated
+annotated_formula -> fof_annotated
+annotated_formula -> cnf_annotated
+annotated_formula -> tpi_annotated
+thf_annotated [shape=diamond]
+tfx_annotated [shape=diamond]
+tff_annotated [shape=diamond]
+tcf_annotated [shape=diamond]
+fof_annotated [shape=diamond]
+tpi_annotated [shape=diamond]
+
+cnf_annotated -> name
+cnf_annotated -> formula_role
+cnf_annotated -> cnf_formula
+cnf_annotated -> annotations
+annotations [shape=diamond]
+
+formula_role -> Lower_word
+
+
+# FOF fragment used in CNF
+fof_infix_unary -> fof_term
+fof_infix_unary -> Infix_inequality
+
+fof_atomic_formula -> fof_plain_atomic_formula
+fof_atomic_formula -> fof_defined_atomic_formula
+fof_atomic_formula -> fof_system_atomic_formula
+
+fof_plain_atomic_formula -> fof_plain_term
+
+fof_defined_atomic_formula -> fof_defined_plain_formula
+fof_defined_atomic_formula -> fof_defined_infix_formula
+
+fof_defined_plain_formula -> fof_defined_term
+
+fof_defined_infix_formula -> fof_term
+fof_defined_infix_formula -> defined_infix_pred
+
+fof_system_atomic_formula -> fof_system_term
+
+fof_plain_term -> constant
+fof_plain_term -> functor
+fof_plain_term -> fof_arguments
+
+fof_defined_term -> defined_term
+fof_defined_term -> fof_defined_atomic_term
+
+fof_defined_atomic_term -> fof_defined_plain_term
+
+fof_defined_plain_term -> defined_constant
+fof_defined_plain_term -> defined_functor
+fof_defined_plain_term -> fof_arguments
+
+fof_system_term -> system_constant
+fof_system_term -> system_functor
+fof_system_term -> fof_arguments
+
+fof_arguments -> fof_term
+
+fof_term -> fof_function_term
+fof_term -> variable
+fof_term -> tff_conditional_term
+fof_term -> tff_let_term
+fof_term -> tff_tuple_term
+tff_conditional_term [shape=diamond]
+tff_let_term [shape=diamond]
+tff_tuple_term [shape=diamond]
+
+fof_function_term -> fof_plain_term
+fof_function_term -> fof_defined_term
+fof_function_term -> fof_system_term
+
+
+# CNF
+cnf_formula -> cnf_disjunction
+cnf_disjunction -> cnf_literal
+cnf_disjunction -> cnf_disjunction
+cnf_disjunction -> Or
+
+cnf_literal -> fof_atomic_formula
+cnf_literal -> Not
+cnf_literal -> fof_infix_unary
+
+
+defined_infix_pred -> Infix_equality
+defined_infix_pred -> Assignment
+
+constant -> functor
+functor -> atomic_word
+
+system_constant -> system_functor
+system_functor -> atomic_system_word
+
+defined_constant -> defined_functor
+defined_functor -> atomic_defined_word
+
+defined_term -> number
+defined_term -> Distinct_object
+
+variable -> Upper_word
+
+
+name -> atomic_word
+name -> Integer
+
+atomic_word -> Lower_word
+atomic_word -> Single_quoted
+
+atomic_defined_word -> Dollar_word
+
+atomic_system_word -> Dollar_dollar_word
+
+number -> Integer
+number -> Rational
+number -> Real
+
+}
