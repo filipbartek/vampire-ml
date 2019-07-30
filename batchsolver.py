@@ -33,19 +33,19 @@ class BatchSolver:
                     'problem': problem_path
                 }
             })
-            yield (problem_parameters, problem_outpath)
+            yield (problem_parameters, problem_outpath, outpath)
 
     def solve_problems(self, problem_paths, parameters, outpath, jobs=1):
         results = []
         with multiprocessing.Pool(jobs) as p:
             try:
                 os.makedirs(outpath, exist_ok=True)
-                with open(os.path.join(outpath, 'solve_runs.txt'), 'w') as runs_file:
+                with open(os.path.join(outpath, 'prove_runs.txt'), 'w') as runs_file:
                     for result in p.imap_unordered(self.solve_problem_tuple,
                                                    self.generate_tasks(problem_paths, parameters, outpath)):
                         results.append(result)
-                        if len(result) > 0:
-                            runs_file.write('%s\n' % '\n'.join(result))
+                        if len(result['prove_runs']) > 0:
+                            runs_file.write('%s\n' % '\n'.join(result['prove_runs']))
             finally:
                 if outpath is not None:
                     os.makedirs(outpath, exist_ok=True)
@@ -55,8 +55,12 @@ class BatchSolver:
     def solve_problem_tuple(self, args):
         return self.solve_problem(*args)
 
-    def solve_problem(self, parameters, outpath):
-        results = []
+    def solve_problem(self, parameters, outpath, base_path=None):
+        result = {
+            'outpath': os.path.relpath(outpath, start=base_path),
+            'probe': None,
+            'prove_runs': []
+        }
         parameters_probe = get_updated(parameters, {
             'vampire': {
                 'time_limit': self.time_limit_probe,
@@ -68,7 +72,7 @@ class BatchSolver:
         if probe_result_termination['phase'] == 'Parsing':
             logging.warning(
                 'Probe run finished in parsing phase. Termination reason: %s' % probe_result_termination['reason'])
-            return results
+            return result
         for solve_index in range(parameters['run_count']):
             parameters_run = get_updated(parameters, {
                 'vampire': {
@@ -77,22 +81,28 @@ class BatchSolver:
                 }
             })
             solve_result = self.run_vampire_once(parameters_run, os.path.join(outpath, str(solve_index)))
-            results.append(solve_result['parameters']['paths']['data'])
-        return results
+            result['prove_runs'].append(self.result_data_relpath(solve_result, base_path))
+        return result
 
     def run_vampire_once(self, parameters, outpath):
-        outpath_json = os.path.join(outpath, 'out.json')
         parameters_run = get_updated(parameters, {
             'vampire': {
-                'json_output': outpath_json
+                'json_output': os.path.join(outpath, 'out.json')
             },
             'paths': {
-                'stdout': os.path.join(outpath, 'stdout.txt'),
-                'stderr': os.path.join(outpath, 'stderr.txt'),
-                'json_output': outpath_json,
-                'data': os.path.join(outpath, 'data.json')
+                'base': outpath,
+                'stdout': 'stdout.txt',
+                'stderr': 'stderr.txt',
+                'json_output': 'out.json',
+                'data': 'data.json'
             }
         })
         # The Vampire option --json_output requires the output directory to exist.
         os.makedirs(outpath, exist_ok=True)
-        return self.vampire(parameters_run)
+        return self.vampire(parameters_run, outpath)
+
+    @staticmethod
+    def result_data_relpath(result, base_path):
+        result_base_path = result['parameters']['paths']['base']
+        result_data_path = result['parameters']['paths']['data']
+        return os.path.relpath(os.path.join(result_base_path, result_data_path), start=base_path)

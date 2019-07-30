@@ -12,7 +12,7 @@ class Vampire:
     def __init__(self, command):
         self.command = command
 
-    def __call__(self, parameters):
+    def __call__(self, parameters, base_path):
         """
         Run Vampire once.
         :param parameters: Dictionary of execution parameters. Structure of parameters:
@@ -39,12 +39,12 @@ class Vampire:
                 'data': extractor.complete(cp.stdout)
             }
         }
-        # TODO: Make the paths in the result JSON document relative to the document.
-        self.save_str(parameters['paths']['stdout'], cp.stdout)
-        self.save_str(parameters['paths']['stderr'], cp.stderr)
+        self.save_str(os.path.join(base_path, parameters['paths']['stdout']), cp.stdout)
+        self.save_str(os.path.join(base_path, parameters['paths']['stderr']), cp.stderr)
         if parameters['paths']['data'] is not None:
-            os.makedirs(os.path.dirname(parameters['paths']['data']), exist_ok=True)
-            with open(parameters['paths']['data'], 'w') as outfile:
+            path_data_absolute = os.path.join(base_path, parameters['paths']['data'])
+            os.makedirs(os.path.dirname(path_data_absolute), exist_ok=True)
+            with open(path_data_absolute, 'w') as outfile:
                 json.dump(run_data, outfile, indent=4)
         return run_data
 
