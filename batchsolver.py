@@ -54,31 +54,36 @@ class BatchSolver:
 
     def solve_problem(self, parameters, outpath):
         results = []
-        probe_result = self.run_vampire_once(parameters, self.time_limit_probe, None, os.path.join(outpath, 'probe'))
+        parameters_probe = get_updated(parameters, {
+            'vampire': {
+                'time_limit': self.time_limit_probe
+            }
+        })
+        probe_result = self.run_vampire_once(parameters_probe, os.path.join(outpath, 'probe'))
         probe_result_termination = probe_result['output']['data']['termination']
         if probe_result_termination['phase'] == 'Parsing':
             logging.warning(
                 'Probe run finished in parsing phase. Termination reason: %s' % probe_result_termination['reason'])
             return results
         for solve_index in range(parameters['run_count']):
-            solve_result = self.run_vampire_once(parameters, self.time_limit_solve, solve_index + 1,
-                                                 os.path.join(outpath, str(solve_index)))
+            parameters_run = get_updated(parameters, {
+                'vampire': {
+                    'time_limit': self.time_limit_solve,
+                    'random_seed': solve_index + 1
+                }
+            })
+            solve_result = self.run_vampire_once(parameters_run, os.path.join(outpath, str(solve_index)))
             results.append(solve_result['parameters']['paths']['data'])
         return results
 
-    def run_vampire_once(self, parameters, time_limit, random_seed, outpath):
+    def run_vampire_once(self, parameters, outpath):
         parameters_run = get_updated(parameters, {
-            'vampire': {
-                'time_limit': time_limit
-            },
             'paths': {
                 'stdout': os.path.join(outpath, 'stdout.txt'),
                 'stderr': os.path.join(outpath, 'stderr.txt'),
                 'data': os.path.join(outpath, 'data.json')
             }
         })
-        if random_seed is not None:
-            parameters_run['vampire']['random_seed'] = random_seed
         return self.vampire(parameters_run)
 
     def solve_problem_tuple(self, args):
