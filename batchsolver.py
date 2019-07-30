@@ -52,6 +52,9 @@ class BatchSolver:
                     with open(os.path.join(outpath, 'result.json'), 'w') as result_file:
                         json.dump(results, result_file, indent=4)
 
+    def solve_problem_tuple(self, args):
+        return self.solve_problem(*args)
+
     def solve_problem(self, parameters, outpath):
         results = []
         parameters_probe = get_updated(parameters, {
@@ -93,6 +96,3 @@ class BatchSolver:
         # The Vampire option --json_output requires the output directory to exist.
         os.makedirs(outpath, exist_ok=True)
         return self.vampire(parameters_run)
-
-    def solve_problem_tuple(self, args):
-        return self.solve_problem(*args)
