@@ -56,7 +56,8 @@ class BatchSolver:
         results = []
         parameters_probe = get_updated(parameters, {
             'vampire': {
-                'time_limit': self.time_limit_probe
+                'time_limit': self.time_limit_probe,
+                'mode': 'clausify'
             }
         })
         probe_result = self.run_vampire_once(parameters_probe, os.path.join(outpath, 'probe'))
@@ -77,13 +78,20 @@ class BatchSolver:
         return results
 
     def run_vampire_once(self, parameters, outpath):
+        outpath_json = os.path.join(outpath, 'out.json')
         parameters_run = get_updated(parameters, {
+            'vampire': {
+                'json_output': outpath_json
+            },
             'paths': {
                 'stdout': os.path.join(outpath, 'stdout.txt'),
                 'stderr': os.path.join(outpath, 'stderr.txt'),
+                'json_output': outpath_json,
                 'data': os.path.join(outpath, 'data.json')
             }
         })
+        # The Vampire option --json_output requires the output directory to exist.
+        os.makedirs(outpath, exist_ok=True)
         return self.vampire(parameters_run)
 
     def solve_problem_tuple(self, args):
