@@ -1,0 +1,4 @@
+[submodule "vampire"]
+	path = vampire
+	url = https://github.com/filipbartek/vampire.git
+	branch = precedence-ml
