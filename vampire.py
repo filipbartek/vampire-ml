@@ -30,7 +30,10 @@ class Vampire:
         cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         run_data = {
             'parameters': parameters,
-            'command': complete_command,
+            'call': {
+                'cwd': os.getcwd(),
+                'command': complete_command
+            },
             'output': {
                 'exit_code': cp.returncode,
                 'data': extractor.complete(cp.stdout)
