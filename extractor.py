@@ -45,7 +45,7 @@ vampire_version = ReExtractor(re.compile(
     re.MULTILINE), lambda m: m.groupdict(), 'vampire_version')
 termination_reason = ReExtractor(re.compile('^% Termination reason: (.*)$', re.MULTILINE), lambda m: m[1],
                                  'termination_reason')
-termination_phase = ReExtractor(re.compile('^% Termination phase: (\w*)$', re.MULTILINE), lambda m: m[1],
+termination_phase = ReExtractor(re.compile('^% Termination phase: (.*)$', re.MULTILINE), lambda m: m[1],
                                 'termination_phase')
 function_names = ReExtractor(re.compile('^% Function symbol names: ([\w,]*)$', re.MULTILINE),
                              lambda m: list(m[1].split(',')), 'function_names')
