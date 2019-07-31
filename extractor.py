@@ -63,13 +63,6 @@ termination = MultiExtractor({
     'reason': (termination_reason, True),
     'phase': (termination_phase, False)
 })
-probe = MultiExtractor({
-    'vampire_version': (vampire_version, True),
-    'termination': (termination, True),
-    'time_elapsed': (time_elapsed, True),
-    'function_names': (function_names, False),
-    'predicate_names': (predicate_names, False)
-})
 complete = MultiExtractor({
     'vampire_version': (vampire_version, True),
     'strategy': (lambda s: s.partition('\n')[0], True),
