@@ -73,5 +73,11 @@ complete = MultiExtractor({
     'function_names': (function_names, True),
     'function_precedence': (function_precedence, True)
 })
+clausify = MultiExtractor({
+    'strategy': (lambda s: s.partition('\n')[0], True),
+    'vampire_version': (vampire_version, False),
+    'termination': (termination, False),
+    'time_elapsed': (time_elapsed, False)
+})
 
 # TODO: Parse run statistics, namely activation count.

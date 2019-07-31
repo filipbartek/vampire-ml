@@ -28,6 +28,9 @@ class Vampire:
         complete_command = ' '.join(vampire_args)
         logging.info(complete_command)
         cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        extract = extractor.complete
+        if 'mode' in parameters['vampire'] and parameters['vampire']['mode'] == 'clausify':
+            extract = extractor.clausify
         run_data = {
             'parameters': parameters,
             'call': {
@@ -36,7 +39,7 @@ class Vampire:
             },
             'output': {
                 'exit_code': cp.returncode,
-                'data': extractor.complete(cp.stdout)
+                'data': extract(cp.stdout)
             }
         }
         self.save_str(os.path.join(base_path, parameters['paths']['stdout']), cp.stdout)
