@@ -68,11 +68,10 @@ class BatchSolver:
             }
         })
         probe_result = self.run_vampire_once(parameters_probe, os.path.join(outpath, 'probe'))
-        probe_result_termination = probe_result['output']['data']['termination']
         result['probe'] = self.result_data_relpath(probe_result, base_path)
-        if probe_result_termination['phase'] == 'Parsing':
-            logging.warning(
-                'Probe run finished in parsing phase. Termination reason: %s' % probe_result_termination['reason'])
+        if probe_result['output']['exit_code'] != 0:
+            logging.warning('Probe run failed. Exit code: %s. Termination: %s'
+                            % (probe_result['output']['exit_code'], probe_result['output']['data']['termination']))
             return result
         for solve_index in range(parameters['run_count']):
             parameters_run = get_updated(parameters, {
