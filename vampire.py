@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import subprocess
+import time
 
 import extractor
 
@@ -27,7 +28,9 @@ class Vampire:
         vampire_args = self.compose_args(parameters['vampire'], parameters['paths']['problem'])
         complete_command = ' '.join(vampire_args)
         logging.info(complete_command)
+        time_start = time.time()
         cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        time_elapsed = time.time() - time_start
         extract = extractor.complete
         if 'mode' in parameters['vampire'] and parameters['vampire']['mode'] == 'clausify':
             extract = extractor.clausify
@@ -39,6 +42,7 @@ class Vampire:
             },
             'output': {
                 'exit_code': cp.returncode,
+                'time_elapsed': time_elapsed,
                 'data': extract(cp.stdout)
             }
         }
