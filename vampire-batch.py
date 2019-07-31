@@ -21,10 +21,10 @@ def parse_args():
 
     # Vampire arguments
     parser.add_argument('--vampire_include', type=str, help='path to TPTP directory')
-    parser.add_argument('--vampire_time_limit_solve', type=str, default='10',
-                        help='time limit for Vampire problem solving runs')
-    parser.add_argument('--vampire_time_limit_probe', type=str, default='1',
-                        help='time limit for Vampire parse probing runs')
+    parser.add_argument('--vampire_time_limit_solve', type=float, default=10,
+                        help='time limit for Vampire problem solving runs in wall clock seconds')
+    parser.add_argument('--vampire_time_limit_probe', type=float, default=1,
+                        help='time limit for Vampire parse probing runs in wall clock seconds')
     parser.add_argument('--vampire_proof', type=str, choices=['off', 'on'], default='off',
                         help='should Vampire print the proof?')
     parser.add_argument('--vampire_symbol_precedence', type=str,
