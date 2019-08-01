@@ -10,57 +10,64 @@ import extractor
 
 
 class Vampire:
-    def __init__(self, command):
-        self.command = command
+    def __init__(self, command, file_names=None):
+        self._command = command
+        if file_names is None:
+            file_names = {
+                'stdout': 'stdout.txt',
+                'stderr': 'stderr.txt',
+                'data': 'data.json'
+            }
+        self._file_names = file_names
 
-    def __call__(self, parameters, base_path):
+    def __call__(self, parameters, problem_path, output_path):
         """
         Run Vampire once.
-        :param parameters: Dictionary of execution parameters. Structure of parameters:
-        * vampire: parameters recognized by compose_args()
-        * paths
-            * problem: problem input file path (TPTP)
-            * stdout: stdout output file path (text)
-            * stderr: stderr output file path (text)
-            * data: data output file path (JSON)
-        :return: result dictionary.
+        :param parameters: parameters recognized by compose_args()
+        :return: result dictionary
         """
-        vampire_args = self.compose_args(parameters['vampire'], parameters['paths']['problem'])
+        vampire_args = self.compose_args(parameters, problem_path)
         complete_command = ' '.join(vampire_args)
         logging.info(complete_command)
         time_start = time.time()
         cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         time_elapsed = time.time() - time_start
+        run_data = self.get_run_data(parameters, output_path, problem_path, complete_command, cp, time_elapsed)
+        self.save_to_file(output_path, 'data', lambda outfile: json.dump(run_data, outfile, indent=4))
+        return run_data
+
+    def get_run_data(self, parameters, output_path, problem_path, complete_command, cp, time_elapsed):
         extract = extractor.complete
-        if 'mode' in parameters['vampire'] and parameters['vampire']['mode'] == 'clausify':
+        if 'mode' in parameters and parameters['mode'] == 'clausify':
             extract = extractor.clausify
-        run_data = {
-            'parameters': parameters,
+        vampire_json_output_path = None
+        if 'json_output' in parameters:
+            vampire_json_output_path = os.path.relpath(parameters['json_output'], start=output_path)
+        return {
+            'vampire': self._command,
+            'vampire_parameters': parameters,
+            'problem_path': problem_path,
+            'output_path': output_path,
             'call': {
                 'cwd': os.getcwd(),
-                'command': complete_command
+                'command': complete_command,
+                'exit_code': cp.returncode,
+                'time_elapsed': time_elapsed
             },
             'output': {
-                'exit_code': cp.returncode,
-                'time_elapsed': time_elapsed,
+                'stdout': self.save_to_file(output_path, 'stdout', lambda outfile: outfile.write(cp.stdout)),
+                'stderr': self.save_to_file(output_path, 'stderr', lambda outfile: outfile.write(cp.stderr)),
+                'json_output_path': vampire_json_output_path,
                 'data': extract(cp.stdout)
             }
         }
-        self.save_str(os.path.join(base_path, parameters['paths']['stdout']), cp.stdout)
-        self.save_str(os.path.join(base_path, parameters['paths']['stderr']), cp.stderr)
-        if parameters['paths']['data'] is not None:
-            path_data_absolute = os.path.join(base_path, parameters['paths']['data'])
-            os.makedirs(os.path.dirname(path_data_absolute), exist_ok=True)
-            with open(path_data_absolute, 'w') as outfile:
-                json.dump(run_data, outfile, indent=4)
-        return run_data
 
     def compose_args(self, parameters, problem_path):
         """
         See vampire_options.
         :return: list of arguments compatible with subprocess.run().
         """
-        args = [self.command]
+        args = [self._command]
         for key, value in parameters.items():
             if key in self.vampire_options:
                 args.extend([self.vampire_options[key], str(value)])
@@ -81,10 +88,13 @@ class Vampire:
         'mode': '--mode'
     }
 
-    @staticmethod
-    def save_str(outfilepath, s):
-        if outfilepath is not None:
-            os.makedirs(os.path.dirname(outfilepath), exist_ok=True)
-            with open(outfilepath, 'w') as outfile:
-                outfile.write(s)
-        return outfilepath
+    def save_to_file(self, output_path, file_id, save_fn):
+        try:
+            file_path = os.path.join(output_path, self._file_names[file_id])
+        except KeyError:
+            # Fail gracefully if this file id is not supported.
+            return None
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        with open(file_path, 'w') as outfile:
+            save_fn(outfile)
+        return os.path.relpath(file_path, start=output_path)

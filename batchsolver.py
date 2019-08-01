@@ -44,12 +44,14 @@ class BatchSolver:
                             'mode': 'clausify'
                         }
                     })
+                    assert probe_parameters['vampire']['time_limit'] == self.time_limit_probe
                     prove_parameters = get_updated(problem_parameters, {
                         'probe': False,
                         'vampire': {
                             'time_limit': self.time_limit_solve
                         }
                     })
+                    assert probe_parameters['vampire']['time_limit'] == self.time_limit_probe
                     futures.add(executor.submit(self.run_probe, problem_outpath, probe_parameters, prove_parameters,
                                                 parameters['run_count'], executor, futures))
                 self.reduce_futures(futures, results, outpath)
@@ -67,14 +69,13 @@ class BatchSolver:
             for future in done:
                 assert future.done()
                 result = future.result()
-                problem_index = result['parameters']['problem_index']
-                data_path = os.path.relpath(os.path.join(result['parameters']['paths']['base'],
-                                                         result['parameters']['paths']['data']), start=base_path)
+                problem_index = result['problem_path']
+                data_path = os.path.relpath(os.path.join(result['output_path']), start=base_path)
                 if problem_index not in results:
                     results[problem_index] = {
                         'prove_runs': []
                     }
-                if result['parameters']['probe']:
+                if 'mode' in result['vampire_parameters'] and result['vampire_parameters']['mode'] == 'clausify':
                     results[problem_index]['probe'] = data_path
                 else:
                     results[problem_index]['prove_runs'].append(data_path)
@@ -82,9 +83,9 @@ class BatchSolver:
 
     def run_probe(self, outpath, parameters_probe, parameters_prove, n_prove_runs, executor, futures):
         result = self.run_vampire_once(parameters_probe, outpath)
-        if result['output']['exit_code'] != 0:
+        if result['call']['exit_code'] != 0:
             logging.warning('Probe run failed. Exit code: %s. Termination: %s'
-                            % (result['output']['exit_code'], result['output']['data']['termination']))
+                            % (result['call']['exit_code'], result['output']['data']['termination']))
         else:
             for prove_run_index in range(n_prove_runs):
                 futures.add(executor.submit(self.run_prove, os.path.join(outpath, str(prove_run_index)),
@@ -100,18 +101,9 @@ class BatchSolver:
         return self.run_vampire_once(parameters, outpath)
 
     def run_vampire_once(self, parameters, outpath):
-        parameters_run = get_updated(parameters, {
-            'vampire': {
-                'json_output': os.path.join(outpath, 'out.json')
-            },
-            'paths': {
-                'base': outpath,
-                'stdout': 'stdout.txt',
-                'stderr': 'stderr.txt',
-                'json_output': 'out.json',
-                'data': 'data.json'
-            }
+        parameters_run = get_updated(parameters['vampire'], {
+            'json_output': os.path.join(outpath, 'out.json')
         })
         # The Vampire option --json_output requires the output directory to exist.
         os.makedirs(outpath, exist_ok=True)
-        return self.vampire(parameters_run, outpath)
+        return self.vampire(parameters_run, parameters['paths']['problem'], outpath)
