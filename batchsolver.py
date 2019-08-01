@@ -1,20 +1,11 @@
 #!/usr/bin/env python3.7
 
-import collections
 import concurrent.futures
 import json
 import logging
 import os
 
-
-def get_updated(d, u):
-    result = d.copy()
-    for k, v in u.items():
-        if k in result and isinstance(v, collections.Mapping):
-            result[k] = get_updated(result[k], v)
-        else:
-            result[k] = v
-    return result
+from utils import get_updated
 
 
 class BatchSolver:
