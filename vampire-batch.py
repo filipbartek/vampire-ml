@@ -13,7 +13,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
 
     # Batch arguments
-    parser.add_argument('problem', type=str, nargs='+', help='glob patten of problem path')
+    parser.add_argument('problem', type=str, nargs='+', help='glob pattern of problem path')
     parser.add_argument('--output', '-o', type=str, help='path to store the output files')
     parser.add_argument('--vampire', type=str, default='vampire', help='Vampire command')
     parser.add_argument('--runs', type=int, default=1, help='number of Vampire executions per problem')
