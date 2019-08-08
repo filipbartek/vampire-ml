@@ -59,21 +59,22 @@ class BatchSolver:
             done, _ = concurrent.futures.wait(list(futures), return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
                 assert future.done()
-                result = future.result()
+                result, result_path = future.result()
                 problem_index = result['problem_path']
                 data_path = os.path.relpath(os.path.join(result['output_path']), start=base_path)
                 if problem_index not in results:
                     results[problem_index] = {
                         'prove_runs': []
                     }
+                result_path_relative = os.path.join(data_path, result_path)
                 if 'mode' in result['vampire_parameters'] and result['vampire_parameters']['mode'] == 'clausify':
-                    results[problem_index]['probe'] = data_path
+                    results[problem_index]['probe'] = result_path_relative
                 else:
-                    results[problem_index]['prove_runs'].append(data_path)
+                    results[problem_index]['prove_runs'].append(result_path_relative)
                 futures.remove(future)
 
     def run_probe(self, outpath, parameters_probe, parameters_prove, n_prove_runs, executor, futures):
-        result = self.run_vampire_once(parameters_probe, outpath)
+        result, result_path = self.run_vampire_once(parameters_probe, outpath)
         if result['call']['exit_code'] != 0:
             logging.warning('Probe run failed. Exit code: %s. Termination: %s'
                             % (result['call']['exit_code'], result['output']['data']['termination']))
@@ -86,7 +87,7 @@ class BatchSolver:
                                                     'random_seed': prove_run_index + 1
                                                 }
                                             })))
-        return result
+        return result, result_path
 
     def run_prove(self, outpath, parameters):
         return self.run_vampire_once(parameters, outpath)

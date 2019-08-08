@@ -33,8 +33,8 @@ class Vampire:
         cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         time_elapsed = time.time() - time_start
         run_data = self.get_run_data(parameters, output_path, problem_path, complete_command, cp, time_elapsed)
-        self.save_to_file(output_path, 'data', lambda outfile: json.dump(run_data, outfile, indent=4))
-        return run_data
+        data_path = self.save_to_file(output_path, 'data', lambda outfile: json.dump(run_data, outfile, indent=4))
+        return run_data, data_path
 
     def get_run_data(self, parameters, output_path, problem_path, complete_command, cp, time_elapsed):
         extract = extractor.complete
