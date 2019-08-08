@@ -16,8 +16,8 @@ class BatchSolver:
 
     def solve_problems(self, problem_paths, parameters, outpath, jobs=1):
         results = dict()
-        try:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+            try:
                 futures = set()
                 for problem_index, problem_path in enumerate(problem_paths):
                     self.reduce_futures(futures, results, outpath, jobs)
@@ -46,11 +46,15 @@ class BatchSolver:
                     futures.add(executor.submit(self.run_probe, problem_outpath, probe_parameters, prove_parameters,
                                                 parameters['run_count'], executor, futures))
                 self.reduce_futures(futures, results, outpath)
-        finally:
-            if outpath is not None:
-                os.makedirs(outpath, exist_ok=True)
-                with open(os.path.join(outpath, 'result.json'), 'w') as result_file:
-                    json.dump(results, result_file, indent=4)
+            except KeyboardInterrupt:
+                for future in futures:
+                    future.cancel()
+                raise
+            finally:
+                if outpath is not None:
+                    os.makedirs(outpath, exist_ok=True)
+                    with open(os.path.join(outpath, 'result.json'), 'w') as result_file:
+                        json.dump(results, result_file, indent=4)
         return results
 
     @staticmethod
