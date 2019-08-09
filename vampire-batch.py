@@ -20,17 +20,18 @@ def parse_args():
     parser.add_argument('--jobs', '-j', type=int, default=1, help='number of jobs to run in parallel')
 
     # Vampire arguments
-    parser.add_argument('--vampire_include', type=str, help='path to TPTP directory')
-    parser.add_argument('--vampire_time_limit_solve', type=float, default=10,
-                        help='time limit for Vampire problem solving runs in wall clock seconds')
-    parser.add_argument('--vampire_time_limit_probe', type=float, default=1,
-                        help='time limit for Vampire parse probing runs in wall clock seconds')
-    parser.add_argument('--vampire_proof', type=str, choices=['off', 'on'], default='off',
-                        help='should Vampire print the proof?')
-    parser.add_argument('--vampire_symbol_precedence', type=str,
-                        choices=['arity', 'occurrence', 'reverse_arity', 'scramble', 'frequency', 'reverse_frequency',
-                                 'weighted_frequency', 'reverse_weighted_frequency'],
-                        default='scramble', help='symbol precedence')
+    parser_vampire = parser.add_argument_group('vampire', 'Vampire options')
+    parser_vampire.add_argument('--vampire_include', type=str, help='path to TPTP directory')
+    parser_vampire.add_argument('--vampire_time_limit_solve', type=float, default=10,
+                                help='time limit for Vampire problem solving runs in wall clock seconds')
+    parser_vampire.add_argument('--vampire_time_limit_probe', type=float, default=1,
+                                help='time limit for Vampire parse probing runs in wall clock seconds')
+    parser_vampire.add_argument('--vampire_proof', type=str, choices=['off', 'on'], default='off',
+                                help='should Vampire print the proof?')
+    parser_vampire.add_argument('--vampire_symbol_precedence', type=str,
+                                choices=['arity', 'occurrence', 'reverse_arity', 'scramble', 'frequency',
+                                         'reverse_frequency', 'weighted_frequency', 'reverse_weighted_frequency'],
+                                default='scramble', help='symbol precedence')
 
     return parser.parse_args()
 
