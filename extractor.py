@@ -63,6 +63,7 @@ predicate_names = ReExtractor(re.compile('^% Predicate symbol names: ([\w=,]*)$'
 predicate_precedence = ReExtractor(
     re.compile('^% Predicate symbol index precedence permutation: ([\d,]*)$', re.MULTILINE),
     lambda m: list(map(int, m[1].split(','))), 'predicate_precedence')
+memory_used = ReExtractor(re.compile('^% Memory used \[KB\]: (\d+)$', re.MULTILINE), lambda m: int(m[1]), 'memory_used')
 time_elapsed = ReExtractor(re.compile('^% Time elapsed: (\d+\.\d+) s$', re.MULTILINE), lambda m: float(m[1]),
                            'time_elapsed')
 
@@ -71,6 +72,7 @@ complete = MultiExtractor({
     'strategy': (lambda s: s.partition('\n')[0], True),
     'termination': (termination, True),
     'time_elapsed': (time_elapsed, True),
+    'memory_used': (memory_used, True),
     'predicate_names': (predicate_names, True),
     'predicate_precedence': (predicate_precedence, True),
     'function_names': (function_names, True),
