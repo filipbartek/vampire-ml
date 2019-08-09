@@ -111,5 +111,3 @@ clausify = MultiExtractor({
     'termination': (termination, False),
     'time_elapsed': (time_elapsed, False)
 })
-
-# TODO: Parse run statistics, namely activation count.
