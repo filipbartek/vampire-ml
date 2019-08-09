@@ -63,6 +63,31 @@ predicate_names = ReExtractor(re.compile('^% Predicate symbol names: ([\w=,]*)$'
 predicate_precedence = ReExtractor(
     re.compile('^% Predicate symbol index precedence permutation: ([\d,]*)$', re.MULTILINE),
     lambda m: list(map(int, m[1].split(','))), 'predicate_precedence')
+
+saturation_initial_clauses = ReExtractor(re.compile('^% Initial clauses: (\d+)$', re.MULTILINE),
+                                         lambda m: int(m[1]), 'initial_clauses')
+saturation_generated_clauses = ReExtractor(re.compile('^% Generated clauses: (\d+)$', re.MULTILINE),
+                                           lambda m: int(m[1]), 'generated_clauses')
+saturation_active_clauses = ReExtractor(re.compile('^% Active clauses: (\d+)$', re.MULTILINE),
+                                        lambda m: int(m[1]), 'active_clauses')
+saturation_passive_clauses = ReExtractor(re.compile('^% Passive clauses: (\d+)$', re.MULTILINE),
+                                         lambda m: int(m[1]), 'passive_clauses')
+saturation_final_active_clauses = ReExtractor(re.compile('^% Final active clauses: (\d+)$', re.MULTILINE),
+                                              lambda m: int(m[1]), 'final_active_clauses')
+saturation_final_passive_clauses = ReExtractor(re.compile('^% Final passive clauses: (\d+)$', re.MULTILINE),
+                                               lambda m: int(m[1]), 'final_passive_clauses')
+saturation_iterations = ReExtractor(re.compile('^% Main loop iterations: (\d+)$', re.MULTILINE),
+                                    lambda m: int(m[1]), 'saturation_iterations')
+saturation = MultiExtractor({
+    'initial_clauses': (saturation_initial_clauses, True),
+    'generated_clauses': (saturation_generated_clauses, True),
+    'active_clauses': (saturation_active_clauses, True),
+    'passive_clauses': (saturation_passive_clauses, True),
+    'final_active_clauses': (saturation_final_active_clauses, True),
+    'final_passive_clauses': (saturation_final_passive_clauses, True),
+    'iterations': (saturation_iterations, True)
+})
+
 memory_used = ReExtractor(re.compile('^% Memory used \[KB\]: (\d+)$', re.MULTILINE), lambda m: int(m[1]), 'memory_used')
 time_elapsed = ReExtractor(re.compile('^% Time elapsed: (\d+\.\d+) s$', re.MULTILINE), lambda m: float(m[1]),
                            'time_elapsed')
@@ -76,7 +101,8 @@ complete = MultiExtractor({
     'predicate_names': (predicate_names, True),
     'predicate_precedence': (predicate_precedence, True),
     'function_names': (function_names, True),
-    'function_precedence': (function_precedence, True)
+    'function_precedence': (function_precedence, True),
+    'saturation': (saturation, True)
 })
 clausify = MultiExtractor({
     'strategy': (lambda s: s.partition('\n')[0], True),
