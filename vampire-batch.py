@@ -52,7 +52,8 @@ if __name__ == '__main__':
             'symbol_precedence': namespace.vampire_symbol_precedence,
             'proof': namespace.vampire_proof,
             'encode': 'on',
-            'statistics': 'full'
+            'statistics': 'full',
+            'time_statistics': 'on'
         },
         'run_count': namespace.runs
     }

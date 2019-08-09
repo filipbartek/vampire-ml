@@ -85,6 +85,7 @@ class Vampire:
         'symbol_precedence': '--symbol_precedence',
         'encode': '--encode',
         'statistics': '--statistics',
+        'time_statistics': '--time_statistics',
         'random_seed': '--random_seed',
         'json_output': '--json_output',
         'mode': '--mode'
