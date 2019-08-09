@@ -104,6 +104,7 @@ complete = MultiExtractor({
     'function_precedence': (function_precedence, True),
     'saturation': (saturation, True)
 })
+
 clausify = MultiExtractor({
     'strategy': (lambda s: s.partition('\n')[0], True),
     'vampire_version': (vampire_version, False),
