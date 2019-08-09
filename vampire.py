@@ -69,10 +69,12 @@ class Vampire:
         """
         args = [self._command]
         for key, value in parameters.items():
-            if key in self.vampire_options:
-                args.extend([self.vampire_options[key], str(value)])
-            else:
+            if key not in self.vampire_options:
                 logging.warning(f'Unknown Vampire option: {key}')
+                continue
+            if value is None:
+                continue
+            args.extend([self.vampire_options[key], str(value)])
         args.append(problem_path)
         return args
 
