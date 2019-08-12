@@ -20,6 +20,7 @@ class BatchSolver:
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
             futures = set()
             try:
+                os.makedirs(outpath, exist_ok=True)
                 with open(os.path.join(outpath, 'prove_runs.csv'), 'w', newline='') as csvfile:
                     csvwriter = csv.DictWriter(csvfile,
                                                fieldnames=['input.problem_path', 'input.random_seed', 'call.exit_code',
