@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import concurrent.futures
+import csv
 import json
 import logging
 import os
@@ -17,35 +18,41 @@ class BatchSolver:
     def solve_problems(self, problem_paths, parameters, outpath, jobs=1):
         results = dict()
         with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as executor:
+            futures = set()
             try:
-                futures = set()
-                for problem_index, problem_path in enumerate(problem_paths):
-                    self.reduce_futures(futures, results, outpath, jobs)
-                    problem_outpath = os.path.join(outpath, str(problem_index))
-                    problem_parameters = get_updated(parameters, {
-                        'problem_index': problem_index,
-                        'paths': {
-                            'problem': problem_path
-                        }
-                    })
-                    probe_parameters = get_updated(problem_parameters, {
-                        'probe': True,
-                        'vampire': {
-                            'time_limit': self.time_limit_probe,
-                            'mode': 'clausify'
-                        }
-                    })
-                    assert probe_parameters['vampire']['time_limit'] == self.time_limit_probe
-                    prove_parameters = get_updated(problem_parameters, {
-                        'probe': False,
-                        'vampire': {
-                            'time_limit': self.time_limit_solve
-                        }
-                    })
-                    assert probe_parameters['vampire']['time_limit'] == self.time_limit_probe
-                    futures.add(executor.submit(self.run_probe, problem_outpath, probe_parameters, prove_parameters,
-                                                parameters['run_count'], executor, futures))
-                self.reduce_futures(futures, results, outpath)
+                with open(os.path.join(outpath, 'prove_runs.csv'), 'w', newline='') as csvfile:
+                    csvwriter = csv.DictWriter(csvfile,
+                                               fieldnames=['input.problem_path', 'input.random_seed', 'call.exit_code',
+                                                           'call.time_elapsed', 'output.time_elapsed',
+                                                           'output.termination.reason', 'output.termination.phase',
+                                                           'output.saturation.iterations'])
+                    csvwriter.writeheader()
+                    for problem_index, problem_path in enumerate(problem_paths):
+                        self.reduce_futures(futures, results, outpath, csvwriter, jobs)
+                        problem_outpath = os.path.join(outpath, str(problem_index))
+                        problem_parameters = get_updated(parameters, {
+                            'problem_index': problem_index,
+                            'paths': {
+                                'problem': problem_path
+                            }
+                        })
+                        probe_parameters = get_updated(problem_parameters, {
+                            'probe': True,
+                            'vampire': {
+                                'time_limit': self.time_limit_probe,
+                                'mode': 'clausify'
+                            }
+                        })
+                        prove_parameters = get_updated(problem_parameters, {
+                            'probe': False,
+                            'vampire': {
+                                'time_limit': self.time_limit_solve
+                            }
+                        })
+                        assert probe_parameters['vampire']['time_limit'] == self.time_limit_probe
+                        futures.add(executor.submit(self.run_probe, problem_outpath, probe_parameters, prove_parameters,
+                                                    parameters['run_count'], executor, futures))
+                    self.reduce_futures(futures, results, outpath, csvwriter)
             except KeyboardInterrupt:
                 for future in futures:
                     future.cancel()
@@ -58,7 +65,7 @@ class BatchSolver:
         return results
 
     @staticmethod
-    def reduce_futures(futures, results, base_path, n=0):
+    def reduce_futures(futures, results, base_path, csvwriter, n=0):
         while len(futures) > n:
             done, _ = concurrent.futures.wait(list(futures), return_when=concurrent.futures.FIRST_COMPLETED)
             for future in done:
@@ -75,6 +82,16 @@ class BatchSolver:
                     results[problem_index]['probe'] = result_path_relative
                 else:
                     results[problem_index]['prove_runs'].append(result_path_relative)
+                    csvwriter.writerow({
+                        'input.problem_path': result['problem_path'],
+                        'input.random_seed': result['vampire_parameters']['random_seed'],
+                        'call.exit_code': result['call']['exit_code'],
+                        'call.time_elapsed': result['call']['time_elapsed'],
+                        'output.time_elapsed': result['output']['data']['time_elapsed'],
+                        'output.termination.reason': result['output']['data']['termination']['reason'],
+                        'output.termination.phase': result['output']['data']['termination']['phase'],
+                        'output.saturation.iterations': result['output']['data']['saturation']['iterations']
+                    })
                 futures.remove(future)
 
     def run_probe(self, outpath, parameters_probe, parameters_prove, n_prove_runs, executor, futures):

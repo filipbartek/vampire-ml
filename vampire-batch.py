@@ -36,7 +36,6 @@ def parse_args():
     return parser.parse_args()
 
 
-# TODO: Store results in a CSV table.
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
