@@ -104,7 +104,9 @@ class ActionFit:
             np.random.seed(namespace.seed)
 
         br_prove = run_database.BatchResult(namespace.result_prove)
+        assert br_prove.mode == 'vampire'
         br_probe = run_database.BatchResult(namespace.result_probe)
+        assert br_probe.mode == 'clausify'
 
         for batch_size in [16, 256, 1024]:
             for i in range(4):
