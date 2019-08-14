@@ -22,6 +22,6 @@ class ActionStats:
 
     def add_arguments(self, parser):
         parser.set_defaults(action=self)
-        parser.add_argument('result', type=str, help='result of a run of `vampire-batch vampire`')
+        parser.add_argument('result', type=str, help='result of a prove or probe run')
         parser.add_argument('--output', '-o', type=argparse.FileType('w'), default=sys.stdout,
                             help='output CSV runs document')
