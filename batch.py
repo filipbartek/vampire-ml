@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import concurrent.futures
+import json
 import logging
 import os
 import subprocess
@@ -74,26 +75,32 @@ class Batch:
         time_start = time.time()
         cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         time_elapsed = time.time() - time_start
-        result = {
-            'problem_path': problem_path,
-            'vampire': self._vampire,
-            'options': vampire_options,
-            'command': complete_command,
+        result_thin = {
             'cwd': os.getcwd(),
+            'command': complete_command,
             'exit_code': cp.returncode,
             'time_elapsed': time_elapsed,
-            'stdout': cp.stdout,
-            'stderr': cp.stderr,
+            'problem_path': problem_path,
+            'vampire': self._vampire,
             'paths': {
                 'output_directory': output_path,
                 'stdout': 'stdout.txt',
                 'stderr': 'stderr.txt',
-                'json': 'vampire.json'
-            }
+                'vampire_json': 'vampire.json'
+            },
+            'options': vampire_options
         }
         # TODO: Consider delegating the writing to the caller.
         with open(os.path.join(output_path, 'stdout.txt'), 'w') as stdout:
             stdout.write(cp.stdout)
         with open(os.path.join(output_path, 'stderr.txt'), 'w') as stderr:
             stderr.write(cp.stderr)
-        return result
+        with open(os.path.join(output_path, 'run.json'), 'w') as run_json:
+            json.dump(result_thin, run_json, indent=4)
+        result_complete = result_thin.copy()
+        result_complete.update({
+            'stdout': cp.stdout,
+            'stderr': cp.stderr
+        })
+        result_complete['paths']['run_json'] = 'run.json'
+        return result_complete
