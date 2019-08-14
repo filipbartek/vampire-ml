@@ -169,9 +169,6 @@ class Run:
         assert row['problem_path'] is not None
         assert row['exit_code'] is not None
         assert row['time_elapsed.process'] is not None
-        assert row['time_elapsed.vampire'] is not None or self.exit_code != 0
-        assert row['termination.reason'] is not None or self.exit_code != 0
-        assert row['saturation.iterations'] is not None or self.exit_code != 0
         return row
 
     def csv_row_clausify(self):
@@ -190,12 +187,6 @@ class Run:
         assert row['problem_path'] is not None
         assert row['exit_code'] is not None
         assert row['time_elapsed.process'] is not None
-        assert (row['time_elapsed.vampire'] is None) == (self.exit_code == 0)
-        assert (row['termination.reason'] is None) == (self.exit_code == 0)
-        assert (row['termination.phase'] is None) == (self.exit_code == 0)
-        assert (row['predicates.count'] is None) == (self.exit_code != 0)
-        assert (row['functions.count'] is None) == (self.exit_code != 0)
-        assert (row['clauses.count'] is None) == (self.exit_code != 0)
         return row
 
 
