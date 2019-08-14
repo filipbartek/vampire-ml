@@ -76,7 +76,7 @@ saturation_final_active_clauses = ReExtractor(re.compile('^% Final active clause
                                               lambda m: int(m[1]), 'final_active_clauses')
 saturation_final_passive_clauses = ReExtractor(re.compile('^% Final passive clauses: (\d+)$', re.MULTILINE),
                                                lambda m: int(m[1]), 'final_passive_clauses')
-saturation_iterations = ReExtractor(re.compile('^% Main loop iterations: (\d+)$', re.MULTILINE),
+saturation_iterations = ReExtractor(re.compile('^% Main loop iterations started: (\d+)$', re.MULTILINE),
                                     lambda m: int(m[1]), 'saturation_iterations')
 saturation = MultiExtractor({
     'initial_clauses': (saturation_initial_clauses, True),
