@@ -36,6 +36,10 @@ class Run:
         return self._csv_row['problem_path']
 
     @property
+    def problem_dir(self):
+        return os.path.dirname(self.problem_path)
+
+    @property
     def stdout(self):
         return self.get_stdout()
 
