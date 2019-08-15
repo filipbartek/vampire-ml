@@ -6,6 +6,7 @@ import os
 
 import methodtools
 import numpy as np
+import pandas as pd
 
 import extractor
 
@@ -275,3 +276,21 @@ class BatchResult:
         # We use Python 3.7 dict instead of set because it iterates in a deterministic order.
         # https://stackoverflow.com/a/53657523/4054250
         return {run.problem_path: None for run in self.run_list if run.success}.keys()
+
+    @methodtools.lru_cache(maxsize=1)
+    def as_data_frame(self):
+        return pd.DataFrame({
+            'path_rel': (run.path_rel for run in self.run_list),
+            'problem_path': (run.problem_path for run in self.run_list),
+            'problem_dir': (run.problem_dir for run in self.run_list),
+            'exit_code': pd.Categorical(run.exit_code for run in self.run_list),
+            'termination.reason': pd.Categorical(run.termination_reason for run in self.run_list),
+            'termination.phase': pd.Categorical(run.termination_phase for run in self.run_list),
+            'success': pd.series((run.success for run in self.run_list), dtype=np.bool),
+            'time_elapsed.process': (run.time_elapsed_process for run in self.run_list),
+            'time_elapsed.vampire': (run.time_elapsed_vampire for run in self.run_list),
+            'saturation.iterations': (run.saturation_iterations for run in self.run_list),
+            'predicates.count': (run.predicates_count for run in self.run_list),
+            'functions.count': (run.functions_count for run in self.run_list),
+            'clauses.count': (run.clauses_count for run in self.run_list)
+        })

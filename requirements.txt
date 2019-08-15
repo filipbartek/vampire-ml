@@ -1,4 +1,5 @@
 methodtools
 numpy
+pandas
 sklearn
 tqdm
