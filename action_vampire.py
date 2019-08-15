@@ -91,7 +91,7 @@ class ActionVampire:
         # Output files: problems.txt, problems_successful.txt, runs.csv, result.json
         parser.add_argument('--vampire', type=str, default='vampire', help='Vampire command')
         parser.add_argument('--vampire_options', action='append', default=[],
-                            help='Additional Vampire options. Recommended options: --include. Automatically overriden options: --random_seed, --json_output.')
+                            help='Additional Vampire options. Recommended options: --include, --symbol_precedence. Automatically overriden options: --random_seed, --json_output.')
         parser.add_argument('--runs', type=int, default=1,
                             help='Number of Vampire executions per problem. Useful namely with `--vampire_options \"--symbol_precedence scramble\"`.')
         parser.add_argument('--jobs', '-j', type=int, default=1, help='number of jobs to run in parallel')
