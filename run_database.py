@@ -90,7 +90,7 @@ class Run:
     def predicates_count(self):
         try:
             return len(self.predicates)
-        except RuntimeError:
+        except (RuntimeError, FileNotFoundError):
             return None
 
     @property
@@ -105,7 +105,7 @@ class Run:
     def functions_count(self):
         try:
             return len(self.functions)
-        except RuntimeError:
+        except (RuntimeError, FileNotFoundError):
             return None
 
     @property
@@ -116,7 +116,7 @@ class Run:
     def clauses_count(self):
         try:
             return len(self.clauses)
-        except RuntimeError:
+        except (RuntimeError, FileNotFoundError):
             return None
 
     @property
