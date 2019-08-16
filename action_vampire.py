@@ -1,6 +1,5 @@
 #!/usr/bin/env python3.7
 
-import glob
 import itertools
 import json
 import logging
@@ -8,6 +7,7 @@ import os
 
 from tqdm import tqdm
 
+import file_path_list
 from batch import Batch
 from lazy_csv_writer import LazyCsvWriter
 
@@ -27,18 +27,8 @@ def call(namespace):
             logging.info(f'Defaulting to `{option} {value}`.')
             vampire_options.extend([option, value])
 
-    problem_paths = []
-    for problem_list_path in namespace.problem_list:
-        with open(problem_list_path, 'r') as problem_list_file:
-            problem_paths.extend(l.rstrip('\n') for l in problem_list_file.readlines())
-    problem_patterns = namespace.problem
-    if namespace.problem_base_path is not None:
-        problem_patterns = (os.path.join(namespace.problem_base_path, pattern) for pattern in problem_patterns)
-    problem_paths.extend(itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in problem_patterns)))
-    problem_base_path = namespace.problem_base_path
-    if problem_base_path is None:
-        problem_base_path = os.path.commonpath(problem_paths)
-        logging.info(f'Defaulting problem base path to \"{problem_base_path}\".')
+    problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
+                                                              namespace.problem_base_path)
 
     output = namespace.output
     csv_file_path = os.path.join(output, 'runs.csv')
