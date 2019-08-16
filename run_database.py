@@ -277,8 +277,12 @@ class BatchResult:
         # https://stackoverflow.com/a/53657523/4054250
         return {run.problem_path: None for run in self.run_list if run.success}.keys()
 
+    @property
+    def data_frame(self):
+        return self.get_data_frame()
+
     @methodtools.lru_cache(maxsize=1)
-    def as_data_frame(self):
+    def get_data_frame(self):
         return pd.DataFrame({
             'path_rel': (run.path_rel for run in self.run_list),
             'problem_path': (run.problem_path for run in self.run_list),
