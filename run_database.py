@@ -288,13 +288,13 @@ class BatchResult:
             'problem_path': (run.problem_path for run in self.run_list),
             'problem_dir': (run.problem_dir for run in self.run_list),
             'exit_code': pd.Categorical(run.exit_code for run in self.run_list),
-            'termination.reason': pd.Categorical(run.termination_reason for run in self.run_list),
-            'termination.phase': pd.Categorical(run.termination_phase for run in self.run_list),
-            'success': pd.series((run.success for run in self.run_list), dtype=np.bool),
-            'time_elapsed.process': (run.time_elapsed_process for run in self.run_list),
-            'time_elapsed.vampire': (run.time_elapsed_vampire for run in self.run_list),
-            'saturation.iterations': (run.saturation_iterations for run in self.run_list),
-            'predicates.count': (run.predicates_count for run in self.run_list),
-            'functions.count': (run.functions_count for run in self.run_list),
-            'clauses.count': (run.clauses_count for run in self.run_list)
+            'termination_reason': pd.Categorical(run.termination_reason for run in self.run_list),
+            'termination_phase': pd.Categorical(run.termination_phase for run in self.run_list),
+            'success': pd.Series((run.success for run in self.run_list), dtype=np.bool),
+            'time_elapsed_process': (run.time_elapsed_process for run in self.run_list),
+            'time_elapsed_vampire': (run.time_elapsed_vampire for run in self.run_list),
+            'saturation_iterations': (run.saturation_iterations for run in self.run_list),
+            'predicates_count': (run.predicates_count for run in self.run_list),
+            'functions_count': (run.functions_count for run in self.run_list),
+            'clauses_count': (run.clauses_count for run in self.run_list)
         })
