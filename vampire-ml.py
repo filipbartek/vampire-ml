@@ -3,9 +3,9 @@
 import argparse
 import logging
 
-from action_fit import ActionFit
-from action_stats import ActionStats
-from action_vampire import ActionVampire
+import action_fit
+import action_stats
+import action_vampire
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
@@ -13,14 +13,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='action', required=True)
 
-    parser_vampire = subparsers.add_parser('vampire', aliases=['v', 'collect', 'evaluate'])
-    vampire = ActionVampire(parser_vampire)
-
-    parser_stats = subparsers.add_parser('stats', aliases=['s'])
-    stats = ActionStats(parser_stats)
-
-    parser_fit = subparsers.add_parser('fit', aliases=['f'])
-    fit = ActionFit(parser_fit)
+    action_vampire.add_arguments(subparsers.add_parser('vampire', aliases=['v', 'collect', 'evaluate']))
+    action_stats.add_arguments(subparsers.add_parser('stats', aliases=['s']))
+    action_fit.add_arguments(subparsers.add_parser('fit', aliases=['f']))
 
     # TODO: Allow loading a trained model.
 

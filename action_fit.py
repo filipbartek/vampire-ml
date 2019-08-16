@@ -95,28 +95,25 @@ def generate_batch(br_prove, br_probe, n):
     return result_X, result_y, result_weights
 
 
-class ActionFit:
-    def __init__(self, parser):
-        self.add_arguments(parser)
+def call(namespace):
+    if namespace.seed >= 0:
+        np.random.seed(namespace.seed)
 
-    def __call__(self, namespace):
-        if namespace.seed >= 0:
-            np.random.seed(namespace.seed)
+    br_prove = run_database.BatchResult(namespace.result_prove)
+    assert br_prove.mode == 'vampire'
+    br_probe = run_database.BatchResult(namespace.result_probe)
+    assert br_probe.mode == 'clausify'
 
-        br_prove = run_database.BatchResult(namespace.result_prove)
-        assert br_prove.mode == 'vampire'
-        br_probe = run_database.BatchResult(namespace.result_probe)
-        assert br_probe.mode == 'clausify'
+    for batch_size in [16, 256, 1024]:
+        for i in range(4):
+            X, y, weights = generate_batch(br_prove, br_probe, batch_size)
+            clf = sklearn.linear_model.LogisticRegression(solver='liblinear')
+            clf.fit(X, y, weights)
+            print('Batch size: %s. Score: %s.' % (batch_size, clf.score(*generate_batch(br_prove, br_probe, 1024))))
 
-        for batch_size in [16, 256, 1024]:
-            for i in range(4):
-                X, y, weights = generate_batch(br_prove, br_probe, batch_size)
-                clf = sklearn.linear_model.LogisticRegression(solver='liblinear')
-                clf.fit(X, y, weights)
-                print('Batch size: %s. Score: %s.' % (batch_size, clf.score(*generate_batch(br_prove, br_probe, 1024))))
 
-    def add_arguments(self, parser):
-        parser.set_defaults(action=self)
-        parser.add_argument('result_prove', type=str, help='result of a prove run of `vampire-batch vampire`')
-        parser.add_argument('result_probe', type=str, help='result of a probe run of `vampire-batch vampire`')
-        parser.add_argument('--seed', type=int, default=0, help='randomness generator seed')
+def add_arguments(parser):
+    parser.set_defaults(action=call)
+    parser.add_argument('result_prove', type=str, help='result of a prove run of `vampire-batch vampire`')
+    parser.add_argument('result_probe', type=str, help='result of a probe run of `vampire-batch vampire`')
+    parser.add_argument('--seed', type=int, default=0, help='randomness generator seed')
