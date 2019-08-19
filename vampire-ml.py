@@ -13,7 +13,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(help='action', required=True)
 
-    action_vampire.add_arguments(subparsers.add_parser('vampire', aliases=['v', 'collect', 'evaluate']))
+    action_vampire.add_arguments(subparsers.add_parser('vampire', aliases=['v']))
     action_stats.add_arguments(subparsers.add_parser('stats', aliases=['s']))
     action_fit.add_arguments(subparsers.add_parser('fit', aliases=['f']))
 
