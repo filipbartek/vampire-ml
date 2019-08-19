@@ -221,12 +221,16 @@ class BatchResult:
         return hash(self._result_path)
 
     @property
+    def result_path(self):
+        return self._result_path
+
+    @property
     def base_directory(self):
         return self.get_base_directory()
 
     @methodtools.lru_cache(maxsize=1)
     def get_base_directory(self):
-        return os.path.dirname(self._result_path)
+        return os.path.dirname(self.result_path)
 
     @property
     def result(self):
@@ -234,7 +238,7 @@ class BatchResult:
 
     @methodtools.lru_cache(maxsize=1)
     def get_result(self):
-        with open(self._result_path) as result_file:
+        with open(self.result_path) as result_file:
             return json.load(result_file)
 
     @property
