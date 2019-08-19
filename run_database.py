@@ -194,6 +194,24 @@ class Run:
         assert row['time_elapsed.process'] is not None
         return row
 
+    @staticmethod
+    def get_data_frame(runs):
+        return pd.DataFrame({
+            'path_rel': (run.path_rel for run in runs),
+            'problem_path': (run.problem_path for run in runs),
+            'problem_dir': (run.problem_dir for run in runs),
+            'exit_code': pd.Categorical(run.exit_code for run in runs),
+            'termination_reason': pd.Categorical(run.termination_reason for run in runs),
+            'termination_phase': pd.Categorical(run.termination_phase for run in runs),
+            'success': pd.Series((run.success for run in runs), dtype=np.bool),
+            'time_elapsed_process': (run.time_elapsed_process for run in runs),
+            'time_elapsed_vampire': (run.time_elapsed_vampire for run in runs),
+            'saturation_iterations': (run.saturation_iterations for run in runs),
+            'predicates_count': (run.predicates_count for run in runs),
+            'functions_count': (run.functions_count for run in runs),
+            'clauses_count': (run.clauses_count for run in runs)
+        })
+
 
 class BatchResult:
     def __init__(self, result_path):
@@ -240,7 +258,11 @@ class BatchResult:
         return self.__option_value('--mode', 'vampire')
 
     @property
-    def run_list(self):
+    def problem_base_path(self):
+        return self.result['problem_base_path']
+
+    @property
+    def runs(self):
         return self.get_run_list()
 
     @methodtools.lru_cache(maxsize=1)
@@ -257,7 +279,7 @@ class BatchResult:
     @methodtools.lru_cache(maxsize=1)
     def get_problem_dict(self):
         problem_dict = {}
-        for run in self.run_list:
+        for run in self.runs:
             problem_path = run.problem_path
             if problem_path not in problem_dict:
                 problem_dict[problem_path] = []
@@ -275,26 +297,36 @@ class BatchResult:
         """
         # We use Python 3.7 dict instead of set because it iterates in a deterministic order.
         # https://stackoverflow.com/a/53657523/4054250
-        return {run.problem_path: None for run in self.run_list if run.success}.keys()
+        return {run.problem_path: None for run in self.runs if run.success}.keys()
 
     @property
-    def data_frame(self):
-        return self.get_data_frame()
+    def runs_data_frame(self):
+        return self.get_runs_data_frame()
 
     @methodtools.lru_cache(maxsize=1)
-    def get_data_frame(self):
-        return pd.DataFrame({
-            'path_rel': (run.path_rel for run in self.run_list),
-            'problem_path': (run.problem_path for run in self.run_list),
-            'problem_dir': (run.problem_dir for run in self.run_list),
-            'exit_code': pd.Categorical(run.exit_code for run in self.run_list),
-            'termination_reason': pd.Categorical(run.termination_reason for run in self.run_list),
-            'termination_phase': pd.Categorical(run.termination_phase for run in self.run_list),
-            'success': pd.Series((run.success for run in self.run_list), dtype=np.bool),
-            'time_elapsed_process': (run.time_elapsed_process for run in self.run_list),
-            'time_elapsed_vampire': (run.time_elapsed_vampire for run in self.run_list),
-            'saturation_iterations': (run.saturation_iterations for run in self.run_list),
-            'predicates_count': (run.predicates_count for run in self.run_list),
-            'functions_count': (run.functions_count for run in self.run_list),
-            'clauses_count': (run.clauses_count for run in self.run_list)
-        })
+    def get_runs_data_frame(self):
+        return Run.get_data_frame(self.runs)
+
+    @property
+    def representative_runs(self):
+        return self.get_representative_runs()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_representative_runs(self):
+        return [problem_runs[0] for problem_runs in self.problem_dict.values()]
+
+    @property
+    def representative_runs_data_frame(self):
+        return self.get_representative_runs_data_frame()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_representative_runs_data_frame(self):
+        assert Run.get_data_frame(self.representative_runs)['problem_path'].is_unique
+        return Run.get_data_frame(self.representative_runs).set_index('problem_path')
+
+    @property
+    def problems(self):
+        run_groups = self.runs_data_frame.groupby('problem_path')
+        result = run_groups.size().to_frame('runs_count')
+        result = result.join(run_groups.agg([np.mean, np.std, np.min, np.max]))
+        return result

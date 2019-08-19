@@ -10,7 +10,7 @@ from lazy_csv_writer import LazyCsvWriter
 def call(namespace):
     br = run_database.BatchResult(namespace.result)
     csv_writer = LazyCsvWriter(namespace.output)
-    for run in br.run_list:
+    for run in br.runs:
         if br.mode == 'vampire':
             csv_writer.writerow(run.csv_row_vampire())
         if br.mode == 'clausify':
