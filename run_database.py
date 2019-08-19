@@ -130,7 +130,6 @@ class Run:
 
     @property
     def success(self):
-        assert (self.termination_reason in ['Refutation', 'Satisfiable']) == (self.exit_code == 0)
         return self.exit_code == 0
 
     # Predicate features: equality?, arity, usageCnt, unitUsageCnt, inGoal?, inUnit?
