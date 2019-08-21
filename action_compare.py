@@ -96,8 +96,7 @@ def call(namespace):
 
     problems.plot.scatter(x=(br_vampire_indexes[0], 'saturation_iterations'),
                           y=(br_vampire_indexes[1], 'saturation_iterations'),
-                          c=colors,
-                          alpha=0.5)
+                          logx=True, logy=True, c=colors, alpha=0.5)
     plt.title('saturation_iterations')
     plt.xlabel(brs[br_vampire_indexes[0]].result_path)
     plt.ylabel(brs[br_vampire_indexes[1]].result_path)
