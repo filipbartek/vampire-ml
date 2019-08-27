@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Source this file in bash to populate the environment with useful variables and activate the venv.
+
 export VAMPIRE_ML=${VAMPIRE_ML:-$PWD}
 export VAMPIRE_ML_VENV=$VAMPIRE_ML/venv
 export VAMPIRE_DIR=$VAMPIRE_ML/vampire
