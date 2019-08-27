@@ -8,5 +8,5 @@ source env.sh
 
 git submodule update --init --recursive
 cd vampire
-if [ -v "${MODULESHOME-}" ]; then module load GCC; fi
+if [ -n "${MODULESHOME-}" ]; then module load GCC; fi
 make vampire_rel
