@@ -7,6 +7,6 @@ set -euo pipefail
 source env.sh
 
 git submodule update --init --recursive
-cd vampire
+cd "$VAMPIRE_DIR"
 if [ -n "${MODULESHOME-}" ]; then module load GCC; fi
 make vampire_rel
