@@ -10,4 +10,5 @@ export VAMPIRE=$VAMPIRE_DIR/vampire_rel
 export TPTP=${TPTP:-$HOME/TPTP-v7.2.0}
 export TPTP_PROBLEMS=$TPTP/Problems
 
+if [ -n "${MODULESHOME-}" ]; then module load Python; fi
 if [ -e "$VAMPIRE_ML_VENV" ]; then source "$VAMPIRE_ML_VENV/bin/activate"; fi
