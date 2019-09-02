@@ -12,3 +12,10 @@ export TPTP_PROBLEMS=$TPTP/Problems
 
 if [ -n "${MODULESHOME-}" ]; then module load Python; fi
 if [ -e "$VAMPIRE_ML_VENV" ]; then source "$VAMPIRE_ML_VENV/bin/activate"; fi
+
+if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then : "${OUTPUT:=slurm-$SLURM_ARRAY_JOB_ID}"; fi
+if [ -n "${SLURM_JOB_ID-}" ]; then : "${OUTPUT:=slurm-$SLURM_JOB_ID}"; fi
+: "${OUTPUT:=out/default}"
+export OUTPUT
+
+export EXITSTATUS_FILENAME=exitstatus.txt
