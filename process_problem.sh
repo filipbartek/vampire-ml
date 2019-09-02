@@ -16,4 +16,4 @@ env | sort > "$OUTPUT_DIR/env.txt"
 source env.sh
 
 # TODO: Expose more Vampire options.
-"$VAMPIRE" --include "$TPTP" --mode clausify --time_limit "${VAMPIRE_TIME_LIMIT:-10}" --json_output "$OUTPUT_DIR/vampire.json" "$TPTP_PROBLEMS/$PROBLEM" > "$OUTPUT_DIR/stdout.txt" 2> "$OUTPUT_DIR/stderr.txt"
+time "$VAMPIRE" --include "$TPTP" --mode clausify --time_limit "${VAMPIRE_TIME_LIMIT:-10}" --json_output "$OUTPUT_DIR/vampire.json" "$TPTP_PROBLEMS/$PROBLEM" > "$OUTPUT_DIR/stdout.txt" 2> "$OUTPUT_DIR/stderr.txt"
