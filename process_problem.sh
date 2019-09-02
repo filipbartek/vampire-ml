@@ -17,3 +17,4 @@ source env.sh
 
 # TODO: Expose more Vampire options.
 time "$VAMPIRE" --include "$TPTP" --mode clausify --time_limit "${VAMPIRE_TIME_LIMIT:-10}" --json_output "$OUTPUT_DIR/vampire.json" "$TPTP_PROBLEMS/$PROBLEM" > "$OUTPUT_DIR/stdout.txt" 2> "$OUTPUT_DIR/stderr.txt"
+echo $? > "$OUTPUT_DIR/errorcode.txt"
