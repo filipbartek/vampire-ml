@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 # Example usage:
-# ./run_clausify.sh < problems.txt
-# srun ./run_clausify.sh < problems.txt
-# sbatch --array=0-3 --input=problems.txt run_clausify.sh
+# ./process_problems.sh < problems.txt
+# srun ./process_problems.sh < problems.txt
+# sbatch --array=0-999 --input=problems.txt --time=3 process_problems.sh
 
-# Recommended time: (nproblems / arraysize) * 10s
+# Recommended sbatch time: (nproblems / $((SLURM_ARRAY_TASK_MAX+1))) * ${VAMPIRE_TIME_LIMIT:-0:10}
 
 # TODO: Calibrate the memory requirement.
 #SBATCH --mem=1G
