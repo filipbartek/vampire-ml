@@ -12,7 +12,8 @@ if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
 
     parser = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(help='action', required=True)
+    # Why does dest need to be specified? See https://bugs.python.org/issue29298
+    subparsers = parser.add_subparsers(help='action', dest='action', required=True)
 
     action_vampire.add_arguments(subparsers.add_parser('vampire', aliases=['v']))
     action_stats.add_arguments(subparsers.add_parser('stats', aliases=['s']))
