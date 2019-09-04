@@ -21,6 +21,8 @@ VAMPIRE_COMMAND=(\
  "$@"\
 )
 
+if [ -n "${BATCH_ID:-}" ]; then VAMPIRE_COMMAND+=(--output_batch "batch/$BATCH_ID"); fi
+
 echo "${VAMPIRE_COMMAND[@]}"
 time "${VAMPIRE_COMMAND[@]}"
 echo $?
