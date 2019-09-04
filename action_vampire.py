@@ -16,7 +16,8 @@ default_vampire_options = {
     '--time_limit': '10',
     '--statistics': 'full',
     '--time_statistics': 'on',
-    '--encode': 'on'
+    '--encode': 'on',
+    '--symbol_precedence': 'scramble'
 }
 
 
