@@ -97,6 +97,8 @@ def call(namespace):
                     stats['probe']['processed'] += 1
                     if result['exit_code'] == 0:
                         stats['probe']['pass'] += 1
+                        if namespace.solve_runs == 0:
+                            t.update(1)
                     else:
                         stats['probe']['fail'] += 1
                         stats['solve']['skip'] += namespace.solve_runs
