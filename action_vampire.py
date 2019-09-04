@@ -13,19 +13,26 @@ from batch import Batch
 from lazy_csv_writer import LazyCsvWriter
 
 default_vampire_options = {
-    '--proof': 'off',
-    '--time_limit': '10',
-    '--statistics': 'full',
-    '--time_statistics': 'on',
-    '--encode': 'on',
-    '--symbol_precedence': 'scramble'
+    'probe': {
+        '--encode': 'on',
+        '--time_limit': '10',
+        '--mode': 'clausify'
+    },
+    'solve': {
+        '--encode': 'on',
+        '--time_limit': '10',
+        '--statistics': 'full',
+        '--time_statistics': 'on',
+        '--proof': 'off',
+        '--symbol_precedence': 'scramble'
+    }
 }
 
 
 def compose_vampire_options(options_common, options_specific, name):
     vampire_options = list(
         itertools.chain(*(s.split() for s in options_common), *(s.split() for s in options_specific)))
-    for option, value in default_vampire_options.items():
+    for option, value in default_vampire_options[name].items():
         if option not in vampire_options:
             logging.info(f'Defaulting {name}: {option} {value}')
             vampire_options.extend([option, value])
