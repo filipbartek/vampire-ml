@@ -2,11 +2,9 @@
 
 set -euo pipefail
 
-PROBLEM=$1
-
 if command -v srun > /dev/null
 then
-  srun --ntasks=1 ./process_problem.sh "$PROBLEM"
+  srun --ntasks=1 ./process_problem.sh "$@"
 else
-  ./process_problem.sh "$PROBLEM"
+  ./process_problem.sh "$@"
 fi

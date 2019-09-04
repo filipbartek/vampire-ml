@@ -2,18 +2,25 @@
 
 set -euo pipefail
 
-PROBLEM=$1
-
 source env.sh
 
-OUTPUT_DIR=$OUTPUT/$PROBLEM
-
-mkdir -p "$OUTPUT_DIR"
-
-env | sort > "$OUTPUT_DIR/env.txt"
+: "${JOBS:=${SLURM_CPUS_PER_TASK:-1}}"
 
 # TODO: Expose more Vampire options.
-VAMPIRE_COMMAND=("$VAMPIRE" --include "$TPTP" --mode clausify --time_limit "${VAMPIRE_TIME_LIMIT:-10}" --json_output "$OUTPUT_DIR/vampire.json" "$TPTP_PROBLEMS/$PROBLEM")
-echo "${VAMPIRE_COMMAND[@]}" > "$OUTPUT_DIR/process.sh"
-time "${VAMPIRE_COMMAND[@]}" > "$OUTPUT_DIR/stdout.txt" 2> "$OUTPUT_DIR/stderr.txt"
-echo $? > "$OUTPUT_DIR/$EXITSTATUS_FILENAME"
+VAMPIRE_COMMAND=(\
+./vampire-ml.py vampire\
+ --output "$OUTPUT"\
+ --problem_base_path "$TPTP_PROBLEMS"\
+ --vampire "$VAMPIRE"\
+ --probe\
+ --solve_runs "${SOLVE_RUNS_PER_PROBLEM:-1}"\
+ --jobs "$JOBS"\
+ --vampire_options "--include $TPTP"\
+ --vampire_options_probe "--mode clausify --time_limit ${VAMPIRE_TIME_LIMIT_PROBE:-1}"\
+ --vampire_options_solve "--time_limit ${VAMPIRE_TIME_LIMIT_SOLVE:-10}"\
+ "$@"\
+)
+
+echo "${VAMPIRE_COMMAND[@]}"
+time "${VAMPIRE_COMMAND[@]}"
+echo $?

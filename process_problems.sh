@@ -5,7 +5,14 @@
 # srun ./process_problems.sh < problems.txt
 # sbatch --array=0-999 --input=problems.txt --time=3 process_problems.sh
 
-# Recommended sbatch time: (nproblems / $((SLURM_ARRAY_TASK_MAX+1))) * ${VAMPIRE_TIME_LIMIT:-0:10}
+# Maximum expected time per array job: ceil(nproblems / $((SLURM_ARRAY_TASK_MAX+1)))) * ${VAMPIRE_TIME_LIMIT_PROBE:-1} + ${VAMPIRE_TIME_LIMIT_SOLVE:-10} * ${SOLVE_RUNS_PER_PROBLEM:-1}
+# With array of 1000 jobs and 16094 problems, we have at most 17 problems per job.
+# With 16 solve runs per problem, each problem takes at most 161s.
+# Each job takes at most 2737s = 45m 37s = 45:37
+# We can parallelize each job to up to 17 * 16 = 272 threads. We should parallelize to at least 16 threads.
+
+##SBATCH --time=50:00
+##SBATCH --cpus-per-task=16
 
 # TODO: Calibrate the memory requirement.
 #SBATCH --mem=1G
@@ -23,7 +30,7 @@ if [ -n "${SLURM_ARRAY_TASK_MAX-}" ]; then : "${PROBLEM_MODULUS:=$((SLURM_ARRAY_
 : "${PROBLEM_MODULUS:=-1}"
 
 : "${MAX_PROCS:=${SLURM_NTASKS:-1}}"
-XARGS_COMMAND=(xargs --verbose "--max-args=1" "--max-procs=$MAX_PROCS" -I '{}' ./process_problem_srun.sh {})
+XARGS_COMMAND=(xargs --verbose "--max-procs=$MAX_PROCS" ./process_problem_srun.sh)
 
 
 if [ -n "${PROBLEM_ID:-}" ]
