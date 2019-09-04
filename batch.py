@@ -9,22 +9,36 @@ import time
 
 
 class Batch:
-    def __init__(self, vampire, vampire_options, output_path, jobs=1):
+    def __init__(self, vampire, vampire_options_probe, vampire_options_solve, output_path, solve_runs_per_problem,
+                 jobs=1):
         self._vampire = vampire
-        self._vampire_options = vampire_options
+        self._vampire_options_probe = vampire_options_probe
+        self._vampire_options_solve = vampire_options_solve
         assert output_path is not None
         self._output_path = output_path
+        self._solve_runs_per_problem = solve_runs_per_problem
+        assert jobs >= 1
+        self._jobs = jobs
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
         self._futures = set()
 
-    def generate_results(self, problem_paths, runs_per_problem, problem_base_path=None):
+    def generate_results(self, problem_paths, probe, problem_base_path=None):
+        assert len(self._futures) == 0
+        if problem_base_path is None:
+            problem_base_path = os.path.commonpath(problem_paths)
         try:
-            self.__solve_all_async(problem_paths, runs_per_problem, problem_base_path)
-            for future in concurrent.futures.as_completed(self._futures):
-                assert future.done()
-                if future.cancelled():
-                    continue
-                yield future.result()
+            for problem_path in problem_paths:
+                assert self._jobs >= 1
+                for result in self.reduce_futures(self._jobs - 1):
+                    yield result
+                problem_output_path = self._output_path
+                # TODO: Can this condition be omitted?
+                if problem_path != problem_base_path:
+                    problem_output_path = os.path.join(self._output_path,
+                                                       os.path.relpath(problem_path, problem_base_path))
+                self.__solve_one_problem_async(problem_output_path, problem_path, probe)
+            for result in self.reduce_futures():
+                yield result
         except KeyboardInterrupt:
             for future in self._futures:
                 future.cancel()
@@ -32,38 +46,49 @@ class Batch:
         finally:
             self._futures.clear()
 
-    def __solve_all_async(self, problem_paths, runs_per_problem, problem_base_path):
-        assert len(self._futures) == 0
-        if len(problem_paths) == 0:
+    def reduce_futures(self, n=0):
+        while len(self._futures) > n:
+            done, _ = concurrent.futures.wait(list(self._futures), return_when=concurrent.futures.FIRST_COMPLETED)
+            for future in done:
+                self._futures.remove(future)
+                assert future.done()
+                if future.cancelled():
+                    continue
+                yield future.result()
+
+    def __solve_one_problem_async(self, output_path, problem_path, probe):
+        assert self._solve_runs_per_problem >= 0
+        if probe:
+            self.__solve_one_run_async(os.path.join(output_path, 'probe'), output_path, problem_path, probe)
             return
-        if problem_base_path is None:
-            problem_base_path = os.path.commonpath(problem_paths)
-        for problem_path in problem_paths:
-            problem_output_path = self._output_path
-            if problem_path != problem_base_path:
-                problem_output_path = os.path.join(self._output_path, os.path.relpath(problem_path, problem_base_path))
-            problem_vampire_options = self._vampire_options + [problem_path]
-            self.__solve_one_problem_async(problem_output_path, problem_vampire_options, runs_per_problem, problem_path)
-
-    def __solve_one_problem_async(self, output_path, vampire_options, runs_per_problem, problem_path):
-        assert runs_per_problem >= 0
-        if runs_per_problem == 0:
+        if self._solve_runs_per_problem == 0:
             return
-        run_directory_name_width = len(str(runs_per_problem - 1))
-        for problem_run_index in range(runs_per_problem):
-            run_output_path = output_path
-            run_vampire_options = vampire_options
-            if runs_per_problem > 1:
-                run_output_path = os.path.join(output_path, str(problem_run_index).zfill(run_directory_name_width))
-                if '--random_seed' in run_vampire_options:
-                    logging.warning('Overriding --random_seed.')
-                run_vampire_options = run_vampire_options + ['--random_seed', str(problem_run_index + 1)]
-            self.__solve_one_run_async(run_output_path, run_vampire_options, problem_path)
+        run_directory_name_width = len(str(self._solve_runs_per_problem - 1))
+        for problem_run_index in range(self._solve_runs_per_problem):
+            run_output_path = os.path.join(output_path, str(problem_run_index).zfill(run_directory_name_width))
+            self.__solve_one_run_async(run_output_path, output_path, problem_path, probe, problem_run_index)
 
-    def __solve_one_run_async(self, output_path, vampire_options, problem_path):
-        self._futures.add(self._executor.submit(self.__solve_one_run_sync, output_path, vampire_options, problem_path))
+    def __solve_one_run_async(self, output_path, problem_output_path, problem_path, probe, problem_run_index=None):
+        vampire_options = self.compose_vampire_options(problem_path, probe, problem_run_index)
+        future = self._executor.submit(self.__solve_one_run_sync, output_path, problem_output_path, vampire_options,
+                                       problem_path, probe)
+        future.probe = probe
+        if probe:
+            future.add_done_callback(self.probe_done_callback)
+        self._futures.add(future)
 
-    def __solve_one_run_sync(self, output_path, vampire_options, problem_path):
+    def compose_vampire_options(self, problem_path, probe, random_seed_zero_based=None):
+        vampire_options = self._vampire_options_solve
+        if probe:
+            vampire_options = self._vampire_options_probe
+        vampire_options = vampire_options + [problem_path]
+        if random_seed_zero_based is not None:
+            if '--random_seed' in vampire_options:
+                logging.warning('Overriding --random_seed.')
+            vampire_options = vampire_options + ['--random_seed', str(random_seed_zero_based + 1)]
+        return vampire_options
+
+    def __solve_one_run_sync(self, output_path, problem_output_path, vampire_options, problem_path, probe):
         json_output_path = os.path.join(output_path, 'vampire.json')
         if '--json_output' in vampire_options:
             logging.warning('Overriding --json_output.')
@@ -80,27 +105,41 @@ class Batch:
             'command': complete_command,
             'exit_code': cp.returncode,
             'time_elapsed': time_elapsed,
-            'problem_path': problem_path,
             'vampire': self._vampire,
+            'probe': probe,
+            'solve_runs': self._solve_runs_per_problem,
             'paths': {
-                'output_directory': output_path,
+                'problem': problem_path,
+                'problem_output': problem_output_path,
+                'output': output_path,
                 'stdout': 'stdout.txt',
                 'stderr': 'stderr.txt',
                 'vampire_json': 'vampire.json'
             },
             'options': vampire_options
         }
-        # TODO: Consider delegating the writing to the caller.
-        with open(os.path.join(output_path, 'stdout.txt'), 'w') as stdout:
-            stdout.write(cp.stdout)
-        with open(os.path.join(output_path, 'stderr.txt'), 'w') as stderr:
-            stderr.write(cp.stderr)
-        with open(os.path.join(output_path, 'run.json'), 'w') as run_json:
-            json.dump(result_thin, run_json, indent=4)
         result_complete = result_thin.copy()
         result_complete.update({
             'stdout': cp.stdout,
             'stderr': cp.stderr
         })
         result_complete['paths']['run_json'] = 'run.json'
+        # TODO: Consider delegating the writing to the caller.
+        with open(os.path.join(output_path, result_thin['paths']['stdout']), 'w') as stdout:
+            stdout.write(cp.stdout)
+        with open(os.path.join(output_path, result_thin['paths']['stderr']), 'w') as stderr:
+            stderr.write(cp.stderr)
+        with open(os.path.join(output_path, result_complete['paths']['run_json']), 'w') as run_json:
+            json.dump(result_thin, run_json, indent=4)
         return result_complete
+
+    def probe_done_callback(self, future):
+        assert future.probe
+        assert future.done()
+        if future.cancelled():
+            return
+        result = future.result()
+        assert result['probe']
+        if result['exit_code'] == 0:
+            # Schedule the solve runs.
+            self.__solve_one_problem_async(result['paths']['problem_output'], result['paths']['problem'], False)
