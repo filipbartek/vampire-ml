@@ -98,6 +98,8 @@ def call(namespace):
                 csv_writer.writerow({
                     'output_path': os.path.relpath(result['paths']['output'], namespace.output),
                     'problem_path': os.path.relpath(result['paths']['problem'], problem_base_path),
+                    'probe': result['probe'],
+                    'timeout': result['timeout'],
                     'exit_code': result['exit_code'],
                     'time_elapsed': result['time_elapsed']
                 })
