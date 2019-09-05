@@ -7,16 +7,20 @@ import os
 import subprocess
 import time
 
+import utils
+
 
 class Batch:
     def __init__(self, vampire, vampire_options_probe, vampire_options_solve, output_path, solve_runs_per_problem,
-                 jobs=1):
+                 timeout_probe=None, timeout_solve=None, jobs=1):
         self._vampire = vampire
         self._vampire_options_probe = vampire_options_probe
         self._vampire_options_solve = vampire_options_solve
         assert output_path is not None
         self._output_path = output_path
         self._solve_runs_per_problem = solve_runs_per_problem
+        self._timeout_probe = timeout_probe
+        self._timeout_solve = timeout_solve
         assert jobs >= 1
         self._jobs = jobs
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
@@ -95,15 +99,38 @@ class Batch:
         vampire_options = vampire_options + ['--json_output', json_output_path]
         vampire_args = [self._vampire] + vampire_options
         complete_command = ' '.join(vampire_args)
+        if probe:
+            timeout_seconds = self._timeout_probe
+        else:
+            timeout_seconds = self._timeout_solve
+        if timeout_seconds is None:
+            vampire_time_limit = utils.option_value(vampire_options, '--time_limit')
+            if vampire_time_limit is not None:
+                # TODO: Support all the time formats supported by Vampire.
+                vampire_time_limit_seconds = int(vampire_time_limit)
+                timeout_seconds = vampire_time_limit_seconds + 1
+        exit_status = None
         # If JSON output directory does not exist, Vampire fails.
         os.makedirs(output_path, exist_ok=True)
         time_start = time.time()
-        cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        time_elapsed = time.time() - time_start
+        try:
+            cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds,
+                                text=True)
+            time_elapsed = time.time() - time_start
+            result_timeout = False
+            exit_status = cp.returncode
+            stdout_str = cp.stdout
+            stderr_str = cp.stderr
+        except subprocess.TimeoutExpired as e:
+            time_elapsed = time.time() - time_start
+            result_timeout = True
+            stdout_str = e.stdout
+            stderr_str = e.stderr
         result_thin = {
             'cwd': os.getcwd(),
             'command': complete_command,
-            'exit_code': cp.returncode,
+            'timeout': result_timeout,
+            'exit_code': exit_status,
             'time_elapsed': time_elapsed,
             'vampire': self._vampire,
             'probe': probe,
@@ -120,15 +147,15 @@ class Batch:
         }
         result_complete = result_thin.copy()
         result_complete.update({
-            'stdout': cp.stdout,
-            'stderr': cp.stderr
+            'stdout': stdout_str,
+            'stderr': stderr_str
         })
         result_complete['paths']['run_json'] = 'run.json'
         # TODO: Consider delegating the writing to the caller.
-        with open(os.path.join(output_path, result_thin['paths']['stdout']), 'w') as stdout:
-            stdout.write(cp.stdout)
-        with open(os.path.join(output_path, result_thin['paths']['stderr']), 'w') as stderr:
-            stderr.write(cp.stderr)
+        with open(os.path.join(output_path, result_thin['paths']['stdout']), 'w') as stdout_file:
+            stdout_file.write(stdout_str)
+        with open(os.path.join(output_path, result_thin['paths']['stderr']), 'w') as stderr_file:
+            stderr_file.write(stderr_str)
         with open(os.path.join(output_path, result_complete['paths']['run_json']), 'w') as run_json:
             json.dump(result_thin, run_json, indent=4)
         return result_complete

@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 import extractor
+import utils
 
 
 class Run:
@@ -246,15 +247,7 @@ class BatchResult:
 
     @methodtools.lru_cache(maxsize=1)
     def __option_value(self, option_name, default=None):
-        try:
-            option_index = list(reversed(self.vampire_options)).index(option_name)
-        except ValueError:
-            return default
-        if option_index == 0:
-            # The option name was the last argument.
-            return default
-        assert option_index >= 1
-        return self.vampire_options[-option_index]
+        return utils.option_value(self.vampire_options, option_name, default)
 
     @property
     def mode(self):

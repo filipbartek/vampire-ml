@@ -86,7 +86,7 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
     batch = Batch(namespace.vampire, vampire_options_probe, vampire_options_solve, output_runs, namespace.solve_runs,
-                  namespace.jobs)
+                  namespace.timeout_probe, namespace.timeout_solve, namespace.jobs)
     problems_successful = set()
     with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
         csv_writer = LazyCsvWriter(csv_file)
@@ -96,18 +96,21 @@ def call(namespace):
                 'probe': {
                     'pass': 0,
                     'fail': 0,
+                    'timeout': 0,
                     'processed': 0,
                     'expected': len(problem_paths)
                 },
                 'solve': {
                     'pass': 0,
                     'fail': 0,
+                    'timeout': 0,
                     'skip': 0,
                     'processed': 0,
                     'expected': len(problem_paths) * namespace.solve_runs,
                 }
             }
-            t.set_postfix(stats)
+            stats = collections.Counter()
+            t.set_postfix_str(stats)
             for result in batch.generate_results(problem_paths, namespace.probe, problem_base_path):
                 csv_writer.writerow({
                     'output_path': os.path.relpath(result['paths']['output'], namespace.output),
@@ -119,26 +122,23 @@ def call(namespace):
                     problems_successful_file.write(result['paths']['problem'] + '\n')
                     problems_successful.add(result['paths']['problem'])
                 if result['probe']:
-                    stats['probe']['processed'] += 1
-                    if result['exit_code'] == 0:
-                        stats['probe']['pass'] += 1
-                        if namespace.solve_runs == 0:
-                            t.update(1)
-                    else:
-                        stats['probe']['fail'] += 1
-                        stats['solve']['skip'] += namespace.solve_runs
-                        stats['solve']['processed'] += namespace.solve_runs
-                        t.update(1)
+                    mode = 'probe'
                 else:
+                    mode = 'solve'
+                if result['timeout']:
+                    termination = 'timeout'
+                    assert result['exit_code'] is None
+                else:
+                    assert result['exit_code'] is not None
+                    termination = result['exit_code']
+                stats[(mode, termination)] += 1
+                t.set_postfix_str(stats)
+                if result['probe'] and (result['timeout'] or result['exit_code'] != 0):
+                    t.update(1)
+                if not result['probe']:
                     solve_runs[result['paths']['problem']] += 1
-                    stats['solve']['processed'] += 1
                     if solve_runs[result['paths']['problem']] == namespace.solve_runs:
                         t.update(1)
-                    if result['exit_code'] == 0:
-                        stats['solve']['pass'] += 1
-                    else:
-                        stats['solve']['fail'] += 1
-                t.set_postfix(stats)
 
 
 def add_arguments(parser):
@@ -156,6 +156,8 @@ def add_arguments(parser):
     parser.add_argument('--probe', action='store_true', help='probe each problem with a clausify run')
     parser.add_argument('--solve_runs', type=int, default=1,
                         help='Number of solving Vampire executions per problem. Useful namely with `--vampire_options_solve \"--symbol_precedence scramble\"`.')
+    parser.add_argument('--timeout_probe', type=float, help='kill Vampire after this many seconds in probe runs')
+    parser.add_argument('--timeout_solve', type=float, help='kill Vampire after this many seconds in solve runs')
     parser.add_argument('--jobs', '-j', type=int, default=1, help='number of jobs to run in parallel')
 
     vampire_options = parser.add_argument_group('Vampire options',
