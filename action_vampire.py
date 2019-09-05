@@ -116,7 +116,7 @@ def call(namespace):
                     termination = result['exit_code']
                 stats[(mode, termination)] += 1
                 t.set_postfix_str(stats)
-                if result['probe'] and (result['timeout'] or result['exit_code'] != 0):
+                if result['probe'] and (namespace.solve_runs == 0 or result['timeout'] or result['exit_code'] != 0):
                     t.update(1)
                 if not result['probe']:
                     solve_runs[result['paths']['problem']] += 1
