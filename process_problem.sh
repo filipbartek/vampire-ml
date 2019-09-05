@@ -8,7 +8,8 @@ source env.sh
 
 # TODO: Expose more Vampire options.
 VAMPIRE_COMMAND=(
-  ./vampire-ml.py vampire
+  python -O
+  vampire-ml.py vampire
   --output "$OUTPUT"
   --problem_base_path "$TPTP_PROBLEMS"
   --vampire "$VAMPIRE"
