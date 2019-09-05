@@ -92,23 +92,6 @@ def call(namespace):
         csv_writer = LazyCsvWriter(csv_file)
         with tqdm(desc='Running Vampire', total=len(problem_paths), unit='problems') as t:
             solve_runs = collections.Counter()
-            stats = {
-                'probe': {
-                    'pass': 0,
-                    'fail': 0,
-                    'timeout': 0,
-                    'processed': 0,
-                    'expected': len(problem_paths)
-                },
-                'solve': {
-                    'pass': 0,
-                    'fail': 0,
-                    'timeout': 0,
-                    'skip': 0,
-                    'processed': 0,
-                    'expected': len(problem_paths) * namespace.solve_runs,
-                }
-            }
             stats = collections.Counter()
             t.set_postfix_str(stats)
             for result in batch.generate_results(problem_paths, namespace.probe, problem_base_path):
