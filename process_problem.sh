@@ -16,7 +16,7 @@ VAMPIRE_COMMAND=(\
  --solve_runs "${SOLVE_RUNS_PER_PROBLEM:-1}"\
  --jobs "$JOBS"\
  --vampire_options "--include $TPTP"\
- --vampire_options_probe "--time_limit ${VAMPIRE_TIME_LIMIT_PROBE:-1}"\
+ --vampire_options_probe "--time_limit ${VAMPIRE_TIME_LIMIT_PROBE:-10}"\
  --vampire_options_solve "--time_limit ${VAMPIRE_TIME_LIMIT_SOLVE:-10}"\
  "$@"\
 )
