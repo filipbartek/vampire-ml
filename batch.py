@@ -126,6 +126,12 @@ class Batch:
             result_timeout = True
             stdout_str = e.stdout
             stderr_str = e.stderr
+        # The JSON files may take a lot of space.
+        if result_timeout or exit_status != 0:
+            try:
+                os.remove(json_output_path)
+            except FileNotFoundError:
+                pass
         result_thin = {
             'cwd': os.getcwd(),
             'command': complete_command,
