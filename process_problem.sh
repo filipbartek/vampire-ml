@@ -6,11 +6,14 @@ source env.sh
 
 : "${JOBS:=${SLURM_CPUS_PER_TASK:-1}}"
 
+OUTPUT_TMP=$OUTPUT
+if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_TMP=/lscratch/$USER/$OUTPUT; fi
+
 # TODO: Expose more Vampire options.
 VAMPIRE_COMMAND=(
   python -O
   vampire-ml.py vampire
-  --output "$OUTPUT"
+  --output "$OUTPUT_TMP"
   --problem_base_path "$TPTP_PROBLEMS"
   --vampire "$VAMPIRE"
   --probe
@@ -27,3 +30,8 @@ if [ -n "${BATCH_ID:-}" ]; then VAMPIRE_COMMAND+=(--output_batch "batch/$BATCH_I
 echo "${VAMPIRE_COMMAND[@]}"
 time "${VAMPIRE_COMMAND[@]}"
 echo $?
+
+if [ -n "${SLURM_JOB_ID-}" ]; then
+  cp -rv "$OUTPUT_TMP" "$OUTPUT"
+  rm -rf "$OUTPUT_TMP"
+fi
