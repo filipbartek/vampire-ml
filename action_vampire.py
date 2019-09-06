@@ -72,15 +72,16 @@ def call(namespace):
     os.makedirs(output_batch, exist_ok=True)
     with open(os.path.join(output_batch, 'configuration.json'), 'w') as output_json_file:
         json.dump({
-            'vampire': namespace.vampire,
-            'vampire_options_probe': vampire_options_probe,
-            'vampire_options_solve': vampire_options_solve,
-            'runs_per_problem': namespace.solve_runs,
-            'jobs': namespace.jobs,
+            'run_output_base_path': os.path.relpath(output_runs, output_batch),
             'runs_csv': os.path.relpath(csv_file_path, output_batch),
             'problem_base_path': problem_base_path,
             'problems': os.path.relpath(problems_path, output_batch),
-            'problems_successful': os.path.relpath(problems_successful_path, output_batch)
+            'problems_successful': os.path.relpath(problems_successful_path, output_batch),
+            'solve_runs_per_problem': namespace.solve_runs,
+            'jobs': namespace.jobs,
+            'vampire': namespace.vampire,
+            'vampire_options_probe': vampire_options_probe,
+            'vampire_options_solve': vampire_options_solve
         }, output_json_file, indent=4)
     with open(problems_path, 'w') as problems_file:
         problems_file.write('\n'.join(problem_paths))
