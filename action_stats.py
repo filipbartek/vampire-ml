@@ -1,24 +1,27 @@
 #!/usr/bin/env python3.7
 
-import argparse
+import glob
+import itertools
 import sys
 
 import run_database
-from lazy_csv_writer import LazyCsvWriter
 
 
 def call(namespace):
-    br = run_database.BatchResult(namespace.result)
-    csv_writer = LazyCsvWriter(namespace.output)
-    for run in br.runs:
-        if br.mode == 'vampire':
-            csv_writer.writerow(run.csv_row_vampire())
-        if br.mode == 'clausify':
-            csv_writer.writerow(run.csv_row_clausify())
+    result_paths = list(itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in namespace.result)))
+    mbr = run_database.MultiBatchResult(result_paths)
+    df = mbr.runs_data_frame
+    if namespace.output_pickle is not None:
+        df.to_pickle(namespace.output_pickle)
+    if namespace.output_csv is not None:
+        if namespace.output_csv == '-':
+            df.to_csv(sys.stdout)
+        else:
+            df.to_csv(namespace.output_csv)
 
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
-    parser.add_argument('result', type=str, help='result of a prove or probe run')
-    parser.add_argument('--output', '-o', type=argparse.FileType('w'), default=sys.stdout,
-                        help='output CSV runs document')
+    parser.add_argument('result', type=str, nargs='+', help='glob pattern of result of a prove or probe run')
+    parser.add_argument('--output-csv', help='output CSV runs document')
+    parser.add_argument('--output-pickle')

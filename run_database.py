@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import csv
+import itertools
 import json
 import os
 
@@ -13,13 +14,18 @@ import utils
 
 
 class Run:
-    def __init__(self, csv_row, base_path):
+    def __init__(self, csv_row, base_path, batch_id):
         self._csv_row = csv_row
         self._base_path = base_path
+        self._batch_id = batch_id
 
     def __hash__(self):
         # https://stackoverflow.com/a/16162138/4054250
         return hash((frozenset(self._csv_row), frozenset(self._csv_row.values()), self._base_path))
+
+    @property
+    def batch_id(self):
+        return self._batch_id
 
     @property
     def path_rel(self):
@@ -40,6 +46,16 @@ class Run:
     @property
     def problem_dir(self):
         return os.path.dirname(self.problem_path)
+
+    @property
+    def probe(self):
+        assert self._csv_row['probe'] in ['False', 'True']
+        return self._csv_row['probe'] == 'True'
+
+    @property
+    def timeout(self):
+        assert self._csv_row['timeout'] in ['False', 'True']
+        return self._csv_row['timeout'] == 'True'
 
     @property
     def stdout(self):
@@ -197,9 +213,12 @@ class Run:
     @staticmethod
     def get_data_frame(runs):
         return pd.DataFrame({
+            'batch': (run.batch_id for run in runs),
             'path_rel': (run.path_rel for run in runs),
             'problem_path': (run.problem_path for run in runs),
             'problem_dir': (run.problem_dir for run in runs),
+            'probe': pd.Series((run.probe for run in runs), dtype=np.bool),
+            'timeout': pd.Series((run.timeout for run in runs), dtype=np.bool),
             'exit_code': pd.Categorical(run.exit_code for run in runs),
             'termination_reason': pd.Categorical(run.termination_reason for run in runs),
             'termination_phase': pd.Categorical(run.termination_phase for run in runs),
@@ -214,8 +233,9 @@ class Run:
 
 
 class BatchResult:
-    def __init__(self, result_path):
+    def __init__(self, result_path, base_path):
         self._result_path = result_path
+        self._base_path = base_path
 
     def __hash__(self):
         return hash(self._result_path)
@@ -225,12 +245,24 @@ class BatchResult:
         return self._result_path
 
     @property
-    def base_directory(self):
-        return self.get_base_directory()
+    def id(self):
+        return os.path.relpath(self._result_path, self._base_path)
+
+    @property
+    def batch_output_directory(self):
+        return self.get_batch_output_directory()
 
     @methodtools.lru_cache(maxsize=1)
-    def get_base_directory(self):
+    def get_batch_output_directory(self):
         return os.path.dirname(self.result_path)
+
+    @property
+    def run_output_directory(self):
+        return self.get_run_output_directory()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_run_output_directory(self):
+        return os.path.join(self.batch_output_directory, self.result['run_output_base_path'])
 
     @property
     def result(self):
@@ -264,9 +296,9 @@ class BatchResult:
     @methodtools.lru_cache(maxsize=1)
     def get_run_list(self):
         runs_csv_path = self.result['runs_csv']
-        with open(os.path.join(self.base_directory, runs_csv_path)) as runs_csv:
+        with open(os.path.join(self.batch_output_directory, runs_csv_path)) as runs_csv:
             csv_reader = csv.DictReader(runs_csv)
-            return [Run(row, self.base_directory) for row in csv_reader]
+            return [Run(row, self.run_output_directory, self.id) for row in csv_reader]
 
     @property
     def problem_dict(self):
@@ -301,6 +333,83 @@ class BatchResult:
 
     @methodtools.lru_cache(maxsize=1)
     def get_runs_data_frame(self):
+        return Run.get_data_frame(self.runs)
+
+    @property
+    def representative_runs(self):
+        return self.get_representative_runs()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_representative_runs(self):
+        return [problem_runs[0] for problem_runs in self.problem_dict.values()]
+
+    @property
+    def representative_runs_data_frame(self):
+        return self.get_representative_runs_data_frame()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_representative_runs_data_frame(self):
+        assert Run.get_data_frame(self.representative_runs)['problem_path'].is_unique
+        return Run.get_data_frame(self.representative_runs).set_index('problem_path')
+
+    @property
+    def problems(self):
+        run_groups = self.runs_data_frame.groupby('problem_path')
+        result = run_groups.size().to_frame('runs_count')
+        result = result.join(run_groups.agg([np.mean, np.std, np.min, np.max]))
+        return result
+
+
+class MultiBatchResult:
+    def __init__(self, result_paths):
+        result_paths = list(result_paths)
+        assert len(result_paths) >= 1
+        base_path = os.path.commonpath(result_paths)
+        self._batch_results = [BatchResult(result_path, base_path) for result_path in result_paths]
+
+    @property
+    def runs(self):
+        return self.get_run_list()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_run_list(self):
+        return list(itertools.chain(*(br.runs for br in self._batch_results)))
+
+    @property
+    def problem_dict(self):
+        return self.get_problem_dict()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_problem_dict(self):
+        # TODO: Ensure all the runs have the same problem base path.
+        problem_dict = {}
+        for run in self.runs:
+            problem_path = run.problem_path
+            if problem_path not in problem_dict:
+                problem_dict[problem_path] = []
+            problem_dict[problem_path].append(run)
+        return problem_dict
+
+    @property
+    def problems_with_some_success(self):
+        return self.get_problems_with_some_success()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_problems_with_some_success(self):
+        """
+        :return: paths of problems that have at least one successful run
+        """
+        # We use Python 3.7 dict instead of set because it iterates in a deterministic order.
+        # https://stackoverflow.com/a/53657523/4054250
+        return {run.problem_path: None for run in self.runs if run.success}.keys()
+
+    @property
+    def runs_data_frame(self):
+        return self.get_runs_data_frame()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_runs_data_frame(self):
+        # TODO: Add batch id column.
         return Run.get_data_frame(self.runs)
 
     @property
