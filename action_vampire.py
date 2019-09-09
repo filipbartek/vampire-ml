@@ -64,6 +64,9 @@ def call(namespace):
     except RuntimeError:
         logging.error('At least one of the options --output and --output_runs must be specified.')
         return
+    output_runs_relative = os.path.abspath(output_runs)
+    if not os.path.isabs(namespace.output_batch) and not os.path.isabs(namespace.output_runs):
+        output_runs_relative = os.path.relpath(output_runs, output_batch)
 
     csv_file_path = os.path.join(output_batch, 'runs.csv')
     problems_path = os.path.join(output_batch, 'problems.txt')
@@ -72,7 +75,7 @@ def call(namespace):
     os.makedirs(output_batch, exist_ok=True)
     with open(os.path.join(output_batch, 'batch.json'), 'w') as output_json_file:
         json.dump({
-            'run_output_base_path': os.path.relpath(output_runs, output_batch),
+            'run_output_base_path': output_runs_relative,
             'runs_csv': os.path.relpath(csv_file_path, output_batch),
             'problem_base_path': problem_base_path,
             'problems': os.path.relpath(problems_path, output_batch),
