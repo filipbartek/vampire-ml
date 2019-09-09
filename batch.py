@@ -28,6 +28,8 @@ class Batch:
 
     def generate_results(self, problem_paths, probe, problem_base_path=None):
         assert len(self._futures) == 0
+        if len(problem_paths) == 0:
+            logging.warning('No problems given.')
         if problem_base_path is None:
             problem_base_path = os.path.commonpath(problem_paths)
         try:
