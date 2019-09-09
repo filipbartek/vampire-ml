@@ -33,6 +33,6 @@ echo $?
 
 if [ -n "${SLURM_JOB_ID-}" ]; then
   mkdir -p "$OUTPUT"
-  cp -rvt "$OUTPUT" "$OUTPUT_TMP/*"
+  cp -rvt "$OUTPUT" "$OUTPUT_TMP"/*
   rm -rf "$OUTPUT_TMP"
 fi
