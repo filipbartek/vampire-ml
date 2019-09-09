@@ -104,7 +104,7 @@ class Run:
     def __extract(self, extract):
         try:
             return extract(self.stdout)
-        except RuntimeError:
+        except (RuntimeError, FileNotFoundError):
             return None
 
     @property
