@@ -3,6 +3,7 @@
 import csv
 import itertools
 import json
+import logging
 import os
 
 import methodtools
@@ -215,6 +216,7 @@ class Run:
 
     @staticmethod
     def get_data_frame(runs):
+        logging.info(f'Collecting data from {len(runs)} runs.')
         return pd.DataFrame({
             'batch': (run.batch_id for run in runs),
             'path_rel': (run.path_rel for run in runs),
