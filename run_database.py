@@ -105,8 +105,11 @@ class Run:
     def __extract(self, extract):
         try:
             return extract(self.stdout)
-        except (RuntimeError, FileNotFoundError):
-            return None
+        except RuntimeError:
+            pass
+        except FileNotFoundError:
+            logging.warning(f'{self.path_rel}: Stdout file not found. Cannot extract a value.')
+        return None
 
     @property
     def predicates(self):
