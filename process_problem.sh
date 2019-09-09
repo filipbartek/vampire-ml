@@ -26,7 +26,7 @@ VAMPIRE_COMMAND=(
   "$@"
 )
 
-if [ -n "${BATCH_ID:-}" ]; then VAMPIRE_COMMAND+=(--output_batch "batch/$BATCH_ID"); fi
+if [ -n "${BATCH_ID:-}" ]; then VAMPIRE_COMMAND+=(--output_batch "batches/$BATCH_ID" --output_runs problems); fi
 
 echo "${VAMPIRE_COMMAND[@]}"
 time "${VAMPIRE_COMMAND[@]}"
@@ -34,6 +34,8 @@ echo $?
 
 if [ -n "${SLURM_JOB_ID-}" ]; then
   mkdir -p "$OUTPUT"
-  cp -rvt "$OUTPUT" "$OUTPUT_TMP"/*
+  # Copy "batches" first so that we have the aggregated output even if copying of runs times out.
+  cp -rvt "$OUTPUT" "$OUTPUT_TMP/batches"
+  cp -rvt "$OUTPUT" "$OUTPUT_TMP/problems"
   rm -rf "$OUTPUT_TMP"
 fi
