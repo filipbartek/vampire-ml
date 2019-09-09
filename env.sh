@@ -7,7 +7,8 @@ export VAMPIRE_ML_VENV=$VAMPIRE_ML/venv
 export VAMPIRE_DIR=$VAMPIRE_ML/vampire
 export VAMPIRE=$VAMPIRE_DIR/vampire_rel
 
-export TPTP=${TPTP:-$HOME/TPTP-v7.2.0}
+export TPTP_VERSION=${TPTP_VERSION:-TPTP-v7.3.0}
+export TPTP=${TPTP:-$HOME/$TPTP_VERSION}
 export TPTP_PROBLEMS=$TPTP/Problems
 
 if [ -n "${MODULESHOME-}" ]; then module load Python; fi
