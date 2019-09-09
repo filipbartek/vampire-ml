@@ -32,6 +32,7 @@ time "${VAMPIRE_COMMAND[@]}"
 echo $?
 
 if [ -n "${SLURM_JOB_ID-}" ]; then
-  cp -rv "$OUTPUT_TMP" "$OUTPUT"
+  mkdir -p "$OUTPUT"
+  cp -rvt "$OUTPUT" "$OUTPUT_TMP/*"
   rm -rf "$OUTPUT_TMP"
 fi
