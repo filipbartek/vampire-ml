@@ -79,7 +79,10 @@ class Run:
 
     @property
     def exit_code(self):
-        return int(self._csv_row['exit_code'])
+        try:
+            return int(self._csv_row['exit_code'])
+        except ValueError:
+            return None
 
     @property
     def time_elapsed_process(self):
