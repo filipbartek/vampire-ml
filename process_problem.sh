@@ -7,7 +7,8 @@ source env.sh
 : "${JOBS:=${SLURM_CPUS_PER_TASK:-1}}"
 
 OUTPUT_TMP=$OUTPUT
-if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_TMP=/lscratch/$USER/$OUTPUT; fi
+# TODO: Make the output directory unique even in case this script is called multiple times in one Slurm job.
+if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_TMP=/lscratch/$USER/slurm-$SLURM_JOB_ID; fi
 
 # TODO: Expose more Vampire options.
 VAMPIRE_COMMAND=(
