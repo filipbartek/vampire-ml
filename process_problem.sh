@@ -10,11 +10,27 @@ OUTPUT_TMP=$OUTPUT
 # TODO: Make the output directory unique even in case this script is called multiple times in one Slurm job.
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_TMP=/lscratch/$USER/slurm-$SLURM_JOB_ID; fi
 
+OUTPUT_BATCH=$OUTPUT
+OUTPUT_RUNS=$OUTPUT_TMP/problems
+
+if [ -n "${BATCH_ID:-}" ]; then OUTPUT_BATCH=$OUTPUT/batches/$BATCH_ID; fi
+
+# See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out
+function finish {
+  if [ -n "${SLURM_JOB_ID-}" ]; then
+    mkdir -p "$OUTPUT"
+    cp -rvt "$OUTPUT" "$OUTPUT_RUNS"
+    rm -rf "$OUTPUT_TMP"
+  fi
+}
+trap finish EXIT INT TERM
+
 # TODO: Expose more Vampire options.
 VAMPIRE_COMMAND=(
   python -O
   vampire-ml.py vampire
-  --output "$OUTPUT_TMP"
+  --output_batch "$OUTPUT_BATCH"
+  --output_runs "$OUTPUT_RUNS"
   --problem_base_path "$TPTP_PROBLEMS"
   --vampire "$VAMPIRE"
   --probe
@@ -26,16 +42,6 @@ VAMPIRE_COMMAND=(
   "$@"
 )
 
-if [ -n "${BATCH_ID:-}" ]; then VAMPIRE_COMMAND+=(--output_batch "batches/$BATCH_ID" --output_runs problems); fi
-
 echo "${VAMPIRE_COMMAND[@]}"
 time "${VAMPIRE_COMMAND[@]}"
 echo $?
-
-if [ -n "${SLURM_JOB_ID-}" ]; then
-  mkdir -p "$OUTPUT"
-  # Copy "batches" first so that we have the aggregated output even if copying of runs times out.
-  cp -rvt "$OUTPUT" "$OUTPUT_TMP/batches"
-  cp -rvt "$OUTPUT" "$OUTPUT_TMP/problems"
-  rm -rf "$OUTPUT_TMP"
-fi
