@@ -97,7 +97,7 @@ def call(namespace):
             t.set_postfix_str(stats)
             for result in batch.generate_results(problem_paths, namespace.probe, problem_base_path):
                 csv_writer.writerow({
-                    'output_path': os.path.relpath(result['paths']['output'], namespace.output),
+                    'output_path': os.path.relpath(result['paths']['output'], output_runs),
                     'problem_path': os.path.relpath(result['paths']['problem'], problem_base_path),
                     'probe': result['probe'],
                     'timeout': result['timeout'],
