@@ -73,7 +73,7 @@ def call(namespace):
         problems_file.write('\n')
     assert namespace.solve_runs >= 1
     batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs, namespace.strategy_id,
-                  namespace.vampire_timeout, namespace.cpus, namespace.no_clobber)
+                  namespace.vampire_timeout, namespace.cpus, namespace.no_clobber, namespace.scratch)
     problems_successful = set()
     with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
         csv_writer = LazyCsvWriter(csv_file)
@@ -111,6 +111,7 @@ def add_arguments(parser):
     # Naming convention: `wget --no-clobber`
     parser.add_argument('--no-clobber', '-nc', action='store_true',
                         help='skip runs that would overwrite existing files')
+    parser.add_argument('--scratch', help='temporary output directory')
     # Naming convention: `sbatch --cpus-per-task`
     parser.add_argument('--cpus', '-c', type=int, default=1, help='number of jobs to run in parallel')
     # TODO: Expose finer control of the Vampire option `--random_seed`.
