@@ -94,7 +94,7 @@ def call(namespace):
                     problems_successful.add(run_info['paths']['problem'])
                 stats[(run_info['result']['status'], run_info['result']['exit_code'])] += 1
                 t.set_postfix_str(stats)
-                t.update(1)
+                t.update()
 
 
 def add_arguments(parser):
