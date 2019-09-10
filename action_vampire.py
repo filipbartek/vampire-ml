@@ -73,7 +73,8 @@ def call(namespace):
         problems_file.write('\n')
     assert namespace.solve_runs >= 1
     batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs, namespace.strategy_id,
-                  namespace.vampire_timeout, namespace.cpus, namespace.no_clobber, namespace.scratch)
+                  namespace.vampire_timeout, namespace.cpus, namespace.no_clobber, namespace.scratch,
+                  os.path.join(output_job, 'job.json'))
     problems_successful = set()
     with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
         csv_writer = LazyCsvWriter(csv_file)

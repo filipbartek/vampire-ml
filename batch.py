@@ -14,7 +14,7 @@ import utils
 
 class Batch:
     def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, strategy_id, vampire_timeout=None,
-                 cpus=1, no_clobber=False, scratch=None):
+                 cpus=1, no_clobber=False, scratch=None, job_file_path=None):
         self._vampire = vampire
         self._vampire_options = vampire_options
         assert output_path is not None
@@ -29,6 +29,7 @@ class Batch:
         self._futures = set()
         self._no_clobber = no_clobber
         self._scratch = scratch
+        self._job_file_path = job_file_path
 
     def generate_results(self, problem_paths, problem_base_path=None):
         assert len(self._futures) == 0
@@ -89,7 +90,6 @@ class Batch:
         return vampire_options
 
     def __solve_one_run_sync(self, output_path, problem_output_path, problem_path, random_seed_zero_based):
-        # TODO: Add path to `job.json`.
         paths = {
             'cwd': os.getcwd(),
             'result': 'result.json',
@@ -100,6 +100,7 @@ class Batch:
             'stderr': 'stderr.txt',
             'vampire_json': 'vampire.json',
             'configuration': 'configuration.json',
+            'job': os.path.relpath(self._job_file_path, output_path),
             'scratch_root': self._scratch,
             'scratch_job': None
         }
