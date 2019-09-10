@@ -65,7 +65,8 @@ def call(namespace):
         logging.error('At least one of the options --output and --output_runs must be specified.')
         return
     output_runs_relative = os.path.abspath(output_runs)
-    if not os.path.isabs(namespace.output_batch) and not os.path.isabs(namespace.output_runs):
+    if (namespace.output_batch is None or not os.path.isabs(namespace.output_batch)) and (
+            namespace.output_runs is None or not os.path.isabs(namespace.output_runs)):
         output_runs_relative = os.path.relpath(output_runs, output_batch)
 
     csv_file_path = os.path.join(output_batch, 'runs.csv')
