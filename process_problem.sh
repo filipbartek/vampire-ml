@@ -6,22 +6,12 @@ source env.sh
 
 : "${JOBS:=${SLURM_CPUS_PER_TASK:-1}}"
 
-OUTPUT_TMP=$OUTPUT
 # TODO: Make the output directory unique even in case this script is called multiple times in one Slurm job.
-if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_TMP=/lscratch/$USER/slurm-$SLURM_JOB_ID; fi
-
-OUTPUT_BATCH=$OUTPUT
-OUTPUT_RUNS=$OUTPUT_TMP/problems
-
-if [ -n "${BATCH_ID:-}" ]; then OUTPUT_BATCH=$OUTPUT/batches/$BATCH_ID; fi
+if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=/lscratch/$USER/slurm-$SLURM_JOB_ID; fi
 
 # See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out
 function finish {
-  if [ -n "${SLURM_JOB_ID-}" ]; then
-    mkdir -p "$OUTPUT"
-    cp -rvt "$OUTPUT" "$OUTPUT_RUNS"
-    rm -rf "$OUTPUT_TMP"
-  fi
+  if [ -n "${OUTPUT_SCRATCH-}" ]; then rm -rf "$OUTPUT_SCRATCH"; fi
 }
 trap finish EXIT INT TERM
 
@@ -29,18 +19,19 @@ trap finish EXIT INT TERM
 VAMPIRE_COMMAND=(
   python -O
   vampire-ml.py vampire
-  --output_batch "$OUTPUT_BATCH"
-  --output_runs "$OUTPUT_RUNS"
-  --problem_base_path "$TPTP_PROBLEMS"
+  --output "$OUTPUT"
+  --strategy-id "${VAMPIRE_MODE:-clausify}"
+  --solve-runs "${SOLVE_RUNS_PER_PROBLEM:-1}"
   --vampire "$VAMPIRE"
-  --probe
-  --solve_runs "${SOLVE_RUNS_PER_PROBLEM:-1}"
-  --jobs "$JOBS"
-  --vampire_options "--include $TPTP"
-  --vampire_options_probe "--time_limit ${VAMPIRE_TIME_LIMIT_PROBE:-10}"
-  --vampire_options_solve "--time_limit ${VAMPIRE_TIME_LIMIT_SOLVE:-10}"
+  --vampire_options "--include $TPTP --mode ${VAMPIRE_MODE:-clausify} --time_limit ${VAMPIRE_TIME_LIMIT:-10}"
+  --cpus "$JOBS"
+  --problem-base-path "$TPTP_PROBLEMS"
   "$@"
 )
+
+# TODO: Use array job composite id in case array job is running.
+if [ -n "${SLURM_JOB_ID-}" ]; then VAMPIRE_COMMAND+=(--job-id "$SLURM_JOB_ID"); fi
+if [ -n "${OUTPUT_SCRATCH-}" ]; then VAMPIRE_COMMAND+=(--scratch "$OUTPUT_SCRATCH"); fi
 
 echo "${VAMPIRE_COMMAND[@]}"
 time "${VAMPIRE_COMMAND[@]}"
