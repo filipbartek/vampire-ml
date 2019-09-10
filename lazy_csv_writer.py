@@ -28,4 +28,3 @@ class LazyCsvWriter:
                 self._writer = csv.DictWriter(self._file, fieldnames=row.keys())
                 self._writer.writeheader()
             self._writer.writerow(row)
-            self._file.flush()
