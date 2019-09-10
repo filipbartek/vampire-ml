@@ -67,27 +67,27 @@ class Batch:
             self.__solve_one_run_async(run_output_path, output_path, problem_path, random_seed_zero_based)
 
     def __solve_one_run_async(self, output_path, problem_output_path, problem_path, random_seed_zero_based=None):
-        vampire_options = self.compose_vampire_options(problem_path, random_seed_zero_based)
+        vampire_options = self.compose_vampire_options(problem_path, output_path, random_seed_zero_based)
         future = self._executor.submit(self.__solve_one_run_sync, output_path, problem_output_path, vampire_options,
                                        problem_path)
         self._futures.add(future)
 
-    def compose_vampire_options(self, problem_path, random_seed_zero_based=None):
+    def compose_vampire_options(self, problem_path, output_path, random_seed_zero_based=None):
         vampire_options = self._vampire_options.copy()
         vampire_options.extend([problem_path])
         if random_seed_zero_based is not None:
             if '--random_seed' in vampire_options:
                 logging.warning('Overriding --random_seed.')
             vampire_options.extend(['--random_seed', str(random_seed_zero_based + 1)])
-        return vampire_options
-
-    def __solve_one_run_sync(self, output_path, problem_output_path, vampire_options, problem_path):
-        # TODO: Move to `compose_vampire_options`.
-        # TODO: Add support for scratch space.
+        assert output_path is not None
         json_output_path = os.path.join(output_path, 'vampire.json')
         if '--json_output' in vampire_options:
             logging.warning('Overriding --json_output.')
-        vampire_options = vampire_options + ['--json_output', json_output_path]
+        # TODO: Add support for scratch space for Vampire JSON output.
+        vampire_options.extend(['--json_output', json_output_path])
+        return vampire_options
+
+    def __solve_one_run_sync(self, output_path, problem_output_path, vampire_options, problem_path):
         vampire_args = [self._vampire] + vampire_options
         complete_command = ' '.join(vampire_args)
         timeout_seconds = self._vampire_timeout
