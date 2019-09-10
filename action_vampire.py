@@ -81,14 +81,7 @@ def call(namespace):
         with tqdm(desc='Running Vampire', total=len(problem_paths) * namespace.solve_runs, unit='problems') as t:
             stats = collections.Counter()
             t.set_postfix_str(stats)
-            for run_info in batch.generate_results(problem_paths, problem_base_path):
-                csv_writer.writerow({
-                    'output_path': os.path.relpath(run_info['paths']['output'], output_problems),
-                    'problem_path': os.path.relpath(run_info['paths']['problem'], problem_base_path),
-                    'status': run_info['result']['status'],
-                    'exit_code': run_info['result']['exit_code'],
-                    'time_elapsed': run_info['result']['time_elapsed']
-                })
+            for run_info in batch.generate_results(problem_paths, problem_base_path, csv_writer):
                 if run_info['result']['exit_code'] == 0 and run_info['paths']['problem'] not in problems_successful:
                     problems_successful_file.write(run_info['paths']['problem'] + '\n')
                     problems_successful.add(run_info['paths']['problem'])

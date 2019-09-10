@@ -31,7 +31,7 @@ class Batch:
         self._scratch = scratch
         self._job_file_path = job_file_path
 
-    def generate_results(self, problem_paths, problem_base_path=None):
+    def generate_results(self, problem_paths, problem_base_path=None, csv_writer=None):
         assert len(self._futures) == 0
         if len(problem_paths) == 0:
             logging.warning('No problems given.')
@@ -46,7 +46,7 @@ class Batch:
                                                        os.path.relpath(problem_path, problem_base_path))
                 if self._strategy_id is not None:
                     problem_output_path = os.path.join(problem_output_path, self._strategy_id)
-                self.__solve_one_problem_async(problem_output_path, problem_path)
+                self.__solve_one_problem_async(problem_output_path, problem_path, problem_base_path, csv_writer)
             for future in concurrent.futures.as_completed(self._futures):
                 assert future.done()
                 if future.cancelled():
@@ -59,7 +59,7 @@ class Batch:
         finally:
             self._futures.clear()
 
-    def __solve_one_problem_async(self, output_path, problem_path):
+    def __solve_one_problem_async(self, output_path, problem_path, problem_base_path, csv_writer):
         assert self._solve_runs_per_problem >= 1
         run_directory_name_width = len(str(self._solve_runs_per_problem - 1))
         for problem_run_index in range(self._solve_runs_per_problem):
@@ -68,11 +68,13 @@ class Batch:
             if self._solve_runs_per_problem > 1:
                 run_output_path = os.path.join(run_output_path, str(problem_run_index).zfill(run_directory_name_width))
                 random_seed_zero_based = problem_run_index
-            self.__solve_one_run_async(run_output_path, output_path, problem_path, random_seed_zero_based)
-
-    def __solve_one_run_async(self, output_path, problem_output_path, problem_path, random_seed_zero_based=None):
-        future = self._executor.submit(self.__solve_one_run_sync, output_path, problem_output_path, problem_path,
+            self.__solve_one_run_async(run_output_path, output_path, problem_path, problem_base_path, csv_writer,
                                        random_seed_zero_based)
+
+    def __solve_one_run_async(self, output_path, problem_output_path, problem_path, problem_base_path, csv_writer,
+                              random_seed_zero_based=None):
+        future = self._executor.submit(self.__solve_one_run_sync, output_path, problem_output_path, problem_path,
+                                       problem_base_path, csv_writer, random_seed_zero_based)
         self._futures.add(future)
 
     def compose_vampire_options(self, problem_path, json_output_dir, random_seed_zero_based=None):
@@ -89,20 +91,24 @@ class Batch:
         vampire_options.extend(['--json_output', json_output_path])
         return vampire_options
 
-    def __solve_one_run_sync(self, output_path, problem_output_path, problem_path, random_seed_zero_based):
+    def __solve_one_run_sync(self, output_path, problem_output_path, problem_path, problem_base_path, csv_writer,
+                             random_seed_zero_based):
+        scratch_root = None
+        if self._scratch is not None:
+            scratch_root = os.path.abspath(self._scratch)
         paths = {
-            'cwd': os.getcwd(),
+            'configuration': 'configuration.json',
             'result': 'result.json',
-            'problem': problem_path,
-            'problem_output': problem_output_path,
-            'output': output_path,
             'stdout': 'stdout.txt',
             'stderr': 'stderr.txt',
             'vampire_json': 'vampire.json',
-            'configuration': 'configuration.json',
             'job': os.path.relpath(self._job_file_path, output_path),
-            'scratch_root': self._scratch,
-            'scratch_job': None
+            'problem': problem_path,
+            'scratch_root': scratch_root,
+            'scratch_job': None,
+            'cwd': os.getcwd(),
+            'output_problem': os.path.abspath(problem_output_path),
+            'output_run': os.path.abspath(output_path)
         }
         configuration = {
             'no_clobber': self._no_clobber,
@@ -116,13 +122,17 @@ class Batch:
         stdout_str = None
         stderr_str = None
         if self._no_clobber and os.path.isfile(os.path.join(output_path, paths['result'])):
-            result['status'] = 'skipped_already_exists'
-        else:
+            with open(os.path.join(output_path, paths['result'])) as prev_result_file:
+                prev_result = json.load(prev_result_file)
+                # Vampire terminates with exit code 3 if it is interrupted by SIGINT.
+                if prev_result['result']['exit_code'] != 3:
+                    result['status'] = 'skipped_already_completed'
+        if result['status'] is None:
             with self.scratch_directory() as scratch_directory_name:
                 json_output_dir = output_path
                 if scratch_directory_name is not None:
                     json_output_dir = scratch_directory_name
-                    paths['scratch_job'] = scratch_directory_name
+                    paths['scratch_job'] = os.path.abspath(scratch_directory_name)
                 vampire_options = self.compose_vampire_options(problem_path, json_output_dir, random_seed_zero_based)
                 vampire_args = [self._vampire] + vampire_options
                 timeout_seconds = self._vampire_timeout
@@ -168,6 +178,13 @@ class Batch:
                     os.remove(os.path.join(output_path, paths['vampire_json']))
                 except FileNotFoundError:
                     pass
+            csv_writer.writerow({
+                'output_path': os.path.relpath(paths['output_run'], self._output_path),
+                'problem_path': os.path.relpath(paths['problem'], problem_base_path),
+                'status': result['status'],
+                'exit_code': result['exit_code'],
+                'time_elapsed': result['time_elapsed']
+            })
             with open(os.path.join(output_path, paths['result']), 'w') as run_json:
                 json.dump({'paths': paths, 'result': result}, run_json, indent=4)
             with open(os.path.join(output_path, paths['stdout']), 'w') as stdout_file:
