@@ -134,27 +134,27 @@ def call(namespace):
 def add_arguments(parser):
     parser.set_defaults(action=call)
     parser.add_argument('problem', type=str, nargs='*', help='glob pattern of problem path')
-    parser.add_argument('--problem_list', action='append', default=[],
+    parser.add_argument('--problem-list', action='append', default=[],
                         help='input file with a list of problem paths')
-    parser.add_argument('--problem_base_path', type=str,
+    parser.add_argument('--problem-base-path', type=str,
                         help='the problem paths are relative to the base path')
     parser.add_argument('--output', '-o', type=str, help='main output directory')
-    parser.add_argument('--output_batch', type=str, help='directory to store the batch results')
-    parser.add_argument('--output_runs', type=str, help='directory to store the run results')
+    parser.add_argument('--output-batch', type=str, help='directory to store the batch results')
+    parser.add_argument('--output-runs', type=str, help='directory to store the run results')
     # Output files: problems.txt, problems_successful.txt, runs.csv, result.json
     parser.add_argument('--vampire', type=str, default='vampire', help='Vampire command')
     parser.add_argument('--probe', action='store_true', help='probe each problem with a clausify run')
-    parser.add_argument('--solve_runs', type=int, default=1,
+    parser.add_argument('--solve-runs', type=int, default=1,
                         help='Number of solving Vampire executions per problem. Useful namely with `--vampire_options_solve \"--symbol_precedence scramble\"`.')
-    parser.add_argument('--timeout_probe', type=float, help='kill Vampire after this many seconds in probe runs')
-    parser.add_argument('--timeout_solve', type=float, help='kill Vampire after this many seconds in solve runs')
+    parser.add_argument('--timeout-probe', type=float, help='kill Vampire after this many seconds in probe runs')
+    parser.add_argument('--timeout-solve', type=float, help='kill Vampire after this many seconds in solve runs')
     parser.add_argument('--jobs', '-j', type=int, default=1, help='number of jobs to run in parallel')
 
     vampire_options = parser.add_argument_group('Vampire options',
                                                 'Options passed to Vampire. Run `vampire --show_options on --show_experimental_options on` to print the options supported by Vampire. Options automatically overriden: --random_seed, --json_output')
-    vampire_options.add_argument('--vampire_options', action='append', default=[],
+    vampire_options.add_argument('--vampire-options', action='append', default=[],
                                  help='Options for all runs. Recommended options: --include.')
-    vampire_options.add_argument('--vampire_options_probe', action='append', default=[],
+    vampire_options.add_argument('--vampire-options-probe', action='append', default=[],
                                  help='Options for probe runs. Recommended options: --mode clausify, --time_limit.')
-    vampire_options.add_argument('--vampire_options_solve', action='append', default=[],
+    vampire_options.add_argument('--vampire-options-solve', action='append', default=[],
                                  help='Options for solve runs. Recommended options: --time_limit, --symbol_precedence scramble.')

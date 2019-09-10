@@ -107,8 +107,8 @@ def call(namespace):
 def add_arguments(parser):
     parser.set_defaults(action=call)
     parser.add_argument('result', nargs='+', help='result of a run')
-    parser.add_argument('--problem_list', action='append', default=[],
+    parser.add_argument('--problem-list', action='append', default=[],
                         help='input file with a list of problem paths')
     parser.add_argument('--problem', action='append', default=[], help='glob pattern of problem path')
-    parser.add_argument('--problem_base_path', help='base path of problem paths')
+    parser.add_argument('--problem-base-path', help='base path of problem paths')
     parser.add_argument('--output', '-o', type=str, required=True, help='output directory')

@@ -114,6 +114,6 @@ def call(namespace):
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
-    parser.add_argument('result_prove', type=str, help='result of a prove run of `vampire-batch vampire`')
-    parser.add_argument('result_probe', type=str, help='result of a probe run of `vampire-batch vampire`')
+    parser.add_argument('result-prove', type=str, help='result of a prove run of `vampire-batch vampire`')
+    parser.add_argument('result-probe', type=str, help='result of a probe run of `vampire-batch vampire`')
     parser.add_argument('--seed', type=int, default=0, help='randomness generator seed')
