@@ -23,7 +23,7 @@ VAMPIRE_COMMAND=(
   --strategy-id "${VAMPIRE_MODE:-clausify}"
   --solve-runs "${SOLVE_RUNS_PER_PROBLEM:-1}"
   --vampire "$VAMPIRE"
-  --vampire_options "--include $TPTP --mode ${VAMPIRE_MODE:-clausify} --time_limit ${VAMPIRE_TIME_LIMIT:-10}"
+  --vampire-options "--include $TPTP --mode ${VAMPIRE_MODE:-clausify} --time_limit ${VAMPIRE_TIME_LIMIT:-10}"
   --cpus "$JOBS"
   --problem-base-path "$TPTP_PROBLEMS"
   "$@"
