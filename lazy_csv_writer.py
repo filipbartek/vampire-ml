@@ -8,6 +8,7 @@ class LazyCsvWriter:
     """
     A thread-safe csv.DictWriter that writes the header row automatically along with the first data row.
     """
+
     def __init__(self, file):
         self._file = file
         self._lock = threading.Lock()
