@@ -5,6 +5,7 @@ import contextlib
 import json
 import logging
 import os
+import shutil
 import subprocess
 import tempfile
 import time
@@ -168,8 +169,8 @@ class Batch:
                     stdout_str = e.stdout
                     stderr_str = e.stderr
                 if json_output_dir != output_path and result['exit_code'] == 0:
-                    os.rename(os.path.join(json_output_dir, paths['vampire_json']),
-                              os.path.join(output_path, paths['vampire_json']))
+                    shutil.move(os.path.join(json_output_dir, paths['vampire_json']),
+                                os.path.join(output_path, paths['vampire_json']))
             assert self._scratch is None or result['exit_code'] == 0 or not os.path.isfile(
                 os.path.join(output_path, paths['vampire_json']))
             # If self._scratch is None, the Vampire output JSON file has been deleted along with the scratch directory.
