@@ -73,7 +73,7 @@ def call(namespace):
         problems_file.write('\n')
     assert namespace.solve_runs >= 1
     batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs, namespace.strategy_id,
-                  namespace.vampire_timeout, namespace.cpus)
+                  namespace.vampire_timeout, namespace.cpus, namespace.no_clobber)
     problems_successful = set()
     with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
         csv_writer = LazyCsvWriter(csv_file)
@@ -84,20 +84,14 @@ def call(namespace):
                 csv_writer.writerow({
                     'output_path': os.path.relpath(run_info['paths']['output'], output_problems),
                     'problem_path': os.path.relpath(run_info['paths']['problem'], problem_base_path),
-                    'timeout': run_info['result']['timeout_expired'],
+                    'status': run_info['result']['status'],
                     'exit_code': run_info['result']['exit_code'],
                     'time_elapsed': run_info['result']['time_elapsed']
                 })
                 if run_info['result']['exit_code'] == 0 and run_info['paths']['problem'] not in problems_successful:
                     problems_successful_file.write(run_info['paths']['problem'] + '\n')
                     problems_successful.add(run_info['paths']['problem'])
-                if run_info['result']['timeout_expired']:
-                    termination = 'timeout_expired'
-                    assert run_info['result']['exit_code'] is None
-                else:
-                    assert run_info['result']['exit_code'] is not None
-                    termination = run_info['result']['exit_code']
-                stats[termination] += 1
+                stats[(run_info['result']['status'], run_info['result']['exit_code'])] += 1
                 t.set_postfix_str(stats)
                 t.update(1)
 
@@ -114,6 +108,9 @@ def add_arguments(parser):
     parser.add_argument('--strategy-id',
                         help='Identifier of strategy. Disambiguates job and problem run output directories.')
     parser.add_argument('--job-id', help='Identifier of job. Disambiguates job output directory.')
+    # Naming convention: `wget --no-clobber`
+    parser.add_argument('--no-clobber', '-nc', action='store_true',
+                        help='skip runs that would overwrite existing files')
     # Naming convention: `sbatch --cpus-per-task`
     parser.add_argument('--cpus', '-c', type=int, default=1, help='number of jobs to run in parallel')
     # TODO: Expose finer control of the Vampire option `--random_seed`.

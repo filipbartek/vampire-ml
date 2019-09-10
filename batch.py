@@ -11,9 +11,9 @@ import utils
 
 
 class Batch:
-    # TODO: Add support for `--no-clobber`.
     # TODO: Add support for `--scratch`.
-    def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, strategy_id, vampire_timeout=None, cpus=1):
+    def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, strategy_id, vampire_timeout=None,
+                 cpus=1, no_clobber=False):
         self._vampire = vampire
         self._vampire_options = vampire_options
         assert output_path is not None
@@ -26,6 +26,7 @@ class Batch:
         self._cpus = cpus
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=cpus)
         self._futures = set()
+        self._no_clobber = no_clobber
 
     def generate_results(self, problem_paths, problem_base_path=None):
         assert len(self._futures) == 0
@@ -112,45 +113,51 @@ class Batch:
         configuration = {
             'command': complete_command,
             'timeout_seconds': timeout_seconds,
+            'no_clobber': self._no_clobber,
             'vampire': self._vampire,
             'options': vampire_options
         }
-        # If JSON output directory does not exist, Vampire fails.
-        os.makedirs(output_path, exist_ok=True)
-        with open(os.path.join(output_path, 'configuration.json'), 'w') as configuration_json:
-            json.dump({'paths': paths, 'configuration': configuration}, configuration_json, indent=4)
-        time_start = time.time()
-        try:
-            cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout_seconds,
-                                text=True)
-            time_elapsed = time.time() - time_start
-            result_timeout = False
-            exit_status = cp.returncode
-            stdout_str = cp.stdout
-            stderr_str = cp.stderr
-        except subprocess.TimeoutExpired as e:
-            time_elapsed = time.time() - time_start
-            result_timeout = True
-            exit_status = None
-            stdout_str = e.stdout
-            stderr_str = e.stderr
         result = {
-            'timeout_expired': result_timeout,
-            'exit_code': exit_status,
-            'time_elapsed': time_elapsed
+            'status': None,
+            'exit_code': None,
+            'time_elapsed': None
         }
-        with open(os.path.join(output_path, paths['result']), 'w') as run_json:
-            json.dump({'paths': paths, 'result': result}, run_json, indent=4)
-        with open(os.path.join(output_path, paths['stdout']), 'w') as stdout_file:
-            stdout_file.write(stdout_str)
-        with open(os.path.join(output_path, paths['stderr']), 'w') as stderr_file:
-            stderr_file.write(stderr_str)
-        # The JSON files may take a lot of space.
-        if result_timeout or exit_status != 0:
+        stdout_str = None
+        stderr_str = None
+        if self._no_clobber and os.path.isfile(os.path.join(output_path, paths['result'])):
+            result['status'] = 'skipped_already_exists'
+        else:
+            # If JSON output directory does not exist, Vampire fails.
+            os.makedirs(output_path, exist_ok=True)
+            with open(os.path.join(output_path, paths['configuration']), 'w') as configuration_json:
+                json.dump({'paths': paths, 'configuration': configuration}, configuration_json, indent=4)
+            time_start = time.time()
             try:
-                os.remove(json_output_path)
-            except FileNotFoundError:
-                pass
+                cp = subprocess.run(vampire_args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                    timeout=timeout_seconds,
+                                    text=True)
+                result['time_elapsed'] = time.time() - time_start
+                result['status'] = 'completed'
+                result['exit_code'] = cp.returncode
+                stdout_str = cp.stdout
+                stderr_str = cp.stderr
+            except subprocess.TimeoutExpired as e:
+                result['time_elapsed'] = time.time() - time_start
+                result['status'] = 'timeout_expired'
+                stdout_str = e.stdout
+                stderr_str = e.stderr
+            with open(os.path.join(output_path, paths['result']), 'w') as run_json:
+                json.dump({'paths': paths, 'result': result}, run_json, indent=4)
+            with open(os.path.join(output_path, paths['stdout']), 'w') as stdout_file:
+                stdout_file.write(stdout_str)
+            with open(os.path.join(output_path, paths['stderr']), 'w') as stderr_file:
+                stderr_file.write(stderr_str)
+            # The JSON files may take a lot of space.
+            if result['status'] == 'timeout_expired' or result['exit_code'] != 0:
+                try:
+                    os.remove(os.path.join(output_path, paths['vampire_json']))
+                except FileNotFoundError:
+                    pass
         return {
             'paths': paths,
             'configuration': configuration,
