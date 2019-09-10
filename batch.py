@@ -32,6 +32,7 @@ class Batch:
         self._job_file_path = job_file_path
 
     def generate_results(self, problem_paths, problem_base_path=None, csv_writer=None):
+        # TODO: Yield instances of Run instead of dicts.
         assert len(self._futures) == 0
         if len(problem_paths) == 0:
             logging.warning('No problems given.')
