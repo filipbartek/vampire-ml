@@ -49,9 +49,8 @@ class Run:
         return os.path.dirname(self.problem_path)
 
     @property
-    def timeout(self):
-        assert self._csv_row['timeout'] in ['False', 'True']
-        return self._csv_row['timeout'] == 'True'
+    def status(self):
+        return self._csv_row['status']
 
     @property
     def stdout(self):
@@ -220,7 +219,7 @@ class Run:
             'path_rel': (run.path_rel for run in runs),
             'problem_path': (run.problem_path for run in runs),
             'problem_dir': (run.problem_dir for run in runs),
-            'timeout': pd.Series((run.timeout for run in runs), dtype=np.bool),
+            'status': pd.Categorical(run.status for run in runs),
             'exit_code': pd.Categorical(run.exit_code for run in runs),
             'termination_reason': pd.Categorical(run.termination_reason for run in runs),
             'termination_phase': pd.Categorical(run.termination_phase for run in runs),
