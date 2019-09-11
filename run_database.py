@@ -121,6 +121,10 @@ class Run:
         return self.__extract(extractor.time_elapsed)
 
     @property
+    def memory_used(self):
+        return self.__extract(extractor.memory_used)
+
+    @property
     def functions(self):
         return self.vampire_json_data['functions']
 
@@ -226,6 +230,7 @@ class Run:
             'success': pd.Series((run.success for run in runs), dtype=np.bool),
             'time_elapsed_process': (run.time_elapsed_process for run in runs),
             'time_elapsed_vampire': (run.time_elapsed_vampire for run in runs),
+            'memory_used': (run.memory_used for run in runs),
             'saturation_iterations': (run.saturation_iterations for run in runs),
             'predicates_count': (run.predicates_count for run in runs),
             'functions_count': (run.functions_count for run in runs),
