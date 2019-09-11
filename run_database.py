@@ -29,6 +29,32 @@ class Run:
         g = self.field_getter(key)
         return g(self)
 
+    @methodtools.lru_cache()
+    def __extract(self, extract):
+        try:
+            return extract(self.stdout())
+        except RuntimeError:
+            pass
+        except FileNotFoundError:
+            logging.warning(f'{self.path_rel()}: Stdout file not found. Cannot extract a value.')
+        return None
+
+    @methodtools.lru_cache(maxsize=1)
+    def stdout(self):
+        with open(os.path.join(self.path_abs(), 'stdout.txt')) as stdout_file:
+            return stdout_file.read()
+
+    @methodtools.lru_cache(maxsize=1)
+    def vampire_json_data(self):
+        """Loads and returns JSON data output by Vampire.
+
+        Warning: This call may be very expensive.
+        """
+        if self.exit_code() != 0:
+            raise RuntimeError('This run failed. The output JSON data may be missing or invalid.')
+        with open(os.path.join(self.path_abs(), 'vampire.json')) as vampire_json_file:
+            return json.load(vampire_json_file)
+
     def batch_id(self):
         return self._batch_id
 
@@ -47,30 +73,11 @@ class Run:
     def status(self):
         return self._csv_row['status']
 
-    @methodtools.lru_cache(maxsize=1)
-    def stdout(self):
-        with open(os.path.join(self.path_abs(), 'stdout.txt')) as stdout_file:
-            return stdout_file.read()
-
-    @methodtools.lru_cache(maxsize=1)
-    def vampire_json_data(self):
-        """Loads and returns JSON data output by Vampire.
-
-        Warning: This call may be very expensive.
-        """
-        if self.exit_code() != 0:
-            raise RuntimeError('This run failed. The output JSON data may be missing or invalid.')
-        with open(os.path.join(self.path_abs(), 'vampire.json')) as vampire_json_file:
-            return json.load(vampire_json_file)
-
     def exit_code(self):
         try:
             return int(self._csv_row['exit_code'])
         except ValueError:
             return None
-
-    def time_elapsed_process(self):
-        return float(self._csv_row['time_elapsed'])
 
     def termination_reason(self):
         return self.__extract(extractor.termination_reason)
@@ -78,18 +85,17 @@ class Run:
     def termination_phase(self):
         return self.__extract(extractor.termination_phase)
 
+    def time_elapsed_process(self):
+        return float(self._csv_row['time_elapsed'])
+
+    def time_elapsed_vampire(self):
+        return self.__extract(extractor.time_elapsed)
+
+    def memory_used(self):
+        return self.__extract(extractor.memory_used)
+
     def saturation_iterations(self):
         return self.__extract(extractor.saturation_iterations)
-
-    @methodtools.lru_cache()
-    def __extract(self, extract):
-        try:
-            return extract(self.stdout())
-        except RuntimeError:
-            pass
-        except FileNotFoundError:
-            logging.warning(f'{self.path_rel()}: Stdout file not found. Cannot extract a value.')
-        return None
 
     def predicates(self):
         return self.vampire_json_data()['predicates']
@@ -99,12 +105,6 @@ class Run:
             return len(self.predicates())
         except (RuntimeError, FileNotFoundError):
             return None
-
-    def time_elapsed_vampire(self):
-        return self.__extract(extractor.time_elapsed)
-
-    def memory_used(self):
-        return self.__extract(extractor.memory_used)
 
     def functions(self):
         return self.vampire_json_data()['functions']
@@ -123,37 +123,6 @@ class Run:
             return len(self.clauses())
         except (RuntimeError, FileNotFoundError):
             return None
-
-    def predicate_precedence(self):
-        return self.__extract(extractor.predicate_precedence)
-
-    # Predicate features: equality?, arity, usageCnt, unitUsageCnt, inGoal?, inUnit?
-    predicate_feature_count = 6
-
-    # TODO: Construct embedding using convolution a graph network.
-    def predicate_embedding(self, predicate_index):
-        predicate = self.predicates()[predicate_index]
-        assert not predicate['skolem']
-        assert not predicate['inductionSkolem']
-        is_equality = predicate_index == 0
-        assert is_equality == (predicate['name'] == '=')
-        assert not is_equality or predicate['arity'] == 2
-        return np.asarray([
-            is_equality,
-            predicate['arity'],
-            predicate['usageCnt'],
-            predicate['unitUsageCnt'],
-            predicate['inGoal'],
-            predicate['inUnit']
-        ], dtype=float)
-
-    @methodtools.lru_cache(maxsize=1)
-    def predicate_embeddings(self):
-        result = np.zeros((self.predicates_count(), self.predicate_feature_count), dtype=float)
-        for i in range(self.predicates_count()):
-            # TODO: Omit constructing an array for each predicate.
-            result[i] = self.predicate_embedding(i)
-        return result
 
     fields = {
         'batch': (batch_id, pd.CategoricalDtype(ordered=True)),
@@ -240,6 +209,37 @@ class Run:
         # Create the dataframe
         df = pd.DataFrame(series)
         return df
+
+    def predicate_precedence(self):
+        return self.__extract(extractor.predicate_precedence)
+
+    # Predicate features: equality?, arity, usageCnt, unitUsageCnt, inGoal?, inUnit?
+    predicate_feature_count = 6
+
+    # TODO: Construct embedding using convolution a graph network.
+    def predicate_embedding(self, predicate_index):
+        predicate = self.predicates()[predicate_index]
+        assert not predicate['skolem']
+        assert not predicate['inductionSkolem']
+        is_equality = predicate_index == 0
+        assert is_equality == (predicate['name'] == '=')
+        assert not is_equality or predicate['arity'] == 2
+        return np.asarray([
+            is_equality,
+            predicate['arity'],
+            predicate['usageCnt'],
+            predicate['unitUsageCnt'],
+            predicate['inGoal'],
+            predicate['inUnit']
+        ], dtype=float)
+
+    @methodtools.lru_cache(maxsize=1)
+    def predicate_embeddings(self):
+        result = np.zeros((self.predicates_count(), self.predicate_feature_count), dtype=float)
+        for i in range(self.predicates_count()):
+            # TODO: Omit constructing an array for each predicate.
+            result[i] = self.predicate_embedding(i)
+        return result
 
 
 class BatchResult:
