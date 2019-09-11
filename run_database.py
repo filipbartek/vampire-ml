@@ -5,11 +5,11 @@ import itertools
 import json
 import logging
 import os
-import time
 
 import methodtools
 import numpy as np
 import pandas as pd
+import tqdm
 
 import extractor
 import utils
@@ -25,142 +25,114 @@ class Run:
         # https://stackoverflow.com/a/16162138/4054250
         return hash((frozenset(self._csv_row), frozenset(self._csv_row.values()), self._base_path))
 
-    @property
+    def __getitem__(self, key):
+        g = self.field_getter(key)
+        return g(self)
+
     def batch_id(self):
         return self._batch_id
 
-    @property
     def path_rel(self):
         return self._csv_row['output_path']
 
-    @property
     def path_abs(self):
-        return self.get_path_abs()
+        return os.path.join(self._base_path, self.path_rel())
 
-    @methodtools.lru_cache(maxsize=1)
-    def get_path_abs(self):
-        return os.path.join(self._base_path, self.path_rel)
-
-    @property
     def problem_path(self):
         return self._csv_row['problem_path']
 
-    @property
     def problem_dir(self):
-        return os.path.dirname(self.problem_path)
+        return os.path.dirname(self.problem_path())
 
-    @property
     def status(self):
         return self._csv_row['status']
 
-    @property
-    def stdout(self):
-        return self.get_stdout()
-
     @methodtools.lru_cache(maxsize=1)
-    def get_stdout(self):
-        with open(os.path.join(self.path_abs, 'stdout.txt')) as stdout_file:
+    def stdout(self):
+        with open(os.path.join(self.path_abs(), 'stdout.txt')) as stdout_file:
             return stdout_file.read()
 
-    @property
-    def vampire_json_data(self):
-        return self.get_vampire_json_data()
-
     @methodtools.lru_cache(maxsize=1)
-    def get_vampire_json_data(self):
-        if self.exit_code != 0:
+    def vampire_json_data(self):
+        """Loads and returns JSON data output by Vampire.
+
+        Warning: This call may be very expensive.
+        """
+        if self.exit_code() != 0:
             raise RuntimeError('This run failed. The output JSON data may be missing or invalid.')
-        with open(os.path.join(self.path_abs, 'vampire.json')) as vampire_json_file:
+        with open(os.path.join(self.path_abs(), 'vampire.json')) as vampire_json_file:
             return json.load(vampire_json_file)
 
-    @property
     def exit_code(self):
         try:
             return int(self._csv_row['exit_code'])
         except ValueError:
             return None
 
-    @property
     def time_elapsed_process(self):
         return float(self._csv_row['time_elapsed'])
 
-    @property
     def termination_reason(self):
         return self.__extract(extractor.termination_reason)
 
-    @property
     def termination_phase(self):
         return self.__extract(extractor.termination_phase)
 
-    @property
     def saturation_iterations(self):
         return self.__extract(extractor.saturation_iterations)
 
     @methodtools.lru_cache()
     def __extract(self, extract):
         try:
-            return extract(self.stdout)
+            return extract(self.stdout())
         except RuntimeError:
             pass
         except FileNotFoundError:
-            logging.warning(f'{self.path_rel}: Stdout file not found. Cannot extract a value.')
+            logging.warning(f'{self.path_rel()}: Stdout file not found. Cannot extract a value.')
         return None
 
-    @property
     def predicates(self):
-        return self.vampire_json_data['predicates']
+        return self.vampire_json_data()['predicates']
 
-    @property
     def predicates_count(self):
         try:
-            return len(self.predicates)
+            return len(self.predicates())
         except (RuntimeError, FileNotFoundError):
             return None
 
-    @property
     def time_elapsed_vampire(self):
         return self.__extract(extractor.time_elapsed)
 
-    @property
     def memory_used(self):
         return self.__extract(extractor.memory_used)
 
-    @property
     def functions(self):
-        return self.vampire_json_data['functions']
+        return self.vampire_json_data()['functions']
 
-    @property
     def functions_count(self):
         try:
-            return len(self.functions)
+            return len(self.functions())
         except (RuntimeError, FileNotFoundError):
             return None
 
-    @property
     def clauses(self):
-        return self.vampire_json_data['clauses']
+        return self.vampire_json_data()['clauses']
 
-    @property
     def clauses_count(self):
         try:
-            return len(self.clauses)
+            return len(self.clauses())
         except (RuntimeError, FileNotFoundError):
             return None
 
-    @property
     def predicate_precedence(self):
         return self.__extract(extractor.predicate_precedence)
-
-    @property
-    def success(self):
-        return self.exit_code == 0
 
     # Predicate features: equality?, arity, usageCnt, unitUsageCnt, inGoal?, inUnit?
     predicate_feature_count = 6
 
     # TODO: Construct embedding using convolution a graph network.
     def predicate_embedding(self, predicate_index):
-        predicate = self.predicates[predicate_index]
+        predicate = self.predicates()[predicate_index]
         assert not predicate['skolem']
         assert not predicate['inductionSkolem']
         is_equality = predicate_index == 0
@@ -177,69 +149,96 @@ class Run:
 
     @methodtools.lru_cache(maxsize=1)
     def predicate_embeddings(self):
-        result = np.zeros((self.predicates_count, self.predicate_feature_count), dtype=float)
-        for i in range(self.predicates_count):
+        result = np.zeros((self.predicates_count(), self.predicate_feature_count), dtype=float)
+        for i in range(self.predicates_count()):
             # TODO: Omit constructing an array for each predicate.
             result[i] = self.predicate_embedding(i)
         return result
 
-    def csv_row_vampire(self):
-        row = {
-            'problem_path': self.problem_path,
-            'exit_code': self.exit_code,
-            'time_elapsed.process': self.time_elapsed_process,
-            'time_elapsed.vampire': self.time_elapsed_vampire,
-            'termination.reason': self.termination_reason,
-            'termination.phase': self.termination_phase,
-            'saturation.iterations': self.saturation_iterations
-        }
-        assert row['problem_path'] is not None
-        assert row['exit_code'] is not None
-        assert row['time_elapsed.process'] is not None
-        return row
+    fields = {
+        'batch': (batch_id, pd.CategoricalDtype(ordered=True)),
+        'path_rel': (path_rel, 'object'),
+        'problem_path': (problem_path, 'object'),
+        'problem_dir': (problem_dir, pd.CategoricalDtype()),
+        'status': (status, pd.CategoricalDtype()),
+        'exit_code': (exit_code, pd.CategoricalDtype()),
+        'termination_reason': (termination_reason, pd.CategoricalDtype()),
+        'termination_phase': (termination_phase, pd.CategoricalDtype()),
+        'time_elapsed_process': (time_elapsed_process, np.float),
+        'time_elapsed_vampire': (time_elapsed_vampire, np.float),
+        'memory_used': (memory_used, pd.UInt64Dtype()),
+        'saturation_iterations': (saturation_iterations, pd.UInt64Dtype()),
+        'predicates_count': (predicates_count, pd.UInt64Dtype()),
+        'functions_count': (functions_count, pd.UInt64Dtype()),
+        'clauses_count': (clauses_count, pd.UInt64Dtype())
+    }
 
-    def csv_row_clausify(self):
-        assert self.saturation_iterations is None
-        row = {
-            'problem_path': self.problem_path,
-            'exit_code': self.exit_code,
-            'time_elapsed.process': self.time_elapsed_process,
-            'time_elapsed.vampire': self.time_elapsed_vampire,
-            'termination.reason': self.termination_reason,
-            'termination.phase': self.termination_phase,
-            'predicates.count': self.predicates_count,
-            'functions.count': self.functions_count,
-            'clauses.count': self.clauses_count
-        }
-        assert row['problem_path'] is not None
-        assert row['exit_code'] is not None
-        assert row['time_elapsed.process'] is not None
-        return row
+    field_sources = {
+        'stdout': ['termination_reason', 'termination_phase', 'time_elapsed_vampire', 'memory_used',
+                   'saturation_iterations'],
+        'vampire_json': ['predicates_count', 'functions_count', 'clauses_count']
+    }
+
+    @classmethod
+    def fieldnames(cls):
+        return cls.fields.keys()
+
+    @classmethod
+    def field_getter(cls, fieldname):
+        return cls.fields[fieldname][0]
+
+    @classmethod
+    def field_dtype(cls, fieldname):
+        return cls.fields[fieldname][1]
 
     @staticmethod
-    def get_data_frame(runs):
-        logging.info(f'Collecting data from {len(runs)} runs.')
-        time_start = time.time()
-        df = pd.DataFrame({
-            'batch': pd.Categorical(run.batch_id for run in runs),
-            'path_rel': (run.path_rel for run in runs),
-            'problem_path': (run.problem_path for run in runs),
-            'problem_dir': (run.problem_dir for run in runs),
-            'status': pd.Categorical(run.status for run in runs),
-            'exit_code': pd.Categorical(run.exit_code for run in runs),
-            'termination_reason': pd.Categorical(run.termination_reason for run in runs),
-            'termination_phase': pd.Categorical(run.termination_phase for run in runs),
-            'success': pd.Series((run.success for run in runs), dtype=np.bool),
-            'time_elapsed_process': pd.Series((run.time_elapsed_process for run in runs), dtype=np.float),
-            'time_elapsed_vampire': pd.Series((run.time_elapsed_vampire for run in runs), dtype=np.float),
-            'memory_used': pd.Series((run.memory_used for run in runs), dtype=pd.UInt64Dtype()),
-            'saturation_iterations': pd.Series((run.saturation_iterations for run in runs), dtype=pd.UInt64Dtype()),
-            'predicates_count': pd.Series((run.predicates_count for run in runs), dtype=pd.UInt64Dtype()),
-            'functions_count': pd.Series((run.functions_count for run in runs), dtype=pd.UInt64Dtype()),
-            'clauses_count': pd.Series((run.clauses_count for run in runs), dtype=pd.UInt64Dtype())
-        })
-        time_elapsed = time.time() - time_start
-        logging.info(f'Time elapsed: {time_elapsed}')
+    def empty_pd_series(n, dtype):
+        if dtype == pd.UInt64Dtype():
+            return pd.Series(np.empty(n, dtype=np.int), dtype=dtype)
+        if isinstance(dtype, pd.CategoricalDtype):
+            return pd.Series(index=range(n), dtype='object')
+        return pd.Series(index=range(n), dtype=dtype)
+
+    @classmethod
+    def get_fieldnames_final(cls, fieldnames_initial=None, excluded_sources=None):
+        fieldnames_final = fieldnames_initial
+        if fieldnames_final is None:
+            fieldnames_final = cls.fieldnames()
+        else:
+            fieldnames_final = fieldnames_final.copy()
+        fieldnames_final = list(fieldnames_final)
+        if excluded_sources is not None:
+            for source in excluded_sources:
+                for field in cls.field_sources[source]:
+                    try:
+                        while True:
+                            fieldnames_final.remove(field)
+                    except ValueError:
+                        pass
+        return fieldnames_final
+
+    @classmethod
+    def get_data_frame(cls, runs, run_count=None, fieldnames=None, excluded_sources=None):
+        if run_count is None:
+            runs = list(runs)
+            run_count = len(runs)
+        assert run_count >= 0
+        fieldnames = cls.get_fieldnames_final(fieldnames, excluded_sources)
+        assert set(fieldnames) <= set(cls.fieldnames())
+        # Initialize empty series
+        series = {fieldname: cls.empty_pd_series(run_count, cls.field_dtype(fieldname)) for fieldname in fieldnames}
+        # Populate the series with run data
+        for i, run in tqdm.tqdm(enumerate(runs), total=run_count, unit='run'):
+            assert i < run_count
+            for fieldname in fieldnames:
+                series[fieldname][i] = run[fieldname]
+        # Establish categories in respective series
+        for fieldname in fieldnames:
+            dtype = cls.field_dtype(fieldname)
+            if isinstance(dtype, pd.CategoricalDtype):
+                series[fieldname] = series[fieldname].astype(dtype, copy=False)
+        # Create the dataframe
+        df = pd.DataFrame(series)
         return df
 
 
@@ -306,10 +305,26 @@ class BatchResult:
 
     @methodtools.lru_cache(maxsize=1)
     def get_run_list(self):
-        runs_csv_path = self.result['runs_csv']
-        with open(os.path.join(self.batch_output_directory, runs_csv_path)) as runs_csv:
+        return list(self.generate_runs())
+
+    def generate_runs(self):
+        with open(os.path.join(self.batch_output_directory, self.result['runs_csv'])) as runs_csv:
             csv_reader = csv.DictReader(runs_csv)
-            return [Run(row, self.run_output_directory, self.id) for row in csv_reader]
+            for row in csv_reader:
+                yield Run(row, self.run_output_directory, self.id)
+
+    @property
+    def run_count(self):
+        return self.get_run_count()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_run_count(self):
+        with open(os.path.join(self.batch_output_directory, self.result['runs_csv'])) as runs_csv:
+            csv_reader = csv.DictReader(runs_csv)
+            acc = 0
+            for _ in csv_reader:
+                acc += 1
+            return acc
 
     @property
     def problem_dict(self):
@@ -326,25 +341,12 @@ class BatchResult:
         return problem_dict
 
     @property
-    def problems_with_some_success(self):
-        return self.get_problems_with_some_success()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_problems_with_some_success(self):
-        """
-        :return: paths of problems that have at least one successful run
-        """
-        # We use Python 3.7 dict instead of set because it iterates in a deterministic order.
-        # https://stackoverflow.com/a/53657523/4054250
-        return {run.problem_path: None for run in self.runs if run.success}.keys()
-
-    @property
     def runs_data_frame(self):
         return self.get_runs_data_frame()
 
     @methodtools.lru_cache(maxsize=1)
     def get_runs_data_frame(self):
-        return Run.get_data_frame(self.runs)
+        return Run.get_data_frame(self.generate_runs(), self.run_count)
 
     @property
     def representative_runs(self):
@@ -384,7 +386,21 @@ class MultiBatchResult:
 
     @methodtools.lru_cache(maxsize=1)
     def get_run_list(self):
-        return list(itertools.chain(*(br.runs for br in self._batch_results)))
+        return list(self.generate_runs())
+
+    def generate_runs(self):
+        return itertools.chain(*(br.generate_runs() for br in self._batch_results))
+
+    @property
+    def run_count(self):
+        return self.get_run_count()
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_run_count(self):
+        acc = 0
+        for br in self._batch_results:
+            acc += br.run_count
+        return acc
 
     @property
     def problem_dict(self):
@@ -402,26 +418,12 @@ class MultiBatchResult:
         return problem_dict
 
     @property
-    def problems_with_some_success(self):
-        return self.get_problems_with_some_success()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_problems_with_some_success(self):
-        """
-        :return: paths of problems that have at least one successful run
-        """
-        # We use Python 3.7 dict instead of set because it iterates in a deterministic order.
-        # https://stackoverflow.com/a/53657523/4054250
-        return {run.problem_path: None for run in self.runs if run.success}.keys()
-
-    @property
     def runs_data_frame(self):
         return self.get_runs_data_frame()
 
-    @methodtools.lru_cache(maxsize=1)
-    def get_runs_data_frame(self):
-        # TODO: Add batch id column.
-        return Run.get_data_frame(self.runs)
+    @methodtools.lru_cache()
+    def get_runs_data_frame(self, fields=None, excluded_sources=None):
+        return Run.get_data_frame(self.generate_runs(), self.run_count, fields, excluded_sources)
 
     @property
     def representative_runs(self):
