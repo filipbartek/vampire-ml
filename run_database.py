@@ -49,11 +49,6 @@ class Run:
         return os.path.dirname(self.problem_path)
 
     @property
-    def probe(self):
-        assert self._csv_row['probe'] in ['False', 'True']
-        return self._csv_row['probe'] == 'True'
-
-    @property
     def timeout(self):
         assert self._csv_row['timeout'] in ['False', 'True']
         return self._csv_row['timeout'] == 'True'
@@ -225,7 +220,6 @@ class Run:
             'path_rel': (run.path_rel for run in runs),
             'problem_path': (run.problem_path for run in runs),
             'problem_dir': (run.problem_dir for run in runs),
-            'probe': pd.Series((run.probe for run in runs), dtype=np.bool),
             'timeout': pd.Series((run.timeout for run in runs), dtype=np.bool),
             'exit_code': pd.Categorical(run.exit_code for run in runs),
             'termination_reason': pd.Categorical(run.termination_reason for run in runs),
