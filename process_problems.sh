@@ -11,7 +11,7 @@
 # Each job takes at most 2737s = 45m 37s = 45:37
 # We can parallelize each job to up to 17 * 16 = 272 threads. We should parallelize to at least 16 threads.
 
-##SBATCH --time=50:00
+##SBATCH --time=50
 ##SBATCH --cpus-per-task=16
 
 # TODO: Calibrate the memory requirement.
