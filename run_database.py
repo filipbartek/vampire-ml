@@ -5,6 +5,7 @@ import itertools
 import json
 import logging
 import os
+import time
 
 import methodtools
 import numpy as np
@@ -218,8 +219,9 @@ class Run:
     @staticmethod
     def get_data_frame(runs):
         logging.info(f'Collecting data from {len(runs)} runs.')
-        return pd.DataFrame({
-            'batch': (run.batch_id for run in runs),
+        time_start = time.time()
+        df = pd.DataFrame({
+            'batch': pd.Categorical(run.batch_id for run in runs),
             'path_rel': (run.path_rel for run in runs),
             'problem_path': (run.problem_path for run in runs),
             'problem_dir': (run.problem_dir for run in runs),
@@ -228,14 +230,17 @@ class Run:
             'termination_reason': pd.Categorical(run.termination_reason for run in runs),
             'termination_phase': pd.Categorical(run.termination_phase for run in runs),
             'success': pd.Series((run.success for run in runs), dtype=np.bool),
-            'time_elapsed_process': (run.time_elapsed_process for run in runs),
-            'time_elapsed_vampire': (run.time_elapsed_vampire for run in runs),
-            'memory_used': (run.memory_used for run in runs),
-            'saturation_iterations': (run.saturation_iterations for run in runs),
-            'predicates_count': (run.predicates_count for run in runs),
-            'functions_count': (run.functions_count for run in runs),
-            'clauses_count': (run.clauses_count for run in runs)
+            'time_elapsed_process': pd.Series((run.time_elapsed_process for run in runs), dtype=np.float),
+            'time_elapsed_vampire': pd.Series((run.time_elapsed_vampire for run in runs), dtype=np.float),
+            'memory_used': pd.Series((run.memory_used for run in runs), dtype=pd.UInt64Dtype()),
+            'saturation_iterations': pd.Series((run.saturation_iterations for run in runs), dtype=pd.UInt64Dtype()),
+            'predicates_count': pd.Series((run.predicates_count for run in runs), dtype=pd.UInt64Dtype()),
+            'functions_count': pd.Series((run.functions_count for run in runs), dtype=pd.UInt64Dtype()),
+            'clauses_count': pd.Series((run.clauses_count for run in runs), dtype=pd.UInt64Dtype())
         })
+        time_elapsed = time.time() - time_start
+        logging.info(f'Time elapsed: {time_elapsed}')
+        return df
 
 
 class BatchResult:
