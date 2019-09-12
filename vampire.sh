@@ -15,7 +15,7 @@ env | sort
 
 source env.sh
 
-if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}; fi
+if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID}; fi
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT=${OUTPUT:-out/slurm/$SLURM_JOB_ID}; fi
 OUTPUT=${OUTPUT:-out/default}
 
