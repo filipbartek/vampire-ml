@@ -20,7 +20,7 @@ VAMPIRE_COMMAND=(
   python -O
   vampire-ml.py vampire
   --output "$OUTPUT"
-  --strategy-id "${VAMPIRE_MODE:-clausify}"
+  --strategy-id "${STRATEGY_ID:-${VAMPIRE_MODE:-clausify}/${VAMPIRE_SYMBOL_PRECEDENCE:-scramble}}"
   --solve-runs "${SOLVE_RUNS_PER_PROBLEM:-1}"
   --vampire "$VAMPIRE"
   --vampire-options "--include $TPTP --mode ${VAMPIRE_MODE:-clausify} --time_limit ${VAMPIRE_TIME_LIMIT:-10} --symbol_precedence ${VAMPIRE_SYMBOL_PRECEDENCE:-scramble}"
