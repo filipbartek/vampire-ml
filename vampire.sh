@@ -9,7 +9,7 @@
 set -euo pipefail
 
 # https://stackoverflow.com/a/949391/4054250
-git rev-parse --verify HEAD || :
+echo Git commit: "$(git rev-parse --verify HEAD)"
 
 env | sort
 
