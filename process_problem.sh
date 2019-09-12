@@ -37,6 +37,4 @@ if [ -n "${OUTPUT_SCRATCH-}" ]; then VAMPIRE_COMMAND+=(--scratch "$OUTPUT_SCRATC
 # https://stackoverflow.com/a/949391/4054250
 git rev-parse --verify HEAD || :
 
-echo "${VAMPIRE_COMMAND[@]}"
-time "${VAMPIRE_COMMAND[@]}"
-echo $?
+command time -v "${VAMPIRE_COMMAND[@]}"
