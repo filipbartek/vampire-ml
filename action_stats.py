@@ -7,6 +7,7 @@ import sys
 
 import pandas as pd
 
+import file_path_list
 import run_database
 
 
@@ -26,6 +27,13 @@ def call(namespace):
     else:
         df = pd.read_pickle(namespace.input_pickle)
 
+    if len(namespace.problem_list) >= 1:
+        problem_paths, _ = file_path_list.compose(namespace.problem_list)
+        assert set(problem_paths) >= set(df.problem_path)
+        problems_unprocessed = set(problem_paths) - set(df.problem_path)
+        with open(os.path.join(namespace.output, 'problems_unprocessed.txt'), 'w') as f:
+            f.writelines(f'{path}\n' for path in problems_unprocessed)
+
     # Distribution of combinations of status and exit code
     print(df.fillna({'exit_code': 0}).groupby(['status', 'exit_code']).size())
 
@@ -44,5 +52,6 @@ def add_arguments(parser):
     parser.add_argument('--fields', help='names of fields to extract separated by commas')
     parser.add_argument('--source-stdout', action='store_true', help='include data from stdout.txt files')
     parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
+    parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
     parser.add_argument('--input-pickle', help='load a previously saved stats pickle')
     parser.add_argument('--output', '-o', required=True, help='output directory')
