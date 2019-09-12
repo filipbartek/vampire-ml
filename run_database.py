@@ -163,7 +163,7 @@ class Run:
     @staticmethod
     def empty_pd_series(n, dtype):
         if dtype == pd.UInt64Dtype():
-            return pd.Series(np.empty(n, dtype=np.int), dtype=dtype)
+            return pd.Series(np.empty(n, dtype=np.uint), dtype=dtype)
         if isinstance(dtype, pd.CategoricalDtype):
             return pd.Series(index=range(n), dtype='object')
         return pd.Series(index=range(n), dtype=dtype)
