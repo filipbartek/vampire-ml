@@ -27,6 +27,8 @@ def call(namespace):
     else:
         df = pd.read_pickle(namespace.input_pickle)
 
+    os.makedirs(namespace.output, exist_ok=True)
+
     if len(namespace.problem_list) >= 1:
         problem_paths, _ = file_path_list.compose(namespace.problem_list)
         assert set(problem_paths) >= set(df.problem_path)
@@ -37,7 +39,6 @@ def call(namespace):
     # Distribution of combinations of status and exit code
     print(df.fillna({'exit_code': 0}).groupby(['status', 'exit_code']).size())
 
-    os.makedirs(namespace.output, exist_ok=True)
     df.to_pickle(os.path.join(namespace.output, 'stats.pkl'))
     df.to_csv(os.path.join(namespace.output, 'stats.csv'))
     with open(os.path.join(namespace.output, 'problems.txt'), 'w') as f:
