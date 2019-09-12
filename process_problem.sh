@@ -34,6 +34,9 @@ VAMPIRE_COMMAND=(
 if [ -n "${SLURM_JOB_ID-}" ]; then VAMPIRE_COMMAND+=(--job-id "$SLURM_JOB_ID"); fi
 if [ -n "${OUTPUT_SCRATCH-}" ]; then VAMPIRE_COMMAND+=(--scratch "$OUTPUT_SCRATCH"); fi
 
+# https://stackoverflow.com/a/949391/4054250
+git rev-parse --verify HEAD || :
+
 echo "${VAMPIRE_COMMAND[@]}"
 time "${VAMPIRE_COMMAND[@]}"
 echo $?
