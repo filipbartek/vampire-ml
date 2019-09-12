@@ -34,7 +34,7 @@ XARGS_COMMAND=(
   --strategy-id "$STRATEGY_ID"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
-  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time 10"
+  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit 10"
   --cpus "$CPUS"
   --problem-base-path "$TPTP_PROBLEMS"
   --no-clobber
