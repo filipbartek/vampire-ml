@@ -27,7 +27,6 @@ CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
 # TODO: Expose more Vampire options.
 XARGS_COMMAND=(
-  time --verbose
   xargs --verbose
   python -O
   vampire-ml.py vampire
