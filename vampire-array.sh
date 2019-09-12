@@ -2,6 +2,10 @@
 
 # This script is intended to be run in cluster.ciirc.cvut.cz.
 
+# Example calls:
+# STRATEGY_ID=probe    VAMPIRE_MODE=clausify TIME_PER_TASK=8  CPUS_PER_TASK=4  vampire-array.sh
+# STRATEGY_ID=scramble VAMPIRE_MODE=vampire  TIME_PER_TASK=68 CPUS_PER_TASK=16 PROBLEMS=problems_probed_0.txt VAMPIRE_SYMBOL_PRECEDENCE=scramble SOLVE_RUNS_PER_PROBLEM=16 vampire-array.sh
+
 set -euo pipefail
 
 PROBLEMS=${PROBLEMS:-problems_cnf_fof.txt}
