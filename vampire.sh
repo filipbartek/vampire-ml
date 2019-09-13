@@ -43,6 +43,7 @@ XARGS_COMMAND=(
   --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit 10"
   --cpus "$CPUS"
   --problem-base-path "$TPTP_PROBLEMS"
+  "$@"
 )
 
 if [ -n "${VAMPIRE_OPTIONS-}" ]; then XARGS_COMMAND+=(--vampire-options "$VAMPIRE_OPTIONS"); fi

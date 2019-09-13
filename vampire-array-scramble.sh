@@ -10,4 +10,4 @@ export TIME_PER_TASK=${TIME_PER_TASK:-68}
 export VAMPIRE_SYMBOL_PRECEDENCE=scramble
 export SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-16}
 
-./vampire-array.sh
+./vampire-array.sh "$@"
