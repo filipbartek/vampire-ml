@@ -15,8 +15,14 @@ env | sort
 
 source env.sh
 
-if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID}; fi
-if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT=${OUTPUT:-out/slurm/$SLURM_JOB_ID}; fi
+if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then
+  OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID}
+  if [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then JOB_ID=${JOB_ID:-$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}; fi
+fi
+if [ -n "${SLURM_JOB_ID-}" ]; then
+  OUTPUT=${OUTPUT:-out/slurm/$SLURM_JOB_ID}
+  JOB_ID=${JOB_ID:-$SLURM_JOB_ID}
+fi
 OUTPUT=${OUTPUT:-out/default}
 
 VAMPIRE_MODE=${VAMPIRE_MODE:-vampire}
@@ -41,8 +47,7 @@ XARGS_COMMAND=(
 
 if [ -n "${VAMPIRE_OPTIONS-}" ]; then XARGS_COMMAND+=(--vampire-options "$VAMPIRE_OPTIONS"); fi
 
-# TODO: Use array job composite id in case array job is running.
-if [ -n "${SLURM_JOB_ID-}" ]; then XARGS_COMMAND+=(--job-id "$SLURM_JOB_ID"); fi
+if [ -n "${JOB_ID-}" ]; then XARGS_COMMAND+=(--job-id "$JOB_ID"); fi
 
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH:-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 
