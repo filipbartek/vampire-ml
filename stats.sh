@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+source env.sh
+
 OUTPUT=${OUTPUT:-out/default}
 STRATEGY_ID=${STRATEGY_ID:-probe}
 PROBLEMS=${PROBLEMS:-problems_cnf_fof.txt}
