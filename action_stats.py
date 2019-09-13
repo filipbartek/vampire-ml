@@ -14,6 +14,9 @@ import run_database
 def call(namespace):
     if namespace.input_pickle is None:
         result_paths = list(itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in namespace.result)))
+        if len(result_paths) == 0:
+            logging.error('No results were given.', namespace.result)
+            return
         mbr = run_database.MultiBatchResult(result_paths)
         fields = namespace.fields
         if fields is not None:
