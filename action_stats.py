@@ -49,6 +49,7 @@ def call(namespace):
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
+    # TODO: Allow initializing directly by glob pattern of result or run configuration files.
     parser.add_argument('result', type=str, nargs='*', help='glob pattern of result of a prove or probe run')
     parser.add_argument('--fields', help='names of fields to extract separated by commas')
     parser.add_argument('--source-stdout', action='store_true', help='include data from stdout.txt files')

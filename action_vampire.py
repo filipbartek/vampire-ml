@@ -43,6 +43,7 @@ def call(namespace):
     if namespace.job_id is not None:
         output_job = os.path.join(output_job, namespace.job_id)
     csv_file_path = os.path.join(output_job, 'runs.csv')
+    # TODO: Do not save any problems list. runs.csv should suffice.
     problems_path = os.path.join(output_job, 'problems.txt')
     problems_successful_path = os.path.join(output_job, 'problems_successful.txt')
 
