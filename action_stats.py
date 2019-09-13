@@ -96,14 +96,18 @@ def call(namespace):
             distplot(df_successful[field], properties['title'] + ' in successful runs', properties['xlabel'],
                      properties['ylabel'], namespace.output, f'hist_{field}_successful')
 
+    hue_field = 'exit_code'
+    if 'termination_reason' in df:
+        hue_field = 'termination_reason'
+
     g = sns.pairplot(df.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
-                     hue='termination_reason')
+                     hue=hue_field)
     g.fig.suptitle('All runs')
     if namespace.output is not None:
         plt.savefig(os.path.join(namespace.output, f'pairs_all.svg'))
 
     g = sns.pairplot(df_successful.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
-                     hue='termination_reason')
+                     hue=hue_field)
     g.fig.suptitle('Successful runs')
     if namespace.output is not None:
         plt.savefig(os.path.join(namespace.output, f'pairs_successful.svg'))
