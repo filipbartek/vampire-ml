@@ -2,9 +2,12 @@
 
 import glob
 import itertools
+import logging
+import math
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 
 import file_path_list
@@ -51,17 +54,57 @@ def call(namespace):
     if 'termination_reason' in df and 'termination_phase' in df:
         print(df.groupby(['status', 'exit_code', 'termination_reason', 'termination_phase']).size())
 
+    numeric_fields = {
+        'time_elapsed_process': {
+            'title': 'Time elapsed (process)',
+            'xlabel': 'Time elapsed [seconds]',
+            'ylabel': 'Runs'
+        },
+        'memory_used': {
+            'title': 'Memory used',
+            'xlabel': 'Memory used [kilobytes]',
+            'ylabel': 'Runs'
+        },
+        'saturation_iterations': {
+            'title': 'Main saturation loop iterations',
+            'xlabel': 'Saturation iterations',
+            'ylabel': 'Runs'
+        },
+        'predicates_count': {
+            'title': 'Number of predicate symbols',
+            'xlabel': 'Predicates',
+            'ylabel': 'Runs'
+        },
+        'functions_count': {
+            'title': 'Number of function symbols',
+            'xlabel': 'Functions',
+            'ylabel': 'Runs'
+        },
+        'clauses_count': {
+            'title': 'Number of clauses',
+            'xlabel': 'Clauses',
+            'ylabel': 'Runs'
+        }
+    }
+
     # Distributions of numeric fields
-    for field in ['time_elapsed_process', 'memory_used', 'saturation_iterations', 'predicates_count', 'functions_count',
-                  'clauses_count']:
+    for field, properties in numeric_fields.items():
         if field in df:
             print(df[field].describe())
-            if namespace.gui:
-                df.hist(field)
-                plt.show()
+            df.hist(field, bins=100)
+            plt.title(properties['title'] + ' in all runs')
+            plt.xlabel(properties['xlabel'])
+            plt.ylabel(properties['ylabel'])
             if namespace.output is not None:
-                df.hist(field)
-                plt.savefig(os.path.join(namespace.output, f'hist_{field}.svg'))
+                plt.savefig(os.path.join(namespace.output, f'hist_{field}_all.svg'))
+            df[df.exit_code == 0].hist(field, bins=100)
+            plt.title(properties['title'] + ' in successful runs')
+            plt.xlabel(properties['xlabel'])
+            plt.ylabel(properties['ylabel'])
+            if namespace.output is not None:
+                plt.savefig(os.path.join(namespace.output, f'hist_{field}_successful.svg'))
+    if namespace.gui:
+        plt.show()
 
     # Save problem lists
     if namespace.output is not None:
