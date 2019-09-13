@@ -94,10 +94,8 @@ def call(namespace):
 def add_arguments(parser):
     parser.set_defaults(action=call)
     parser.add_argument('problem', type=str, nargs='*', help='glob pattern of a problem path')
-    parser.add_argument('--problem-list', action='append', default=[],
-                        help='input file with a list of problem paths')
-    parser.add_argument('--problem-base-path', type=str,
-                        help='the problem paths are relative to the base path')
+    parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
+    parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
     parser.add_argument('--strategy-id',
