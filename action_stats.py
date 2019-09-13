@@ -3,8 +3,8 @@
 import glob
 import itertools
 import os
-import sys
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
 import file_path_list
@@ -27,24 +27,52 @@ def call(namespace):
     else:
         df = pd.read_pickle(namespace.input_pickle)
 
-    os.makedirs(namespace.output, exist_ok=True)
+    # We save the dataframe before we replace the NaNs in category columns with 'NA'.
+    if namespace.output is not None:
+        os.makedirs(namespace.output, exist_ok=True)
+        df.to_pickle(os.path.join(namespace.output, 'stats.pkl'))
+        df.to_csv(os.path.join(namespace.output, 'stats.csv'))
 
-    if len(namespace.problem_list) >= 1:
-        problem_paths, _ = file_path_list.compose(namespace.problem_list)
-        assert set(problem_paths) >= set(df.problem_path)
-        problems_unprocessed = set(problem_paths) - set(df.problem_path)
-        with open(os.path.join(namespace.output, 'problems_unprocessed.txt'), 'w') as f:
-            f.writelines(f'{path}\n' for path in problems_unprocessed)
+    print(df.info())
 
-    # Distribution of combinations of status and exit code
-    print(df.fillna({'exit_code': 0}).groupby(['status', 'exit_code']).size())
+    # Replace NaN with 'NA' in category columns. This allows getting more useful statistics.
+    for field in df.select_dtypes(['category']):
+        series = df[field]
+        assert 'NA' not in series.cat.categories
+        series.cat.add_categories('NA', inplace=True)
+        series.fillna('NA', inplace=True)
+    assert 'status' in df and 'exit_code' in df
 
-    df.to_pickle(os.path.join(namespace.output, 'stats.pkl'))
-    df.to_csv(os.path.join(namespace.output, 'stats.csv'))
-    with open(os.path.join(namespace.output, 'problems.txt'), 'w') as f:
-        f.writelines(f'{path}\n' for path in df.problem_path)
-    with open(os.path.join(namespace.output, 'problems_successful.txt'), 'w') as f:
-        f.writelines(f'{path}\n' for path in df[df.exit_code == 0].problem_path)
+    # Distributions of some combinations of category fields
+    print(df.groupby(['status', 'exit_code']).size())
+    if 'termination_reason' in df and 'termination_phase' in df:
+        print(df.groupby(['status', 'exit_code', 'termination_reason', 'termination_phase']).size())
+
+    # Distributions of numeric fields
+    for field in ['time_elapsed_process', 'memory_used', 'saturation_iterations', 'predicates_count', 'functions_count',
+                  'clauses_count']:
+        if field in df:
+            print(df[field].describe())
+            if namespace.gui:
+                df.hist(field)
+                plt.show()
+            if namespace.output is not None:
+                df.hist(field)
+                plt.savefig(os.path.join(namespace.output, f'hist_{field}.svg'))
+
+    # Save problem lists
+    if namespace.output is not None:
+        os.makedirs(namespace.output, exist_ok=True)
+        if len(namespace.problem_list) >= 1:
+            problem_paths, _ = file_path_list.compose(namespace.problem_list)
+            assert set(problem_paths) >= set(df.problem_path)
+            problems_unprocessed = set(problem_paths) - set(df.problem_path)
+            with open(os.path.join(namespace.output, 'problems_unprocessed.txt'), 'w') as f:
+                f.writelines(f'{path}\n' for path in problems_unprocessed)
+        with open(os.path.join(namespace.output, 'problems.txt'), 'w') as f:
+            f.writelines(f'{path}\n' for path in df.problem_path)
+        with open(os.path.join(namespace.output, 'problems_successful.txt'), 'w') as f:
+            f.writelines(f'{path}\n' for path in df[df.exit_code == 0].problem_path)
 
 
 def add_arguments(parser):
@@ -56,4 +84,5 @@ def add_arguments(parser):
     parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
     parser.add_argument('--input-pickle', help='load a previously saved stats pickle')
-    parser.add_argument('--output', '-o', required=True, help='output directory')
+    parser.add_argument('--output', '-o', help='output directory')
+    parser.add_argument('--gui', action='store_true', help='open windows with histograms')
