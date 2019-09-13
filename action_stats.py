@@ -2,7 +2,6 @@
 
 import glob
 import itertools
-import logging
 import os
 
 import matplotlib.pyplot as plt
@@ -48,11 +47,8 @@ numeric_fields = {
 
 def call(namespace):
     if namespace.input_pickle is None:
-        result_paths = list(itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in namespace.result)))
-        if len(result_paths) == 0:
-            logging.error('No results were given.', namespace.result)
-            return
-        mbr = run_database.MultiBatchResult(result_paths)
+        result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in namespace.result))
+        runs = (run_database.Run(result_path) for result_path in result_paths)
         fields = namespace.fields
         if fields is not None:
             fields = tuple(fields)
@@ -61,7 +57,7 @@ def call(namespace):
             excluded_sources.append('stdout')
         if not namespace.source_vampire_json:
             excluded_sources.append('vampire_json')
-        df = mbr.get_runs_data_frame(fields, tuple(excluded_sources))
+        df = run_database.Run.get_data_frame(runs, None, fields, excluded_sources)
     else:
         df = pd.read_pickle(namespace.input_pickle)
 
@@ -91,16 +87,6 @@ def call(namespace):
     numeric_fields_present = [field for field in numeric_fields.keys() if field in df]
     df_successful = df[df.exit_code == 0]
 
-    g = sns.pairplot(df, vars=numeric_fields_present, diag_kind='hist', hue='exit_code')
-    g.fig.suptitle('All runs')
-    if namespace.output is not None:
-        plt.savefig(os.path.join(namespace.output, f'pairs_all.svg'))
-
-    g = sns.pairplot(df_successful, vars=numeric_fields_present, diag_kind='hist', hue='termination_reason')
-    g.fig.suptitle('Successful runs')
-    if namespace.output is not None:
-        plt.savefig(os.path.join(namespace.output, f'pairs_successful.svg'))
-
     # Distributions of numeric fields
     for field, properties in numeric_fields.items():
         if field in df:
@@ -109,6 +95,19 @@ def call(namespace):
                      namespace.output, f'hist_{field}_all')
             distplot(df_successful[field], properties['title'] + ' in successful runs', properties['xlabel'],
                      properties['ylabel'], namespace.output, f'hist_{field}_successful')
+
+    g = sns.pairplot(df.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
+                     hue='termination_reason')
+    g.fig.suptitle('All runs')
+    if namespace.output is not None:
+        plt.savefig(os.path.join(namespace.output, f'pairs_all.svg'))
+
+    g = sns.pairplot(df_successful.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
+                     hue='termination_reason')
+    g.fig.suptitle('Successful runs')
+    if namespace.output is not None:
+        plt.savefig(os.path.join(namespace.output, f'pairs_successful.svg'))
+
     if namespace.gui:
         plt.show()
 
@@ -116,11 +115,17 @@ def call(namespace):
     if namespace.output is not None:
         os.makedirs(namespace.output, exist_ok=True)
         if len(namespace.problem_list) >= 1:
-            problem_paths, _ = file_path_list.compose(namespace.problem_list)
-            assert set(problem_paths) >= set(df.problem_path)
-            problems_unprocessed = set(problem_paths) - set(df.problem_path)
+            problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, None,
+                                                                      namespace.problem_base_path)
+            problem_abs_paths = set(
+                os.path.abspath(os.path.join(problem_base_path, problem_path)) for problem_path in problem_paths)
+            solved_problem_abs_paths = set(map(os.path.abspath, df.problem_path))
+            assert problem_abs_paths >= solved_problem_abs_paths
             with open(os.path.join(namespace.output, 'problems_unprocessed.txt'), 'w') as f:
-                f.writelines(f'{path}\n' for path in problems_unprocessed)
+                for problem_path in problem_paths:
+                    problem_abs_path = os.path.abspath(os.path.join(problem_base_path, problem_path))
+                    if problem_abs_path not in solved_problem_abs_paths:
+                        f.write(f'{problem_abs_path}\n')
         with open(os.path.join(namespace.output, 'problems.txt'), 'w') as f:
             f.writelines(f'{path}\n' for path in df.problem_path)
         with open(os.path.join(namespace.output, 'problems_successful.txt'), 'w') as f:
@@ -149,12 +154,12 @@ def distplot(series, title, xlabel, ylabel, output_directory, output_name):
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
-    # TODO: Allow initializing directly by glob pattern of result or run configuration files.
     parser.add_argument('result', type=str, nargs='*', help='glob pattern of result of a prove or probe run')
     parser.add_argument('--fields', help='names of fields to extract separated by commas')
     parser.add_argument('--source-stdout', action='store_true', help='include data from stdout.txt files')
     parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
+    parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     parser.add_argument('--input-pickle', help='load a previously saved stats pickle')
     parser.add_argument('--output', '-o', help='output directory')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')

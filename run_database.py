@@ -1,7 +1,5 @@
 #!/usr/bin/env python3.7
 
-import csv
-import itertools
 import json
 import logging
 import os
@@ -12,22 +10,31 @@ import pandas as pd
 import tqdm
 
 import extractor
-import utils
 
 
 class Run:
-    def __init__(self, csv_row, base_path, batch_id):
-        self._csv_row = csv_row
-        self._base_path = base_path
-        self._batch_id = batch_id
-
-    def __hash__(self):
-        # https://stackoverflow.com/a/16162138/4054250
-        return hash((frozenset(self._csv_row), frozenset(self._csv_row.values()), self._base_path))
+    def __init__(self, result_path):
+        self._result_path = result_path
 
     def __getitem__(self, key):
         g = self.field_getter(key)
         return g(self)
+
+    # TODO: Rename to `directory_path`.
+    @methodtools.lru_cache(maxsize=1)
+    def path_abs(self):
+        return os.path.dirname(self._result_path)
+
+    @methodtools.lru_cache(maxsize=1)
+    def result_json_data(self):
+        with open(self._result_path) as result_json_file:
+            return json.load(result_json_file)
+
+    def paths(self):
+        return self.result_json_data()['paths']
+
+    def result(self):
+        return self.result_json_data()['result']
 
     @methodtools.lru_cache()
     def __extract(self, extract):
@@ -41,7 +48,7 @@ class Run:
 
     @methodtools.lru_cache(maxsize=1)
     def stdout(self):
-        with open(os.path.join(self.path_abs(), 'stdout.txt')) as stdout_file:
+        with open(os.path.join(self.path_abs(), self.paths()['stdout'])) as stdout_file:
             return stdout_file.read()
 
     @methodtools.lru_cache(maxsize=1)
@@ -52,32 +59,30 @@ class Run:
         """
         if self.exit_code() != 0:
             raise RuntimeError('This run failed. The output JSON data may be missing or invalid.')
-        with open(os.path.join(self.path_abs(), 'vampire.json')) as vampire_json_file:
+        with open(os.path.join(self.path_abs(), self.paths()['vampire_json'])) as vampire_json_file:
             return json.load(vampire_json_file)
 
+    # TODO: Rename to `job` or `job_id`.
     def batch_id(self):
-        return self._batch_id
+        # TODO: Simplify this path.
+        return self.paths()['job']
 
     def path_rel(self):
-        return self._csv_row['output_path']
-
-    def path_abs(self):
-        return os.path.join(self._base_path, self.path_rel())
+        # TODO: Try to simplify the path. What is it supposed to be relative to?
+        return self.path_abs()
 
     def problem_path(self):
-        return self._csv_row['problem_path']
+        return self.paths()['problem']
 
     def problem_dir(self):
         return os.path.dirname(self.problem_path())
 
     def status(self):
-        return self._csv_row['status']
+        return self.result()['status']
 
     def exit_code(self):
-        try:
-            return int(self._csv_row['exit_code'])
-        except ValueError:
-            return None
+        assert isinstance(self.result()['exit_code'], int)
+        return self.result()['exit_code']
 
     def termination_reason(self):
         return self.__extract(extractor.termination_reason)
@@ -86,7 +91,8 @@ class Run:
         return self.__extract(extractor.termination_phase)
 
     def time_elapsed_process(self):
-        return float(self._csv_row['time_elapsed'])
+        assert isinstance(self.result()['time_elapsed'], float)
+        return self.result()['time_elapsed']
 
     def time_elapsed_vampire(self):
         return self.__extract(extractor.time_elapsed)
@@ -239,212 +245,4 @@ class Run:
         for i in range(self.predicates_count()):
             # TODO: Omit constructing an array for each predicate.
             result[i] = self.predicate_embedding(i)
-        return result
-
-
-class BatchResult:
-    def __init__(self, result_path, base_path):
-        self._result_path = result_path
-        self._base_path = base_path
-
-    def __hash__(self):
-        return hash(self._result_path)
-
-    @property
-    def result_path(self):
-        return self._result_path
-
-    @property
-    def id(self):
-        return os.path.relpath(self._result_path, self._base_path)
-
-    @property
-    def batch_output_directory(self):
-        return self.get_batch_output_directory()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_batch_output_directory(self):
-        return os.path.dirname(self.result_path)
-
-    @property
-    def run_output_directory(self):
-        return self.get_run_output_directory()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_run_output_directory(self):
-        return os.path.join(self.batch_output_directory, self.result['run_output_base_path'])
-
-    @property
-    def result(self):
-        return self.get_result()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_result(self):
-        with open(self.result_path) as result_file:
-            return json.load(result_file)
-
-    @property
-    def vampire_options(self):
-        return self.result['vampire_options']
-
-    @methodtools.lru_cache(maxsize=1)
-    def __option_value(self, option_name, default=None):
-        return utils.option_value(self.vampire_options, option_name, default)
-
-    @property
-    def mode(self):
-        return self.__option_value('--mode', 'vampire')
-
-    @property
-    def problem_base_path(self):
-        return self.result['problem_base_path']
-
-    @property
-    def runs(self):
-        return self.get_run_list()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_run_list(self):
-        return list(self.generate_runs())
-
-    def generate_runs(self):
-        with open(os.path.join(self.batch_output_directory, self.result['runs_csv'])) as runs_csv:
-            csv_reader = csv.DictReader(runs_csv)
-            for row in csv_reader:
-                yield Run(row, self.run_output_directory, self.id)
-
-    @property
-    def run_count(self):
-        return self.get_run_count()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_run_count(self):
-        with open(os.path.join(self.batch_output_directory, self.result['runs_csv'])) as runs_csv:
-            csv_reader = csv.DictReader(runs_csv)
-            acc = 0
-            for _ in csv_reader:
-                acc += 1
-            return acc
-
-    @property
-    def problem_dict(self):
-        return self.get_problem_dict()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_problem_dict(self):
-        problem_dict = {}
-        for run in self.runs:
-            problem_path = run.problem_path
-            if problem_path not in problem_dict:
-                problem_dict[problem_path] = []
-            problem_dict[problem_path].append(run)
-        return problem_dict
-
-    @property
-    def runs_data_frame(self):
-        return self.get_runs_data_frame()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_runs_data_frame(self):
-        return Run.get_data_frame(self.generate_runs(), self.run_count)
-
-    @property
-    def representative_runs(self):
-        return self.get_representative_runs()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_representative_runs(self):
-        return [problem_runs[0] for problem_runs in self.problem_dict.values()]
-
-    @property
-    def representative_runs_data_frame(self):
-        return self.get_representative_runs_data_frame()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_representative_runs_data_frame(self):
-        assert Run.get_data_frame(self.representative_runs)['problem_path'].is_unique
-        return Run.get_data_frame(self.representative_runs).set_index('problem_path')
-
-    @property
-    def problems(self):
-        run_groups = self.runs_data_frame.groupby('problem_path')
-        result = run_groups.size().to_frame('runs_count')
-        result = result.join(run_groups.agg([np.mean, np.std, np.min, np.max]))
-        return result
-
-
-class MultiBatchResult:
-    def __init__(self, result_paths):
-        result_paths = list(result_paths)
-        assert len(result_paths) >= 1
-        base_path = os.path.commonpath(result_paths)
-        self._batch_results = [BatchResult(result_path, base_path) for result_path in result_paths]
-
-    @property
-    def runs(self):
-        return self.get_run_list()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_run_list(self):
-        return list(self.generate_runs())
-
-    def generate_runs(self):
-        return itertools.chain(*(br.generate_runs() for br in self._batch_results))
-
-    @property
-    def run_count(self):
-        return self.get_run_count()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_run_count(self):
-        acc = 0
-        for br in self._batch_results:
-            acc += br.run_count
-        return acc
-
-    @property
-    def problem_dict(self):
-        return self.get_problem_dict()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_problem_dict(self):
-        # TODO: Ensure all the runs have the same problem base path.
-        problem_dict = {}
-        for run in self.runs:
-            problem_path = run.problem_path
-            if problem_path not in problem_dict:
-                problem_dict[problem_path] = []
-            problem_dict[problem_path].append(run)
-        return problem_dict
-
-    @property
-    def runs_data_frame(self):
-        return self.get_runs_data_frame()
-
-    @methodtools.lru_cache()
-    def get_runs_data_frame(self, fields=None, excluded_sources=None):
-        return Run.get_data_frame(self.generate_runs(), self.run_count, fields, excluded_sources)
-
-    @property
-    def representative_runs(self):
-        return self.get_representative_runs()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_representative_runs(self):
-        return [problem_runs[0] for problem_runs in self.problem_dict.values()]
-
-    @property
-    def representative_runs_data_frame(self):
-        return self.get_representative_runs_data_frame()
-
-    @methodtools.lru_cache(maxsize=1)
-    def get_representative_runs_data_frame(self):
-        assert Run.get_data_frame(self.representative_runs)['problem_path'].is_unique
-        return Run.get_data_frame(self.representative_runs).set_index('problem_path')
-
-    @property
-    def problems(self):
-        run_groups = self.runs_data_frame.groupby('problem_path')
-        result = run_groups.size().to_frame('runs_count')
-        result = result.join(run_groups.agg([np.mean, np.std, np.min, np.max]))
         return result
