@@ -15,7 +15,7 @@ import utils
 
 class Batch:
     def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, strategy_id, vampire_timeout=None,
-                 cpus=1, no_clobber=False, scratch=None, job_file_path=None):
+                 cpus=1, overwrite='none', scratch=None, job_file_path=None):
         self._vampire = vampire
         self._vampire_options = vampire_options
         assert output_path is not None
@@ -28,7 +28,7 @@ class Batch:
         self._cpus = cpus
         self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=cpus)
         self._futures = set()
-        self._no_clobber = no_clobber
+        self._overwrite = overwrite
         self._scratch = scratch
         self._job_file_path = job_file_path
 
@@ -113,7 +113,7 @@ class Batch:
             'output_run': os.path.abspath(output_path)
         }
         configuration = {
-            'no_clobber': self._no_clobber,
+            'overwrite': self._overwrite,
             'vampire': self._vampire
         }
         result = {
@@ -123,12 +123,22 @@ class Batch:
         }
         stdout_str = None
         stderr_str = None
-        if self._no_clobber and os.path.isfile(os.path.join(output_path, paths['result'])):
+        # Supported values of `self._overwrite`:
+        # * all: Always overwrite
+        # * failed: Overwrite all runs with non-zero exit codes
+        # * interrupted: Overwrite all interrupted run results
+        # * none: Never overwrite
+        assert self._overwrite in ['all', 'failed', 'interrupted', 'none']
+        if self._overwrite != 'all' and os.path.isfile(os.path.join(output_path, paths['result'])):
             with open(os.path.join(output_path, paths['result'])) as prev_result_file:
                 prev_result = json.load(prev_result_file)
+                prev_exit_code = prev_result['result']['exit_code']
                 # Vampire terminates with exit code 3 if it is interrupted by SIGINT.
-                if prev_result['result']['exit_code'] != 3:
-                    result['status'] = 'skipped_already_completed'
+                if self._overwrite == 'none' or (self._overwrite == 'failed' and prev_exit_code == 0) or (
+                        self._overwrite == 'interrupted' and prev_exit_code != 3):
+                    result['status'] = 'skipped'
+                if result['status'] == 'skipped':
+                    result['exit_code'] = prev_exit_code
         if result['status'] is None:
             with self.scratch_directory() as scratch_directory_name:
                 json_output_dir = output_path

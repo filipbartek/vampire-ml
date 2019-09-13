@@ -64,7 +64,7 @@ def call(namespace):
             'job_id': namespace.job_id,
             'scratch': namespace.scratch,
             'cwd': os.getcwd(),
-            'no_clobber': namespace.no_clobber,
+            'overwrite': namespace.overwrite,
             'vampire_timeout': namespace.vampire_timeout,
             'vampire': namespace.vampire,
             'vampire_options': vampire_options
@@ -74,7 +74,7 @@ def call(namespace):
         problems_file.write('\n')
     assert namespace.solve_runs >= 1
     batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs, namespace.strategy_id,
-                  namespace.vampire_timeout, namespace.cpus, namespace.no_clobber, namespace.scratch,
+                  namespace.vampire_timeout, namespace.cpus, namespace.overwrite, namespace.scratch,
                   os.path.join(output_job, 'job.json'))
     problems_successful = set()
     with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
@@ -101,9 +101,8 @@ def add_arguments(parser):
     parser.add_argument('--strategy-id',
                         help='Identifier of strategy. Disambiguates job and problem run output directories.')
     parser.add_argument('--job-id', help='Identifier of job. Disambiguates job output directory.')
-    # Naming convention: `wget --no-clobber`
-    parser.add_argument('--no-clobber', '-nc', action='store_true',
-                        help='skip runs that would overwrite existing files')
+    parser.add_argument('--overwrite', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
+                        help='Which existing run results should be overwritten?')
     parser.add_argument('--scratch', help='temporary output directory')
     # Naming convention: `sbatch --cpus-per-task`
     parser.add_argument('--cpus', '-c', type=int, default=1, help='number of jobs to run in parallel')
