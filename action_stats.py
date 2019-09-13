@@ -3,15 +3,47 @@
 import glob
 import itertools
 import logging
-import math
 import os
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
+import seaborn as sns
 
 import file_path_list
 import run_database
+
+numeric_fields = {
+    'time_elapsed_process': {
+        'title': 'Time elapsed (process)',
+        'xlabel': 'Time elapsed [seconds]',
+        'ylabel': 'Runs'
+    },
+    'memory_used': {
+        'title': 'Memory used',
+        'xlabel': 'Memory used [kilobytes]',
+        'ylabel': 'Runs'
+    },
+    'saturation_iterations': {
+        'title': 'Main saturation loop iterations',
+        'xlabel': 'Saturation iterations',
+        'ylabel': 'Runs'
+    },
+    'predicates_count': {
+        'title': 'Number of predicate symbols',
+        'xlabel': 'Predicates',
+        'ylabel': 'Runs'
+    },
+    'functions_count': {
+        'title': 'Number of function symbols',
+        'xlabel': 'Functions',
+        'ylabel': 'Runs'
+    },
+    'clauses_count': {
+        'title': 'Number of clauses',
+        'xlabel': 'Clauses',
+        'ylabel': 'Runs'
+    }
+}
 
 
 def call(namespace):
@@ -54,55 +86,29 @@ def call(namespace):
     if 'termination_reason' in df and 'termination_phase' in df:
         print(df.groupby(['status', 'exit_code', 'termination_reason', 'termination_phase']).size())
 
-    numeric_fields = {
-        'time_elapsed_process': {
-            'title': 'Time elapsed (process)',
-            'xlabel': 'Time elapsed [seconds]',
-            'ylabel': 'Runs'
-        },
-        'memory_used': {
-            'title': 'Memory used',
-            'xlabel': 'Memory used [kilobytes]',
-            'ylabel': 'Runs'
-        },
-        'saturation_iterations': {
-            'title': 'Main saturation loop iterations',
-            'xlabel': 'Saturation iterations',
-            'ylabel': 'Runs'
-        },
-        'predicates_count': {
-            'title': 'Number of predicate symbols',
-            'xlabel': 'Predicates',
-            'ylabel': 'Runs'
-        },
-        'functions_count': {
-            'title': 'Number of function symbols',
-            'xlabel': 'Functions',
-            'ylabel': 'Runs'
-        },
-        'clauses_count': {
-            'title': 'Number of clauses',
-            'xlabel': 'Clauses',
-            'ylabel': 'Runs'
-        }
-    }
+    sns.set()
+
+    numeric_fields_present = [field for field in numeric_fields.keys() if field in df]
+    df_successful = df[df.exit_code == 0]
+
+    g = sns.pairplot(df, vars=numeric_fields_present, diag_kind='hist', hue='exit_code')
+    g.fig.suptitle('All runs')
+    if namespace.output is not None:
+        plt.savefig(os.path.join(namespace.output, f'pairs_all.svg'))
+
+    g = sns.pairplot(df_successful, vars=numeric_fields_present, diag_kind='hist', hue='termination_reason')
+    g.fig.suptitle('Successful runs')
+    if namespace.output is not None:
+        plt.savefig(os.path.join(namespace.output, f'pairs_successful.svg'))
 
     # Distributions of numeric fields
     for field, properties in numeric_fields.items():
         if field in df:
             print(df[field].describe())
-            df.hist(field, bins=100)
-            plt.title(properties['title'] + ' in all runs')
-            plt.xlabel(properties['xlabel'])
-            plt.ylabel(properties['ylabel'])
-            if namespace.output is not None:
-                plt.savefig(os.path.join(namespace.output, f'hist_{field}_all.svg'))
-            df[df.exit_code == 0].hist(field, bins=100)
-            plt.title(properties['title'] + ' in successful runs')
-            plt.xlabel(properties['xlabel'])
-            plt.ylabel(properties['ylabel'])
-            if namespace.output is not None:
-                plt.savefig(os.path.join(namespace.output, f'hist_{field}_successful.svg'))
+            distplot(df[field], properties['title'] + ' in all runs', properties['xlabel'], properties['ylabel'],
+                     namespace.output, f'hist_{field}_all')
+            distplot(df_successful[field], properties['title'] + ' in successful runs', properties['xlabel'],
+                     properties['ylabel'], namespace.output, f'hist_{field}_successful')
     if namespace.gui:
         plt.show()
 
@@ -119,6 +125,26 @@ def call(namespace):
             f.writelines(f'{path}\n' for path in df.problem_path)
         with open(os.path.join(namespace.output, 'problems_successful.txt'), 'w') as f:
             f.writelines(f'{path}\n' for path in df[df.exit_code == 0].problem_path)
+
+
+def distplot(series, title, xlabel, ylabel, output_directory, output_name):
+    output_path = None
+    if output_directory is not None and output_name is not None:
+        output_path = os.path.join(output_directory, output_name)
+    plt.figure()
+    sns.distplot(series.dropna(), kde=False, rug=True)
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    if output_path is not None:
+        plt.savefig(f'{output_path}.svg')
+    if series.nunique() > 1:
+        plt.figure()
+        sns.distplot(series.dropna(), rug=True)
+        plt.title(title)
+        plt.xlabel(xlabel)
+        if output_path is not None:
+            plt.savefig(f'{output_path}_kde.svg')
 
 
 def add_arguments(parser):
