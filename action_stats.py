@@ -77,10 +77,13 @@ def call(namespace):
         series.fillna('NA', inplace=True)
     assert 'status' in df and 'exit_code' in df
 
+    termination_fieldnames = []
+    for f in ['status', 'exit_code', 'termination_reason', 'termination_phase']:
+        if f in df:
+            termination_fieldnames.append(f)
+
     # Distributions of some combinations of category fields
-    print(df.groupby(['status', 'exit_code']).size())
-    if 'termination_reason' in df and 'termination_phase' in df:
-        print(df.groupby(['status', 'exit_code', 'termination_reason', 'termination_phase']).size())
+    print(df.groupby(termination_fieldnames).size())
 
     sns.set()
 
