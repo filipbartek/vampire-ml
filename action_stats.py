@@ -46,7 +46,7 @@ numeric_fields = {
 
 
 def call(namespace):
-    if namespace.input_pickle is None:
+    if namespace.input_runs_pickle is None:
         result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in namespace.result))
         runs = (run_database.Run(result_path) for result_path in result_paths)
         fields = namespace.fields
@@ -59,13 +59,13 @@ def call(namespace):
             excluded_sources.append('vampire_json')
         df = run_database.Run.get_data_frame(runs, None, fields, excluded_sources)
     else:
-        df = pd.read_pickle(namespace.input_pickle)
+        df = pd.read_pickle(namespace.input_runs_pickle)
 
     # We save the dataframe before we replace the NaNs in category columns with 'NA'.
     if namespace.output is not None:
         os.makedirs(namespace.output, exist_ok=True)
-        df.to_pickle(os.path.join(namespace.output, 'stats.pkl'))
-        df.to_csv(os.path.join(namespace.output, 'stats.csv'))
+        df.to_pickle(os.path.join(namespace.output, 'runs.pkl'))
+        df.to_csv(os.path.join(namespace.output, 'runs.csv'))
 
     print(df.info())
 
@@ -164,6 +164,6 @@ def add_arguments(parser):
     parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
-    parser.add_argument('--input-pickle', help='load a previously saved stats pickle')
+    parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
     parser.add_argument('--output', '-o', help='output directory')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')
