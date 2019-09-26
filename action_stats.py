@@ -123,6 +123,13 @@ def call(namespace):
          'n_time_limit': 0},
         inplace=True)
     problems_df = problems_df.join(problem_groups.agg([np.mean, np.std, np.min, np.max]))
+    # Merge probe run results into `problems_df`
+    if namespace.input_probe_runs_pickle is not None:
+        probe_runs_df = pd.read_pickle(namespace.input_probe_runs_pickle)
+        problems_df = problems_df.join(probe_runs_df[['problem_path', 'status', 'exit_code', 'termination_reason',
+                                                      'termination_phase', 'time_elapsed_process', 'predicates_count',
+                                                      'functions_count', 'clauses_count']].set_index('problem_path'),
+                                       rsuffix='probe')
     print(problems_df.info())
     if namespace.output is not None:
         os.makedirs(namespace.output, exist_ok=True)
@@ -217,5 +224,6 @@ def add_arguments(parser):
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
+    parser.add_argument('--input-probe-runs-pickle')
     parser.add_argument('--output', '-o', help='output directory')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')
