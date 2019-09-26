@@ -100,22 +100,27 @@ def call(namespace):
     problem_groups = runs_df.groupby(['problem_path'])
     problems_df = problems_df.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
     problems_df = problems_df.join(
-        runs_df[runs_df.status == 'completed'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_completed'))
+        runs_df[runs_df.status == 'completed'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+            'n_completed'))
     problems_df = problems_df.join(
         runs_df[runs_df.exit_code == 0].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_0'))
     problems_df = problems_df.join(
         runs_df[runs_df.exit_code == 1].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_1'))
     problems_df = problems_df.join(
-        runs_df[runs_df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+        runs_df[runs_df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(
+            pd.UInt64Dtype()).to_frame(
             'n_refutation'))
     problems_df = problems_df.join(
-        runs_df[runs_df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+        runs_df[runs_df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(
+            pd.UInt64Dtype()).to_frame(
             'n_satisfiable'))
     problems_df = problems_df.join(
-        runs_df[runs_df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+        runs_df[runs_df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(
+            pd.UInt64Dtype()).to_frame(
             'n_time_limit'))
     problems_df.fillna(
-        {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0, 'n_time_limit': 0},
+        {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0,
+         'n_time_limit': 0},
         inplace=True)
     problems_df = problems_df.join(problem_groups.agg([np.mean, np.std, np.min, np.max]))
     print(problems_df.info())
