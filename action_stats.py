@@ -136,6 +136,14 @@ def call(namespace):
         problems_df.to_pickle(os.path.join(namespace.output, 'problems.pkl'))
         problems_df.to_csv(os.path.join(namespace.output, 'problems.csv'))
 
+    problems_interesting_df = problems_df[
+        (problems_df.n_completed >= namespace.solve_runs) & (problems_df.n_exit_0 >= 1)].sort_values(
+        ('time_elapsed_process', 'std'), ascending=False)
+    print(f'Number of interesting problems: {len(problems_interesting_df)}')
+    if namespace.output is not None:
+        os.makedirs(namespace.output, exist_ok=True)
+        problems_interesting_df.to_csv(os.path.join(namespace.output, 'problems_interesting.csv'))
+
     sns.set()
 
     numeric_fields_present = [field for field in numeric_fields.keys() if field in runs_df]
@@ -222,6 +230,8 @@ def add_arguments(parser):
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
-    parser.add_argument('--input-probe-runs-pickle')
+    parser.add_argument('--input-probe-runs-pickle', help='merge a previously saved probe runs pickle')
+    parser.add_argument('--solve-runs', default=1,
+                        help='minimum number of runs for a problem to be considered interesting')
     parser.add_argument('--output', '-o', help='output directory')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')
