@@ -63,12 +63,11 @@ class Batch:
 
     def __solve_one_problem_async(self, output_path, problem_path, problem_base_path, csv_writer):
         assert self._solve_runs_per_problem >= 1
-        run_directory_name_width = len(str(self._solve_runs_per_problem - 1))
         for problem_run_index in range(self._solve_runs_per_problem):
             run_output_path = output_path
             random_seed_zero_based = None
             if self._solve_runs_per_problem > 1:
-                run_output_path = os.path.join(run_output_path, str(problem_run_index).zfill(run_directory_name_width))
+                run_output_path = os.path.join(run_output_path, str(problem_run_index))
                 random_seed_zero_based = problem_run_index
             self.__solve_one_run_async(run_output_path, output_path, problem_path, problem_base_path, csv_writer,
                                        random_seed_zero_based)
