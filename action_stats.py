@@ -5,6 +5,7 @@ import itertools
 import os
 
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -84,6 +85,45 @@ def call(namespace):
 
     # Distributions of some combinations of category fields
     print(df.groupby(termination_fieldnames).size())
+
+    problem_abs_paths = list(dict.fromkeys(df.problem_path))
+    if len(namespace.problem_list) >= 1:
+        problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, None,
+                                                                  namespace.problem_base_path)
+        problem_abs_paths = list(dict.fromkeys(itertools.chain(
+            problem_abs_paths, (os.path.abspath(os.path.join(problem_base_path, problem_path)) for problem_path in
+                                problem_paths))))
+
+    problems = pd.DataFrame(index=problem_abs_paths)
+    problems.index.name = 'problem_path'
+    problem_groups = df.groupby(['problem_path'])
+    problems = problems.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
+    problems = problems.join(
+        df[df.status == 'completed'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_completed'))
+    problems = problems.join(
+        df[df.exit_code == 0].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_0'))
+    problems = problems.join(
+        df[df.exit_code == 1].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_1'))
+    problems = problems.join(
+        df[df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+            'n_refutation'))
+    problems = problems.join(
+        df[df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+            'n_satisfiable'))
+    problems = problems.join(
+        df[df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+            'n_time_limit'))
+    problems.fillna(
+        {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0, 'n_time_limit': 0},
+        inplace=True)
+    problems = problems.join(problem_groups.agg([np.mean, np.std, np.min, np.max]))
+    print(problems.info())
+    if namespace.output is not None:
+        os.makedirs(namespace.output, exist_ok=True)
+        problems.to_pickle(os.path.join(namespace.output, 'problems.pkl'))
+        problems.to_csv(os.path.join(namespace.output, 'problems.csv'))
+
+    print(df.groupby(['problem_path'] + termination_fieldnames).size())
 
     sns.set()
 
