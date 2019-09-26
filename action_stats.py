@@ -58,35 +58,35 @@ def call(namespace):
             excluded_sources.append('stdout')
         if not namespace.source_vampire_json:
             excluded_sources.append('vampire_json')
-        df = run_database.Run.get_data_frame(runs, None, fields, excluded_sources)
+        runs_df = run_database.Run.get_data_frame(runs, None, fields, excluded_sources)
     else:
-        df = pd.read_pickle(namespace.input_runs_pickle)
+        runs_df = pd.read_pickle(namespace.input_runs_pickle)
 
     # We save the dataframe before we replace the NaNs in category columns with 'NA'.
     if namespace.output is not None:
         os.makedirs(namespace.output, exist_ok=True)
-        df.to_pickle(os.path.join(namespace.output, 'runs.pkl'))
-        df.to_csv(os.path.join(namespace.output, 'runs.csv'))
+        runs_df.to_pickle(os.path.join(namespace.output, 'runs.pkl'))
+        runs_df.to_csv(os.path.join(namespace.output, 'runs.csv'))
 
-    print(df.info())
+    print(runs_df.info())
 
     # Replace NaN with 'NA' in category columns. This allows getting more useful statistics.
-    for field in df.select_dtypes(['category']):
-        series = df[field]
+    for field in runs_df.select_dtypes(['category']):
+        series = runs_df[field]
         assert 'NA' not in series.cat.categories
         series.cat.add_categories('NA', inplace=True)
         series.fillna('NA', inplace=True)
-    assert 'status' in df and 'exit_code' in df
+    assert 'status' in runs_df and 'exit_code' in runs_df
 
     termination_fieldnames = []
     for f in ['status', 'exit_code', 'termination_reason', 'termination_phase']:
-        if f in df:
+        if f in runs_df:
             termination_fieldnames.append(f)
 
     # Distributions of some combinations of category fields
-    print(df.groupby(termination_fieldnames).size())
+    print(runs_df.groupby(termination_fieldnames).size())
 
-    problem_abs_paths = list(dict.fromkeys(df.problem_path))
+    problem_abs_paths = list(dict.fromkeys(runs_df.problem_path))
     if len(namespace.problem_list) >= 1:
         problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, None,
                                                                   namespace.problem_base_path)
@@ -94,56 +94,56 @@ def call(namespace):
             problem_abs_paths, (os.path.abspath(os.path.join(problem_base_path, problem_path)) for problem_path in
                                 problem_paths))))
 
-    problems = pd.DataFrame(index=problem_abs_paths)
-    problems.index.name = 'problem_path'
-    problem_groups = df.groupby(['problem_path'])
-    problems = problems.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
-    problems = problems.join(
-        df[df.status == 'completed'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_completed'))
-    problems = problems.join(
-        df[df.exit_code == 0].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_0'))
-    problems = problems.join(
-        df[df.exit_code == 1].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_1'))
-    problems = problems.join(
-        df[df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+    problems_df = pd.DataFrame(index=problem_abs_paths)
+    problems_df.index.name = 'problem_path'
+    problem_groups = runs_df.groupby(['problem_path'])
+    problems_df = problems_df.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
+    problems_df = problems_df.join(
+        runs_df[runs_df.status == 'completed'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_completed'))
+    problems_df = problems_df.join(
+        runs_df[runs_df.exit_code == 0].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_0'))
+    problems_df = problems_df.join(
+        runs_df[runs_df.exit_code == 1].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_1'))
+    problems_df = problems_df.join(
+        runs_df[runs_df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
             'n_refutation'))
-    problems = problems.join(
-        df[df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+    problems_df = problems_df.join(
+        runs_df[runs_df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
             'n_satisfiable'))
-    problems = problems.join(
-        df[df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
+    problems_df = problems_df.join(
+        runs_df[runs_df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
             'n_time_limit'))
-    problems.fillna(
+    problems_df.fillna(
         {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0, 'n_time_limit': 0},
         inplace=True)
-    problems = problems.join(problem_groups.agg([np.mean, np.std, np.min, np.max]))
-    print(problems.info())
+    problems_df = problems_df.join(problem_groups.agg([np.mean, np.std, np.min, np.max]))
+    print(problems_df.info())
     if namespace.output is not None:
         os.makedirs(namespace.output, exist_ok=True)
-        problems.to_pickle(os.path.join(namespace.output, 'problems.pkl'))
-        problems.to_csv(os.path.join(namespace.output, 'problems.csv'))
+        problems_df.to_pickle(os.path.join(namespace.output, 'problems.pkl'))
+        problems_df.to_csv(os.path.join(namespace.output, 'problems.csv'))
 
-    print(df.groupby(['problem_path'] + termination_fieldnames).size())
+    print(runs_df.groupby(['problem_path'] + termination_fieldnames).size())
 
     sns.set()
 
-    numeric_fields_present = [field for field in numeric_fields.keys() if field in df]
-    df_successful = df[df.exit_code == 0]
+    numeric_fields_present = [field for field in numeric_fields.keys() if field in runs_df]
+    df_successful = runs_df[runs_df.exit_code == 0]
 
     # Distributions of numeric fields
     for field, properties in numeric_fields.items():
-        if field in df:
-            print(df[field].describe())
-            distplot(df[field], properties['title'] + ' in all runs', properties['xlabel'], properties['ylabel'],
+        if field in runs_df:
+            print(runs_df[field].describe())
+            distplot(runs_df[field], properties['title'] + ' in all runs', properties['xlabel'], properties['ylabel'],
                      namespace.output, f'hist_{field}_all')
             distplot(df_successful[field], properties['title'] + ' in successful runs', properties['xlabel'],
                      properties['ylabel'], namespace.output, f'hist_{field}_successful')
 
     hue_field = 'exit_code'
-    if 'termination_reason' in df:
+    if 'termination_reason' in runs_df:
         hue_field = 'termination_reason'
 
-    g = sns.pairplot(df.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
+    g = sns.pairplot(runs_df.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
                      hue=hue_field)
     g.fig.suptitle('All runs')
     if namespace.output is not None:
@@ -166,7 +166,7 @@ def call(namespace):
                                                                       namespace.problem_base_path)
             problem_abs_paths = set(
                 os.path.abspath(os.path.join(problem_base_path, problem_path)) for problem_path in problem_paths)
-            solved_problem_abs_paths = set(map(os.path.abspath, df.problem_path))
+            solved_problem_abs_paths = set(map(os.path.abspath, runs_df.problem_path))
             assert problem_abs_paths >= solved_problem_abs_paths
             with open(os.path.join(namespace.output, 'problems_unprocessed.txt'), 'w') as f:
                 for problem_path in problem_paths:
@@ -174,9 +174,9 @@ def call(namespace):
                     if problem_abs_path not in solved_problem_abs_paths:
                         f.write(f'{problem_abs_path}\n')
         with open(os.path.join(namespace.output, 'problems.txt'), 'w') as f:
-            f.writelines(f'{path}\n' for path in df.problem_path)
+            f.writelines(f'{path}\n' for path in runs_df.problem_path)
         with open(os.path.join(namespace.output, 'problems_successful.txt'), 'w') as f:
-            f.writelines(f'{path}\n' for path in df[df.exit_code == 0].problem_path)
+            f.writelines(f'{path}\n' for path in runs_df[runs_df.exit_code == 0].problem_path)
 
 
 def distplot(series, title, xlabel, ylabel, output_directory, output_name):
