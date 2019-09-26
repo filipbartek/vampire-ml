@@ -136,8 +136,6 @@ def call(namespace):
         problems_df.to_pickle(os.path.join(namespace.output, 'problems.pkl'))
         problems_df.to_csv(os.path.join(namespace.output, 'problems.csv'))
 
-    print(runs_df.groupby(['problem_path'] + termination_fieldnames).size())
-
     sns.set()
 
     numeric_fields_present = [field for field in numeric_fields.keys() if field in runs_df]
