@@ -2,6 +2,7 @@
 
 import glob
 import itertools
+import logging
 import os
 
 import matplotlib.pyplot as plt
@@ -180,6 +181,9 @@ def call(namespace):
 
 
 def distplot(series, title, xlabel, ylabel, output_directory, output_name):
+    if series.count() == 0:
+        logging.warning(f'Skipping distplot {output_name} because there is no valid data.')
+        return
     output_path = None
     if output_directory is not None and output_name is not None:
         output_path = os.path.join(output_directory, output_name)
