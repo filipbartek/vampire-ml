@@ -205,6 +205,12 @@ class Run:
         # Populate the series with run data
         for i, run in tqdm.tqdm(enumerate(runs), total=run_count, unit='run'):
             assert i < run_count
+            # Run expensive functions first to facilitate profiling.
+            run.result_json_data()
+            if 'stdout' not in excluded_sources:
+                run.stdout()
+            if 'vampire_json' not in excluded_sources:
+                run.vampire_json_data()
             for fieldname in fieldnames:
                 series[fieldname][i] = run[fieldname]
         # Establish categories in respective series
