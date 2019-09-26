@@ -133,8 +133,9 @@ class Batch:
                 prev_result = json.load(prev_result_file)
                 prev_exit_code = prev_result['result']['exit_code']
                 # Vampire terminates with exit code 3 if it is interrupted by SIGINT.
+                # FB: Vampire terminates with exit code -11 from time to time for an unknown reason.
                 if self._overwrite == 'none' or (self._overwrite == 'failed' and prev_exit_code == 0) or (
-                        self._overwrite == 'interrupted' and prev_exit_code != 3):
+                        self._overwrite == 'interrupted' and prev_exit_code not in [3, -11]):
                     result['status'] = 'skipped'
                 if result['status'] == 'skipped':
                     result['exit_code'] = prev_exit_code
