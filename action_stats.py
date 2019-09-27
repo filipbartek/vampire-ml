@@ -47,6 +47,68 @@ numeric_fields = {
 }
 
 
+def add_arguments(parser):
+    parser.set_defaults(action=call)
+    parser.add_argument('result', type=str, nargs='*', help='glob pattern of result of a prove or probe run')
+    parser.add_argument('--fields', help='names of fields to extract separated by commas')
+    parser.add_argument('--source-stdout', action='store_true', help='include data from stdout.txt files')
+    parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
+    parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
+    parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
+    parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
+    parser.add_argument('--input-probe-runs-pickle', help='merge a previously saved probe runs pickle')
+    parser.add_argument('--solve-runs-per-problem', type=int, default=1,
+                        help='minimum number of runs for a problem to be considered interesting')
+    parser.add_argument('--output', '-o', help='output directory')
+    parser.add_argument('--plot-format', action='append', nargs='+',
+                        help='output plot formats recognized by `pyplot.savefig`')
+    parser.add_argument('--gui', action='store_true', help='open windows with histograms')
+    parser.add_argument('--only-save-runs', action='store_true', help='do nothing except collecting and saving runs')
+
+
+def call(namespace):
+    if namespace.input_runs_pickle is None:
+        runs_df = generate_runs_df(namespace.result, namespace.fields, namespace.source_stdout,
+                                   namespace.source_vampire_json)
+    else:
+        runs_df = pd.read_pickle(namespace.input_runs_pickle)
+
+    # We save the dataframe before we replace the NaNs in category columns with 'NA'.
+    save_df(runs_df, 'runs', namespace.output)
+
+    if namespace.only_save_runs:
+        return
+
+    print(runs_df.info())
+
+    fill_category_na(runs_df)
+
+    termination_fieldnames = [f for f in ['status', 'exit_code', 'termination_reason', 'termination_phase'] if
+                              f in runs_df]
+
+    # Distributions of some combinations of category fields
+    print(runs_df.groupby(termination_fieldnames).size())
+
+    problem_abs_paths = get_problem_abs_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
+    problems_df = generate_problems_df(problem_abs_paths, runs_df, namespace.input_probe_runs_pickle)
+    print(problems_df.info())
+    save_df(problems_df, 'problems', namespace.output)
+
+    problems_interesting_df = problems_df[
+        (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1)].sort_values(
+        ('time_elapsed_process', 'std'), ascending=False)
+    print(f'Number of interesting problems: {len(problems_interesting_df)}')
+    save_df(problems_interesting_df, 'problems_interesting', namespace.output)
+
+    if namespace.plot_format is None:
+        plot_formats = ['svg']
+    else:
+        plot_formats = list(itertools.chain(*namespace.plot_format))
+    plot(runs_df, namespace.output, namespace.gui, plot_formats)
+
+    save_problem_lists(namespace.output, runs_df, problem_abs_paths)
+
+
 def generate_runs_df(results, fields, source_stdout, source_vampire_json):
     result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in results))
     runs = (run_database.Run(result_path) for result_path in result_paths)
@@ -177,54 +239,6 @@ def save_problem_lists(output, runs_df, problem_abs_paths):
             f.writelines(f'{path}\n' for path in runs_df[runs_df.exit_code == 0].problem_path)
 
 
-def call(namespace):
-    if namespace.input_runs_pickle is None:
-        runs_df = generate_runs_df(namespace.result, namespace.fields, namespace.source_stdout,
-                                   namespace.source_vampire_json)
-    else:
-        runs_df = pd.read_pickle(namespace.input_runs_pickle)
-
-    # We save the dataframe before we replace the NaNs in category columns with 'NA'.
-    save_df(runs_df, 'runs', namespace.output)
-
-    if namespace.only_save_runs:
-        return
-
-    print(runs_df.info())
-
-    fill_category_na(runs_df)
-
-    termination_fieldnames = [f for f in ['status', 'exit_code', 'termination_reason', 'termination_phase'] if
-                              f in runs_df]
-
-    # Distributions of some combinations of category fields
-    print(runs_df.groupby(termination_fieldnames).size())
-
-    problem_abs_paths = get_problem_abs_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
-    problems_df = generate_problems_df(problem_abs_paths, runs_df, namespace.input_probe_runs_pickle)
-    print(problems_df.info())
-    save_df(problems_df, 'problems', namespace.output)
-
-    problems_interesting_df = problems_df[
-        (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1)].sort_values(
-        ('time_elapsed_process', 'std'), ascending=False)
-    print(f'Number of interesting problems: {len(problems_interesting_df)}')
-    save_df(problems_interesting_df, 'problems_interesting', namespace.output)
-
-    if namespace.plot_format is None:
-        plot_formats = ['svg']
-    else:
-        plot_formats = list(itertools.chain(*namespace.plot_format))
-    plot(runs_df, namespace.output, namespace.gui, plot_formats)
-
-    save_problem_lists(namespace.output, runs_df, problem_abs_paths)
-
-
-def savefig(name, formats):
-    for format in formats:
-        plt.savefig(f'{name}.{format}')
-
-
 def distplot(series, title, xlabel, ylabel, output_directory, output_name, formats):
     if series.count() == 0:
         logging.warning(f'Skipping distplot {output_name} because there is no valid data.')
@@ -248,20 +262,6 @@ def distplot(series, title, xlabel, ylabel, output_directory, output_name, forma
             savefig(f'{output_path}_kde', formats)
 
 
-def add_arguments(parser):
-    parser.set_defaults(action=call)
-    parser.add_argument('result', type=str, nargs='*', help='glob pattern of result of a prove or probe run')
-    parser.add_argument('--fields', help='names of fields to extract separated by commas')
-    parser.add_argument('--source-stdout', action='store_true', help='include data from stdout.txt files')
-    parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
-    parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
-    parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
-    parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
-    parser.add_argument('--input-probe-runs-pickle', help='merge a previously saved probe runs pickle')
-    parser.add_argument('--solve-runs-per-problem', type=int, default=1,
-                        help='minimum number of runs for a problem to be considered interesting')
-    parser.add_argument('--output', '-o', help='output directory')
-    parser.add_argument('--plot-format', action='append', nargs='+',
-                        help='output plot formats recognized by `pyplot.savefig`')
-    parser.add_argument('--gui', action='store_true', help='open windows with histograms')
-    parser.add_argument('--only-save-runs', action='store_true', help='do nothing except collecting and saving runs')
+def savefig(name, formats):
+    for format in formats:
+        plt.savefig(f'{name}.{format}')
