@@ -92,6 +92,14 @@ class Batch:
         vampire_options.extend(['--json_output', json_output_path])
         return vampire_options
 
+    @staticmethod
+    def is_vampire_exit_code_interruption(code):
+        # See definitions of Vampire exit codes in `vampire/Lib/System.hpp`.
+        # Filip Bartek: I have observed the exit codes 0, 1, 3, -9 and -11.
+        # Out of these, only 0 and 1 seem to guarantee a completed execution.
+        # See also: https://www.nsnam.org/wiki/HOWTO_understand_and_find_cause_of_exited_with_code_-11_errors
+        return code not in [0, 1]
+
     def __solve_one_run_sync(self, output_path, problem_output_path, problem_path, problem_base_path, csv_writer,
                              random_seed_zero_based):
         scratch_root = None
@@ -132,10 +140,9 @@ class Batch:
             with open(os.path.join(output_path, paths['result'])) as prev_result_file:
                 prev_result = json.load(prev_result_file)
                 prev_exit_code = prev_result['result']['exit_code']
-                # Vampire terminates with exit code 3 if it is interrupted by SIGINT.
-                # FB: Vampire terminates with exit code -11 from time to time for an unknown reason.
                 if self._overwrite == 'none' or (self._overwrite == 'failed' and prev_exit_code == 0) or (
-                        self._overwrite == 'interrupted' and prev_exit_code not in [3, -11]):
+                        self._overwrite == 'interrupted' and not self.is_vampire_exit_code_interruption(
+                        prev_exit_code)):
                     result['status'] = 'skipped'
                 if result['status'] == 'skipped':
                     result['exit_code'] = prev_exit_code
