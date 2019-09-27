@@ -62,7 +62,7 @@ def add_arguments(parser):
                         help='minimum number of runs for a problem to be considered interesting')
     parser.add_argument('--output', '-o', help='output directory')
     parser.add_argument('--plot-format', action='append', nargs='+',
-                        help='output plot formats recognized by `pyplot.savefig`')
+                        help='Output plot formats recognized by `pyplot.savefig`. Recommended values: svg, png')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')
     parser.add_argument('--only-save-runs', action='store_true', help='do nothing except collecting and saving runs')
 
@@ -97,16 +97,14 @@ def call(namespace):
 
     problems_interesting_df = problems_df[
         (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1) & (
-                    problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)].sort_values(
+                problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)].sort_values(
         ('saturation_iterations', 'variation'), ascending=False)
     print(f'Number of interesting problems: {len(problems_interesting_df)}')
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
 
-    if namespace.plot_format is None:
-        plot_formats = ['svg']
-    else:
+    if namespace.plot_format is not None:
         plot_formats = list(itertools.chain(*namespace.plot_format))
-    plot(runs_df, namespace.output, namespace.gui, plot_formats)
+        plot(runs_df, namespace.output, namespace.gui, plot_formats)
 
     save_problem_lists(namespace.output, runs_df, problem_abs_paths)
 
