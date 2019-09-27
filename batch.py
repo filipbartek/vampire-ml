@@ -144,7 +144,6 @@ class Batch:
                         self._overwrite == 'interrupted' and not self.is_vampire_exit_code_interruption(
                         prev_exit_code)):
                     result['status'] = 'skipped'
-                if result['status'] == 'skipped':
                     result['exit_code'] = prev_exit_code
         if result['status'] is None:
             with self.scratch_directory() as scratch_directory_name:
