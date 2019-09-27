@@ -216,6 +216,11 @@ def call(namespace):
     save_problem_lists(namespace.output, runs_df, problem_abs_paths)
 
 
+def savefig(name):
+    for extension in ['svg', 'png']:
+        plt.savefig(f'{name}.{extension}')
+
+
 def distplot(series, title, xlabel, ylabel, output_directory, output_name):
     if series.count() == 0:
         logging.warning(f'Skipping distplot {output_name} because there is no valid data.')
@@ -229,14 +234,14 @@ def distplot(series, title, xlabel, ylabel, output_directory, output_name):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     if output_path is not None:
-        plt.savefig(f'{output_path}.svg')
+        savefig(output_path)
     if series.nunique() > 1:
         plt.figure()
         sns.distplot(series.dropna(), rug=True)
         plt.title(title)
         plt.xlabel(xlabel)
         if output_path is not None:
-            plt.savefig(f'{output_path}_kde.svg')
+            savefig(f'{output_path}_kde')
 
 
 def add_arguments(parser):
