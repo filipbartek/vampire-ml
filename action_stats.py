@@ -126,7 +126,7 @@ def generate_problems_df(problem_abs_paths, runs_df, input_probe_runs_pickle):
     return problems_df
 
 
-def plot(runs_df, output, gui):
+def plot(runs_df, output, gui, formats):
     sns.set()
 
     numeric_fields_present = [field for field in numeric_fields.keys() if field in runs_df]
@@ -137,9 +137,9 @@ def plot(runs_df, output, gui):
         if field in runs_df:
             print(runs_df[field].describe())
             distplot(runs_df[field], properties['title'] + ' in all runs', properties['xlabel'], properties['ylabel'],
-                     output, f'hist_{field}_all')
+                     output, f'hist_{field}_all', formats)
             distplot(df_successful[field], properties['title'] + ' in successful runs', properties['xlabel'],
-                     properties['ylabel'], output, f'hist_{field}_successful')
+                     properties['ylabel'], output, f'hist_{field}_successful', formats)
 
     hue_field = 'exit_code'
     if 'termination_reason' in runs_df:
@@ -149,13 +149,13 @@ def plot(runs_df, output, gui):
                      hue=hue_field)
     g.fig.suptitle('All runs')
     if output is not None:
-        plt.savefig(os.path.join(output, f'pairs_all.svg'))
+        savefig(os.path.join(output, f'pairs_all'), formats)
 
     g = sns.pairplot(df_successful.dropna(subset=numeric_fields_present), vars=numeric_fields_present, diag_kind='hist',
                      hue=hue_field)
     g.fig.suptitle('Successful runs')
     if output is not None:
-        plt.savefig(os.path.join(output, f'pairs_successful.svg'))
+        savefig(os.path.join(output, f'pairs_successful'), formats)
 
     if gui:
         plt.show()
@@ -211,17 +211,21 @@ def call(namespace):
     print(f'Number of interesting problems: {len(problems_interesting_df)}')
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
 
-    plot(runs_df, namespace.output, namespace.gui)
+    if namespace.plot_format is None:
+        plot_formats = ['svg']
+    else:
+        plot_formats = list(itertools.chain(*namespace.plot_format))
+    plot(runs_df, namespace.output, namespace.gui, plot_formats)
 
     save_problem_lists(namespace.output, runs_df, problem_abs_paths)
 
 
-def savefig(name):
-    for extension in ['svg', 'png']:
-        plt.savefig(f'{name}.{extension}')
+def savefig(name, formats):
+    for format in formats:
+        plt.savefig(f'{name}.{format}')
 
 
-def distplot(series, title, xlabel, ylabel, output_directory, output_name):
+def distplot(series, title, xlabel, ylabel, output_directory, output_name, formats):
     if series.count() == 0:
         logging.warning(f'Skipping distplot {output_name} because there is no valid data.')
         return
@@ -234,14 +238,14 @@ def distplot(series, title, xlabel, ylabel, output_directory, output_name):
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     if output_path is not None:
-        savefig(output_path)
+        savefig(output_path, formats)
     if series.nunique() > 1:
         plt.figure()
         sns.distplot(series.dropna(), rug=True)
         plt.title(title)
         plt.xlabel(xlabel)
         if output_path is not None:
-            savefig(f'{output_path}_kde')
+            savefig(f'{output_path}_kde', formats)
 
 
 def add_arguments(parser):
@@ -257,5 +261,7 @@ def add_arguments(parser):
     parser.add_argument('--solve-runs-per-problem', type=int, default=1,
                         help='minimum number of runs for a problem to be considered interesting')
     parser.add_argument('--output', '-o', help='output directory')
+    parser.add_argument('--plot-format', action='append', nargs='+',
+                        help='output plot formats recognized by `pyplot.savefig`')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')
     parser.add_argument('--only-save-runs', action='store_true', help='do nothing except collecting and saving runs')
