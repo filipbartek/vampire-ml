@@ -96,8 +96,9 @@ def call(namespace):
     save_df(problems_df, 'problems', namespace.output)
 
     problems_interesting_df = problems_df[
-        (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1)].sort_values(
-        ('time_elapsed_process', 'std'), ascending=False)
+        (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1) & (
+                    problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)].sort_values(
+        ('saturation_iterations', 'variation'), ascending=False)
     print(f'Number of interesting problems: {len(problems_interesting_df)}')
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
 
