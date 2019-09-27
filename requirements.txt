@@ -1,8 +1,8 @@
-seaborn
 matplotlib
 methodtools
 numpy
 pandas
 scipy
+seaborn
 sklearn
 tqdm
