@@ -3,5 +3,6 @@ matplotlib
 methodtools
 numpy
 pandas
+scipy
 sklearn
 tqdm
