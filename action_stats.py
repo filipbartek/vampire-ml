@@ -206,7 +206,7 @@ def call(namespace):
     save_df(problems_df, 'problems', namespace.output)
 
     problems_interesting_df = problems_df[
-        (problems_df.n_completed >= namespace.solve_runs) & (problems_df.n_exit_0 >= 1)].sort_values(
+        (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1)].sort_values(
         ('time_elapsed_process', 'std'), ascending=False)
     print(f'Number of interesting problems: {len(problems_interesting_df)}')
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
@@ -249,7 +249,7 @@ def add_arguments(parser):
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
     parser.add_argument('--input-probe-runs-pickle', help='merge a previously saved probe runs pickle')
-    parser.add_argument('--solve-runs', default=1,
+    parser.add_argument('--solve-runs-per-problem', default=1,
                         help='minimum number of runs for a problem to be considered interesting')
     parser.add_argument('--output', '-o', help='output directory')
     parser.add_argument('--gui', action='store_true', help='open windows with histograms')
