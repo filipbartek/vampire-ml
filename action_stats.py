@@ -177,7 +177,7 @@ def generate_problems_df(problem_abs_paths, runs_df, input_probe_runs_pickle):
         {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0,
          'n_time_limit': 0},
         inplace=True)
-    problems_df = problems_df.join(problem_groups.agg([np.mean, np.std, np.min, np.max, scipy.stats.variation]))
+    problems_df = problems_df.join(problem_groups.agg([np.mean, np.std, scipy.stats.variation, np.min, np.max]))
     # Merge probe run results into `problems_df`
     if input_probe_runs_pickle is not None:
         probe_runs_df = pd.read_pickle(input_probe_runs_pickle)
