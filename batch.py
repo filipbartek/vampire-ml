@@ -78,18 +78,22 @@ class Batch:
                                        problem_base_path, csv_writer, random_seed_zero_based)
         self._futures.add(future)
 
-    def compose_vampire_options(self, problem_path, json_output_dir, random_seed_zero_based=None):
+    def compose_vampire_options(self, problem_path, output_dir, random_seed_zero_based=None):
         vampire_options = self._vampire_options.copy()
         vampire_options.extend([problem_path])
         if random_seed_zero_based is not None:
             if '--random_seed' in vampire_options:
                 logging.warning('Overriding --random_seed.')
             vampire_options.extend(['--random_seed', str(random_seed_zero_based + 1)])
-        assert json_output_dir is not None
-        json_output_path = os.path.join(json_output_dir, 'vampire.json')
-        if '--json_output' in vampire_options:
-            logging.warning('Overriding --json_output.')
-        vampire_options.extend(['--json_output', json_output_path])
+        assert output_dir is not None
+        symbols_csv_output_path = os.path.join(output_dir, 'symbols.csv')
+        if '--symbols_csv_output' in vampire_options:
+            logging.warning('Overriding --symbols_csv_output.')
+        vampire_options.extend(['--symbols_csv_output', symbols_csv_output_path])
+        clauses_json_output_path = os.path.join(output_dir, 'clauses.json')
+        if '--clauses_json_output' in vampire_options:
+            logging.warning('Overriding --clauses_json_output.')
+        vampire_options.extend(['--clauses_json_output', clauses_json_output_path])
         return vampire_options
 
     @staticmethod
@@ -110,7 +114,8 @@ class Batch:
             'result': 'result.json',
             'stdout': 'stdout.txt',
             'stderr': 'stderr.txt',
-            'vampire_json': 'vampire.json',
+            'symbols_csv': 'symbols.csv',
+            'clauses_json': 'clauses.json',
             'job': os.path.relpath(self._job_file_path, output_path),
             'problem': problem_path,
             'scratch_root': scratch_root,
@@ -147,11 +152,11 @@ class Batch:
                     result['exit_code'] = prev_exit_code
         if result['status'] is None:
             with self.scratch_directory() as scratch_directory_name:
-                json_output_dir = output_path
+                vampire_output_dir = output_path
                 if scratch_directory_name is not None:
-                    json_output_dir = scratch_directory_name
+                    vampire_output_dir = scratch_directory_name
                     paths['scratch_job'] = os.path.abspath(scratch_directory_name)
-                vampire_options = self.compose_vampire_options(problem_path, json_output_dir, random_seed_zero_based)
+                vampire_options = self.compose_vampire_options(problem_path, vampire_output_dir, random_seed_zero_based)
                 vampire_args = [self._vampire] + vampire_options
                 timeout_seconds = self._vampire_timeout
                 if timeout_seconds is None:
@@ -184,19 +189,28 @@ class Batch:
                     result['status'] = 'timeout_expired'
                     stdout_str = e.stdout
                     stderr_str = e.stderr
-                if json_output_dir != output_path and result['exit_code'] == 0:
+                if vampire_output_dir != output_path and result['exit_code'] == 0:
                     try:
-                        shutil.move(os.path.join(json_output_dir, paths['vampire_json']),
-                                    os.path.join(output_path, paths['vampire_json']))
+                        shutil.move(os.path.join(vampire_output_dir, paths['symbols_csv']),
+                                    os.path.join(output_path, paths['symbols_csv']))
+                    except FileNotFoundError:
+                        pass
+                    try:
+                        shutil.move(os.path.join(vampire_output_dir, paths['clauses_json']),
+                                    os.path.join(output_path, paths['clauses_json']))
                     except FileNotFoundError:
                         pass
             assert self._scratch is None or result['exit_code'] == 0 or not os.path.isfile(
-                os.path.join(output_path, paths['vampire_json']))
+                os.path.join(output_path, paths['clauses_json']))
             # If self._scratch is None, the Vampire output JSON file has been deleted along with the scratch directory.
             if self._scratch is None and result['exit_code'] != 0:
                 # Vampire may or may not have created the file.
                 try:
-                    os.remove(os.path.join(output_path, paths['vampire_json']))
+                    os.remove(os.path.join(output_path, paths['symbols_csv']))
+                except FileNotFoundError:
+                    pass
+                try:
+                    os.remove(os.path.join(output_path, paths['clauses_json']))
                 except FileNotFoundError:
                     pass
             csv_writer.writerow({
