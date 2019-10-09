@@ -85,17 +85,17 @@ def call(namespace):
 
     problem_paths = get_problem_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
 
+    termination_fieldnames = [f for f in ['status', 'exit_code', 'termination_reason', 'termination_phase'] if
+                              f in runs_df]
+
     problem_first_runs = pd.DataFrame(index=problem_paths)
     problem_first_runs.index.name = 'problem_path'
     problem_first_runs = problem_first_runs.join(runs_df.groupby('problem_path').first()).sort_values(
-        'time_elapsed_process')
+        termination_fieldnames + ['time_elapsed_process'])
     save_df(problem_first_runs, 'problem_first_runs', namespace.output)
 
     fill_category_na(runs_df)
     fill_category_na(problem_first_runs)
-
-    termination_fieldnames = [f for f in ['status', 'exit_code', 'termination_reason', 'termination_phase'] if
-                              f in runs_df]
 
     # Distributions of some combinations of category fields
     print('Run termination distribution:', runs_df.groupby(termination_fieldnames).size(), sep='\n')
