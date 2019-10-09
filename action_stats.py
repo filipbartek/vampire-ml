@@ -81,6 +81,13 @@ def call(namespace):
 
     print(runs_df.info())
 
+    problem_abs_paths = get_problem_abs_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
+
+    problem_first_runs = pd.DataFrame(index=problem_abs_paths)
+    problem_first_runs.index.name = 'problem_path'
+    problem_first_runs = problem_first_runs.join(runs_df.groupby('problem_path').first()).sort_values('time_elapsed_process')
+    save_df(problem_first_runs, 'problem_first_runs', namespace.output)
+
     fill_category_na(runs_df)
 
     termination_fieldnames = [f for f in ['status', 'exit_code', 'termination_reason', 'termination_phase'] if
@@ -89,7 +96,6 @@ def call(namespace):
     # Distributions of some combinations of category fields
     print(runs_df.groupby(termination_fieldnames).size())
 
-    problem_abs_paths = get_problem_abs_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
     problems_df = generate_problems_df(problem_abs_paths, runs_df, namespace.input_probe_runs_pickle)
     print(problems_df.info())
     save_df(problems_df, 'problems', namespace.output)
