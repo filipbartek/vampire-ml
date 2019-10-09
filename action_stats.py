@@ -69,7 +69,8 @@ def add_arguments(parser):
 
 def call(namespace):
     if namespace.input_runs_pickle is None:
-        runs_df = generate_runs_df(namespace.result, namespace.fields, list(itertools.chain(*namespace.source)))
+        runs_df = generate_runs_df(namespace.result, namespace.fields, list(itertools.chain(*namespace.source)),
+                                   namespace.problem_base_path)
     else:
         runs_df = pd.read_pickle(namespace.input_runs_pickle)
 
@@ -82,9 +83,9 @@ def call(namespace):
     print('Runs info:')
     runs_df.info()
 
-    problem_abs_paths = get_problem_abs_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
+    problem_paths = get_problem_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
 
-    problem_first_runs = pd.DataFrame(index=problem_abs_paths)
+    problem_first_runs = pd.DataFrame(index=problem_paths)
     problem_first_runs.index.name = 'problem_path'
     problem_first_runs = problem_first_runs.join(runs_df.groupby('problem_path').first()).sort_values(
         'time_elapsed_process')
@@ -101,7 +102,7 @@ def call(namespace):
     print('Problem first run termination distribution:', problem_first_runs.groupby(termination_fieldnames).size(),
           sep='\n')
 
-    problems_df = generate_problems_df(problem_abs_paths, runs_df, namespace.input_probe_runs_pickle)
+    problems_df = generate_problems_df(problem_paths, runs_df, namespace.input_probe_runs_pickle)
     print('Problems info:')
     problems_df.info()
     save_df(problems_df, 'problems', namespace.output)
@@ -120,9 +121,9 @@ def call(namespace):
         plot(runs_df, namespace.output, namespace.gui, plot_formats)
 
 
-def generate_runs_df(results, fields, sources):
+def generate_runs_df(results, fields, sources, problem_base_path):
     result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in results))
-    runs = (run_database.Run(result_path) for result_path in result_paths)
+    runs = (run_database.Run(result_path, problem_base_path) for result_path in result_paths)
     if fields is not None:
         fields = tuple(fields)
     runs_df = run_database.Run.get_data_frame(runs, None, fields, sources)
@@ -145,14 +146,10 @@ def fill_category_na(df, value='NA'):
         series.fillna(value, inplace=True)
 
 
-def get_problem_abs_paths(problem_paths, problem_list, problem_base_path):
-    problem_abs_paths = list(dict.fromkeys(problem_paths))
-    if len(problem_list) >= 1:
-        problem_paths, problem_base_path = file_path_list.compose(problem_list, None, problem_base_path)
-        problem_abs_paths = list(dict.fromkeys(itertools.chain(
-            problem_abs_paths, (os.path.abspath(os.path.join(problem_base_path, problem_path)) for problem_path in
-                                problem_paths))))
-    return problem_abs_paths
+def get_problem_paths(initial_problem_paths, additional_problem_lists, problem_base_path):
+    additional_problem_paths, _ = file_path_list.compose(additional_problem_lists, None, problem_base_path)
+    problem_paths = list(dict.fromkeys(itertools.chain(initial_problem_paths, additional_problem_paths)))
+    return problem_paths
 
 
 def generate_problems_df(problem_abs_paths, runs_df, input_probe_runs_pickle):

@@ -13,8 +13,9 @@ import extractor
 
 
 class Run:
-    def __init__(self, result_path):
+    def __init__(self, result_path, problem_base_path=None):
         self._result_path = result_path
+        self._problem_base_path = problem_base_path
         self._stdout = None
         self._symbols = None
         self._clauses = None
@@ -103,6 +104,8 @@ class Run:
         return self.path_abs()
 
     def problem_path(self):
+        if self._problem_base_path is not None:
+            return os.path.relpath(self.paths()['problem'], self._problem_base_path)
         return self.paths()['problem']
 
     def problem_dir(self):
