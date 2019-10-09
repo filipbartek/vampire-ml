@@ -15,7 +15,7 @@ import utils
 
 class Batch:
     def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, strategy_id, vampire_timeout=None,
-                 cpus=1, overwrite='none', scratch=None, job_file_path=None):
+                 cpus=1, overwrite='none', scratch=None, job_file_path=None, stock_vampire=False):
         self._vampire = vampire
         self._vampire_options = vampire_options
         assert output_path is not None
@@ -31,6 +31,7 @@ class Batch:
         self._overwrite = overwrite
         self._scratch = scratch
         self._job_file_path = job_file_path
+        self._stock_vampire = stock_vampire
 
     def generate_results(self, problem_paths, problem_base_path=None, csv_writer=None):
         # TODO: Yield instances of Run instead of dicts.
@@ -85,15 +86,17 @@ class Batch:
             if '--random_seed' in vampire_options:
                 logging.warning('Overriding --random_seed.')
             vampire_options.extend(['--random_seed', str(random_seed_zero_based + 1)])
-        assert output_dir is not None
-        symbols_csv_output_path = os.path.join(output_dir, 'symbols.csv')
-        if '--symbols_csv_output' in vampire_options:
-            logging.warning('Overriding --symbols_csv_output.')
-        vampire_options.extend(['--symbols_csv_output', symbols_csv_output_path])
-        clauses_json_output_path = os.path.join(output_dir, 'clauses.json')
-        if '--clauses_json_output' in vampire_options:
-            logging.warning('Overriding --clauses_json_output.')
-        vampire_options.extend(['--clauses_json_output', clauses_json_output_path])
+        if not self._stock_vampire:
+            # Use custom Vampire options.
+            assert output_dir is not None
+            symbols_csv_output_path = os.path.join(output_dir, 'symbols.csv')
+            if '--symbols_csv_output' in vampire_options:
+                logging.warning('Overriding --symbols_csv_output.')
+            vampire_options.extend(['--symbols_csv_output', symbols_csv_output_path])
+            clauses_json_output_path = os.path.join(output_dir, 'clauses.json')
+            if '--clauses_json_output' in vampire_options:
+                logging.warning('Overriding --clauses_json_output.')
+            vampire_options.extend(['--clauses_json_output', clauses_json_output_path])
         return vampire_options
 
     @staticmethod

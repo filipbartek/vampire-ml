@@ -75,7 +75,7 @@ def call(namespace):
     assert namespace.solve_runs >= 1
     batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs, namespace.strategy_id,
                   namespace.vampire_timeout, namespace.cpus, namespace.overwrite, namespace.scratch,
-                  os.path.join(output_job, 'job.json'))
+                  os.path.join(output_job, 'job.json'), namespace.stock_vampire)
     problems_successful = set()
     with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
         csv_writer = LazyCsvWriter(csv_file)
@@ -119,3 +119,4 @@ def add_arguments(parser):
                              'Options automatically overridden: --random_seed, --json_output. '
                              'Recommended options: --time_limit, --mode, --symbol_precedence, --include.')
     parser.add_argument('--vampire-timeout', type=float, help='kill Vampire after this many seconds')
+    parser.add_argument('--stock-vampire', action='store_true', help='Are we using stock Vampire?')
