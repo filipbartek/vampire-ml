@@ -102,7 +102,7 @@ def add_arguments(parser):
                         help='Identifier of strategy. Disambiguates job and problem run output directories.')
     parser.add_argument('--job-id', help='Identifier of job. Disambiguates job output directory.')
     parser.add_argument('--overwrite', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
-                        help='Which existing run results should be overwritten?')
+                        help='Which existing run results should be overwritten? Default: interrupted')
     parser.add_argument('--scratch', help='temporary output directory')
     # Naming convention: `sbatch --cpus-per-task`
     parser.add_argument('--cpus', '-c', type=int, default=1, help='number of jobs to run in parallel')
