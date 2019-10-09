@@ -79,7 +79,8 @@ def call(namespace):
     if namespace.only_save_runs:
         return
 
-    print(runs_df.info())
+    print('Runs info:')
+    runs_df.info()
 
     problem_abs_paths = get_problem_abs_paths(runs_df.problem_path, namespace.problem_list, namespace.problem_base_path)
 
@@ -95,10 +96,11 @@ def call(namespace):
                               f in runs_df]
 
     # Distributions of some combinations of category fields
-    print(runs_df.groupby(termination_fieldnames).size())
+    print('Run termination distribution:', runs_df.groupby(termination_fieldnames).size(), sep='\n')
 
     problems_df = generate_problems_df(problem_abs_paths, runs_df, namespace.input_probe_runs_pickle)
-    print(problems_df.info())
+    print('Problems info:')
+    problems_df.info()
     save_df(problems_df, 'problems', namespace.output)
 
     problems_interesting_df = problems_df[
