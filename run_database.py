@@ -64,7 +64,8 @@ class Run:
         if self._symbols is not None:
             return
         if self.exit_code() != 0:
-            raise RuntimeError('This run failed. The output CSV data may be missing or invalid.')
+            logging.debug(f'Skipping loading symbols because the run failed: {self._result_path}')
+            return
         file_path = os.path.join(self.path_abs(), self.paths()['symbols_csv'])
         try:
             self._symbols = pd.read_csv(file_path, index_col=['isFunction', 'id'], dtype={
@@ -86,7 +87,8 @@ class Run:
         if self._clauses is not None:
             return
         if self.exit_code() != 0:
-            raise RuntimeError('This run failed. The output JSON data may be missing or invalid.')
+            logging.debug(f'Skipping loading clauses because the run failed: {self._result_path}')
+            return
         file_path = os.path.join(self.path_abs(), self.paths()['clauses_json'])
         try:
             with open(file_path) as clauses_json_file:
