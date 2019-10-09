@@ -85,7 +85,8 @@ def call(namespace):
 
     problem_first_runs = pd.DataFrame(index=problem_abs_paths)
     problem_first_runs.index.name = 'problem_path'
-    problem_first_runs = problem_first_runs.join(runs_df.groupby('problem_path').first()).sort_values('time_elapsed_process')
+    problem_first_runs = problem_first_runs.join(runs_df.groupby('problem_path').first()).sort_values(
+        'time_elapsed_process')
     save_df(problem_first_runs, 'problem_first_runs', namespace.output)
 
     fill_category_na(runs_df)
