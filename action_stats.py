@@ -91,12 +91,15 @@ def call(namespace):
     save_df(problem_first_runs, 'problem_first_runs', namespace.output)
 
     fill_category_na(runs_df)
+    fill_category_na(problem_first_runs)
 
     termination_fieldnames = [f for f in ['status', 'exit_code', 'termination_reason', 'termination_phase'] if
                               f in runs_df]
 
     # Distributions of some combinations of category fields
     print('Run termination distribution:', runs_df.groupby(termination_fieldnames).size(), sep='\n')
+    print('Problem first run termination distribution:', problem_first_runs.groupby(termination_fieldnames).size(),
+          sep='\n')
 
     problems_df = generate_problems_df(problem_abs_paths, runs_df, namespace.input_probe_runs_pickle)
     print('Problems info:')
