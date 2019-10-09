@@ -11,4 +11,4 @@ OUTPUT_ID=${OUTPUT_ID:-$STRATEGY_ID}
 OUTPUT=${OUTPUT:-$RESULTS_BASE/stats/$OUTPUT_ID}
 PROBLEMS=${PROBLEMS:-problems_cnf_fof.txt}
 
-python -O vampire-ml.py stats "$RESULTS" --output "$OUTPUT" --problem-list "$PROBLEMS" "$@"
+python -O vampire-ml.py stats "$RESULTS" --output "$OUTPUT" --problem-base-path "$TPTP_PROBLEMS" --problem-list "$PROBLEMS" "$@"
