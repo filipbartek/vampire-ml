@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+#SBATCH --mem=1G
+
 set -euo pipefail
 
 source env.sh
