@@ -263,7 +263,7 @@ class Run:
             if isinstance(dtype, pd.CategoricalDtype):
                 series[fieldname] = series[fieldname].astype(dtype, copy=False)
         # Create the dataframe
-        df = pd.DataFrame(series)
+        df = pd.DataFrame(series).set_index('path_rel').sort_index()
         return df
 
     def predicate_precedence(self):
