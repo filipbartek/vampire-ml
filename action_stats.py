@@ -113,7 +113,8 @@ def call(namespace):
     print(f'Number of interesting problems: {len(problems_interesting_df)}')
     # TODO: Sort the rows by more criteria, for example time_elapsed mean.
     if ('saturation_iterations', 'variation') in problems_interesting_df:
-        problems_interesting_df.sort_values(('saturation_iterations', 'variation'), ascending=False, inplace=True)
+        problems_interesting_df = problems_interesting_df.sort_values(('saturation_iterations', 'variation'),
+                                                                      ascending=False)
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
 
     if namespace.plot_format is not None:
