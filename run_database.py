@@ -15,6 +15,9 @@ import extractor
 class Run:
     def __init__(self, result_path):
         self._result_path = result_path
+        self._stdout = None
+        self._symbols = None
+        self._clauses = None
 
     def __getitem__(self, key):
         g = self.field_getter(key)
@@ -38,29 +41,57 @@ class Run:
 
     @methodtools.lru_cache()
     def __extract(self, extract):
+        if self._stdout is None:
+            return None
         try:
-            return extract(self.stdout())
+            return extract(self._stdout)
         except RuntimeError:
             pass
-        except FileNotFoundError:
-            logging.warning(f'{self.path_rel()}: Stdout file not found. Cannot extract a value.')
         return None
 
-    @methodtools.lru_cache(maxsize=1)
-    def stdout(self):
-        with open(os.path.join(self.path_abs(), self.paths()['stdout'])) as stdout_file:
-            return stdout_file.read()
+    def load_stdout(self):
+        if self._stdout is not None:
+            return
+        file_path = os.path.join(self.path_abs(), self.paths()['stdout'])
+        try:
+            with open(file_path) as stdout_file:
+                self._stdout = stdout_file.read()
+        except FileNotFoundError:
+            logging.warning(f'Stdout file not found: {file_path}')
 
-    @methodtools.lru_cache(maxsize=1)
-    def vampire_json_data(self):
-        """Loads and returns JSON data output by Vampire.
+    def load_symbols(self):
+        if self._symbols is not None:
+            return
+        if self.exit_code() != 0:
+            raise RuntimeError('This run failed. The output CSV data may be missing or invalid.')
+        file_path = os.path.join(self.path_abs(), self.paths()['symbols_csv'])
+        try:
+            self._symbols = pd.read_csv(file_path, index_col=['isFunction', 'id'], dtype={
+                'isFunction': np.bool,
+                'id': pd.UInt64Dtype(),
+                'name': 'object',
+                'arity': pd.UInt64Dtype(),
+                'usageCnt': pd.UInt64Dtype(),
+                'unitUsageCnt': pd.UInt64Dtype(),
+                'inGoal': np.bool,
+                'inUnit': np.bool,
+                'skolem': np.bool,
+                'inductionSkolem': np.bool
+            })
+        except FileNotFoundError:
+            logging.warning(f'Symbols CSV file not found: {file_path}')
 
-        Warning: This call may be very expensive.
-        """
+    def load_clauses(self):
+        if self._clauses is not None:
+            return
         if self.exit_code() != 0:
             raise RuntimeError('This run failed. The output JSON data may be missing or invalid.')
-        with open(os.path.join(self.path_abs(), self.paths()['vampire_json'])) as vampire_json_file:
-            return json.load(vampire_json_file)
+        file_path = os.path.join(self.path_abs(), self.paths()['clauses_json'])
+        try:
+            with open(file_path) as clauses_json_file:
+                self._clauses = json.load(clauses_json_file)
+        except FileNotFoundError:
+            logging.warning(f'Clauses JSON file not found: {file_path}')
 
     # TODO: Rename to `job` or `job_id`.
     def batch_id(self):
@@ -103,31 +134,41 @@ class Run:
     def saturation_iterations(self):
         return self.__extract(extractor.saturation_iterations)
 
+    @methodtools.lru_cache(maxsize=2)
+    def symbols(self, is_function=None):
+        if self._symbols is None:
+            return None
+        if is_function is None:
+            return self._symbols
+        result = self._symbols[self._symbols.index.get_level_values('isFunction') == is_function]
+        result.index = result.index.droplevel(0)
+        return result
+
     def predicates(self):
-        return self.vampire_json_data()['predicates']
+        return self.symbols(False)
 
     def predicates_count(self):
         try:
             return len(self.predicates())
-        except (RuntimeError, FileNotFoundError):
+        except TypeError:
             return None
 
     def functions(self):
-        return self.vampire_json_data()['functions']
+        return self.symbols(True)
 
     def functions_count(self):
         try:
             return len(self.functions())
-        except (RuntimeError, FileNotFoundError):
+        except TypeError:
             return None
 
     def clauses(self):
-        return self.vampire_json_data()['clauses']
+        return self._clauses
 
     def clauses_count(self):
         try:
             return len(self.clauses())
-        except (RuntimeError, FileNotFoundError):
+        except TypeError:
             return None
 
     fields = {
@@ -151,7 +192,8 @@ class Run:
     field_sources = {
         'stdout': ['termination_reason', 'termination_phase', 'time_elapsed_vampire', 'memory_used',
                    'saturation_iterations'],
-        'vampire_json': ['predicates_count', 'functions_count', 'clauses_count']
+        'symbols': ['predicates_count', 'functions_count'],
+        'clauses': ['clauses_count']
     }
 
     @classmethod
@@ -175,16 +217,16 @@ class Run:
         return pd.Series(index=range(n), dtype=dtype)
 
     @classmethod
-    def get_fieldnames_final(cls, fieldnames_initial=None, excluded_sources=None):
+    def get_fieldnames_final(cls, fieldnames_initial=None, sources=None):
         fieldnames_final = fieldnames_initial
         if fieldnames_final is None:
             fieldnames_final = cls.fieldnames()
         else:
             fieldnames_final = fieldnames_final.copy()
         fieldnames_final = list(fieldnames_final)
-        if excluded_sources is not None:
-            for source in excluded_sources:
-                for field in cls.field_sources[source]:
+        if sources is not None:
+            for fields in (fields for source, fields in cls.field_sources.items() if source not in sources):
+                for field in fields:
                     try:
                         while True:
                             fieldnames_final.remove(field)
@@ -193,12 +235,12 @@ class Run:
         return fieldnames_final
 
     @classmethod
-    def get_data_frame(cls, runs, run_count=None, fieldnames=None, excluded_sources=None):
+    def get_data_frame(cls, runs, run_count=None, fieldnames=None, sources=None):
         if run_count is None:
             runs = list(runs)
             run_count = len(runs)
         assert run_count >= 0
-        fieldnames = cls.get_fieldnames_final(fieldnames, excluded_sources)
+        fieldnames = cls.get_fieldnames_final(fieldnames, sources)
         assert set(fieldnames) <= set(cls.fieldnames())
         # Initialize empty series
         series = {fieldname: cls.empty_pd_series(run_count, cls.field_dtype(fieldname)) for fieldname in fieldnames}
@@ -207,10 +249,12 @@ class Run:
             assert i < run_count
             # Run expensive functions first to facilitate profiling.
             run.result_json_data()
-            if 'stdout' not in excluded_sources:
-                run.stdout()
-            if 'vampire_json' not in excluded_sources:
-                run.vampire_json_data()
+            if 'stdout' in sources:
+                run.load_stdout()
+            if 'symbols' in sources:
+                run.load_symbols()
+            if 'clauses' in sources:
+                run.load_clauses()
             for fieldname in fieldnames:
                 series[fieldname][i] = run[fieldname]
         # Establish categories in respective series

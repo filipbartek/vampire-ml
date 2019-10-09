@@ -52,8 +52,8 @@ def add_arguments(parser):
     parser.set_defaults(action=call)
     parser.add_argument('result', type=str, nargs='*', help='glob pattern of result of a prove or probe run')
     parser.add_argument('--fields', help='names of fields to extract separated by commas')
-    parser.add_argument('--source-stdout', action='store_true', help='include data from stdout.txt files')
-    parser.add_argument('--source-vampire-json', action='store_true', help='include data from vampire.json files')
+    parser.add_argument('--source', nargs='+', action='append', choices=['stdout', 'symbols', 'clauses'], default=[],
+                        help='data source file (output from Vampire runs)')
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     parser.add_argument('--input-runs-pickle', help='load a previously saved runs pickle')
@@ -69,8 +69,7 @@ def add_arguments(parser):
 
 def call(namespace):
     if namespace.input_runs_pickle is None:
-        runs_df = generate_runs_df(namespace.result, namespace.fields, namespace.source_stdout,
-                                   namespace.source_vampire_json)
+        runs_df = generate_runs_df(namespace.result, namespace.fields, list(itertools.chain(*namespace.source)))
     else:
         runs_df = pd.read_pickle(namespace.input_runs_pickle)
 
@@ -109,17 +108,12 @@ def call(namespace):
     save_problem_lists(namespace.output, runs_df, problem_abs_paths)
 
 
-def generate_runs_df(results, fields, source_stdout, source_vampire_json):
+def generate_runs_df(results, fields, sources):
     result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in results))
     runs = (run_database.Run(result_path) for result_path in result_paths)
     if fields is not None:
         fields = tuple(fields)
-    excluded_sources = []
-    if not source_stdout:
-        excluded_sources.append('stdout')
-    if not source_vampire_json:
-        excluded_sources.append('vampire_json')
-    runs_df = run_database.Run.get_data_frame(runs, None, fields, excluded_sources)
+    runs_df = run_database.Run.get_data_frame(runs, None, fields, sources)
     return runs_df
 
 
