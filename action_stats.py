@@ -119,8 +119,6 @@ def call(namespace):
         plot_formats = list(itertools.chain(*namespace.plot_format))
         plot(runs_df, namespace.output, namespace.gui, plot_formats)
 
-    save_problem_lists(namespace.output, runs_df, problem_abs_paths)
-
 
 def generate_runs_df(results, fields, sources):
     result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in results))
@@ -230,22 +228,6 @@ def plot(runs_df, output, gui, formats):
 
     if gui:
         plt.show()
-
-
-def save_problem_lists(output, runs_df, problem_abs_paths):
-    if output is not None:
-        problem_abs_paths = set(problem_abs_paths)
-        solved_problem_abs_paths = set(map(os.path.abspath, runs_df.problem_path))
-        assert problem_abs_paths >= solved_problem_abs_paths
-        os.makedirs(output, exist_ok=True)
-        with open(os.path.join(output, 'problems_unprocessed.txt'), 'w') as f:
-            for problem_abs_path in problem_abs_paths:
-                if problem_abs_path not in solved_problem_abs_paths:
-                    f.write(f'{problem_abs_path}\n')
-        with open(os.path.join(output, 'problems.txt'), 'w') as f:
-            f.writelines(f'{path}\n' for path in runs_df.problem_path)
-        with open(os.path.join(output, 'problems_successful.txt'), 'w') as f:
-            f.writelines(f'{path}\n' for path in runs_df[runs_df.exit_code == 0].problem_path)
 
 
 def distplot(series, title, xlabel, ylabel, output_directory, output_name, formats):
