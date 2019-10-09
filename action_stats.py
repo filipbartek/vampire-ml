@@ -102,9 +102,11 @@ def call(namespace):
 
     problems_interesting_df = problems_df[
         (problems_df.n_completed >= namespace.solve_runs_per_problem) & (problems_df.n_exit_0 >= 1) & (
-                problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)].sort_values(
-        ('saturation_iterations', 'variation'), ascending=False)
+                problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)]
     print(f'Number of interesting problems: {len(problems_interesting_df)}')
+    # TODO: Sort the rows by more criteria, for example time_elapsed mean.
+    if ('saturation_iterations', 'variation') in problems_interesting_df:
+        problems_interesting_df.sort_values(('saturation_iterations', 'variation'), ascending=False, inplace=True)
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
 
     if namespace.plot_format is not None:
@@ -161,18 +163,19 @@ def generate_problems_df(problem_abs_paths, runs_df, input_probe_runs_pickle):
         runs_df[runs_df.exit_code == 0].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_0'))
     problems_df = problems_df.join(
         runs_df[runs_df.exit_code == 1].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_1'))
-    problems_df = problems_df.join(
-        runs_df[runs_df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(
-            pd.UInt64Dtype()).to_frame(
-            'n_refutation'))
-    problems_df = problems_df.join(
-        runs_df[runs_df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(
-            pd.UInt64Dtype()).to_frame(
-            'n_satisfiable'))
-    problems_df = problems_df.join(
-        runs_df[runs_df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(
-            pd.UInt64Dtype()).to_frame(
-            'n_time_limit'))
+    if 'termination_reason' in runs_df:
+        problems_df = problems_df.join(
+            runs_df[runs_df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(
+                pd.UInt64Dtype()).to_frame(
+                'n_refutation'))
+        problems_df = problems_df.join(
+            runs_df[runs_df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(
+                pd.UInt64Dtype()).to_frame(
+                'n_satisfiable'))
+        problems_df = problems_df.join(
+            runs_df[runs_df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(
+                pd.UInt64Dtype()).to_frame(
+                'n_time_limit'))
     problems_df.fillna(
         {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0,
          'n_time_limit': 0},
