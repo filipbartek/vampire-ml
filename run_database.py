@@ -96,6 +96,11 @@ class Run:
         except FileNotFoundError:
             logging.warning(f'Clauses JSON file not found: {file_path}')
 
+    def unload(self):
+        self._stdout = None
+        self._symbols = None
+        self._clauses = None
+
     # TODO: Rename to `job` or `job_id`.
     def batch_id(self):
         # TODO: Simplify this path.
@@ -262,6 +267,7 @@ class Run:
                 run.load_clauses()
             for fieldname in fieldnames:
                 series[fieldname][i] = run[fieldname]
+            run.unload()
         # Establish categories in respective series
         for fieldname in fieldnames:
             dtype = cls.field_dtype(fieldname)
