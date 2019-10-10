@@ -123,11 +123,11 @@ def call(namespace):
 
 
 def generate_runs_df(results, fields, sources, problem_base_path):
-    result_paths = itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in results))
+    result_paths = list(itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in results)))
     runs = (run_database.Run(result_path, problem_base_path) for result_path in result_paths)
     if fields is not None:
         fields = tuple(fields)
-    runs_df = run_database.Run.get_data_frame(runs, None, fields, sources)
+    runs_df = run_database.Run.get_data_frame(runs, len(result_paths), fields, sources)
     return runs_df
 
 
