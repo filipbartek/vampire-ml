@@ -153,8 +153,8 @@ def get_problem_paths(initial_problem_paths, additional_problem_lists, problem_b
     return problem_paths
 
 
-def generate_problems_df(problem_abs_paths, runs_df, input_probe_runs_pickle):
-    problems_df = pd.DataFrame(index=problem_abs_paths)
+def generate_problems_df(problem_paths, runs_df, input_probe_runs_pickle):
+    problems_df = pd.DataFrame(index=problem_paths)
     problems_df.index.name = 'problem_path'
     problem_groups = runs_df.groupby(['problem_path'])
     problems_df = problems_df.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
