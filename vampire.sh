@@ -3,7 +3,7 @@
 # This script only uses one Slurm task.
 
 # TODO: Calibrate the memory requirement.
-#SBATCH --mem=1G
+#SBATCH --mem-per-cpu=1G
 #SBATCH --requeue
 
 set -euo pipefail
