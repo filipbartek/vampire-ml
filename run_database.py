@@ -24,6 +24,9 @@ class Run:
         g = self.field_getter(key)
         return g(self)
 
+    def result_path(self):
+        return self._result_path
+
     # TODO: Rename to `directory_path`.
     @methodtools.lru_cache(maxsize=1)
     def path_abs(self):
@@ -257,19 +260,23 @@ class Run:
         # Initialize empty series
         series = {fieldname: cls.empty_pd_series(run_count, cls.field_dtype(fieldname)) for fieldname in fieldnames}
         # Populate the series with run data
-        for i, run in tqdm.tqdm(enumerate(runs), total=run_count, unit='run'):
-            assert i < run_count
-            # Run expensive functions first to facilitate profiling.
-            run.result_json_data()
-            if 'stdout' in sources:
-                run.load_stdout()
-            if 'symbols' in sources:
-                run.load_symbols()
-            if 'clauses' in sources:
-                run.load_clauses()
-            for fieldname in fieldnames:
-                series[fieldname][i] = run[fieldname]
-            run.unload()
+        with tqdm.tqdm(desc='Loading runs', total=run_count, unit='run') as t:
+            for i, run in enumerate(runs):
+                # This may be useful for debugging in case the processing of a run crashes.
+                t.set_postfix({'result_path': run.result_path()})
+                assert i < run_count
+                # Run expensive functions first to facilitate profiling.
+                run.result_json_data()
+                if 'stdout' in sources:
+                    run.load_stdout()
+                if 'symbols' in sources:
+                    run.load_symbols()
+                if 'clauses' in sources:
+                    run.load_clauses()
+                for fieldname in fieldnames:
+                    series[fieldname][i] = run[fieldname]
+                run.unload()
+                t.update()
         # Establish categories in respective series
         for fieldname in fieldnames:
             dtype = cls.field_dtype(fieldname)
