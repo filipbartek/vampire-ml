@@ -88,8 +88,6 @@ class Run:
             })
         except FileNotFoundError:
             logging.warning(f'Symbols CSV file not found: {file_path}')
-        except pd.errors.ParseError as e:
-            logging.warning(f'Parse error in {file_path}: {e}')
 
     def load_clauses(self):
         if self._clauses is not None:
