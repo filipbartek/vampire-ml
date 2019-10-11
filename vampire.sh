@@ -3,6 +3,7 @@
 # This script only uses one Slurm task.
 
 #SBATCH --mem-per-cpu=2G
+#SBATCH --time=60
 #SBATCH --requeue
 
 set -euo pipefail
