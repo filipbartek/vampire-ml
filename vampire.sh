@@ -26,7 +26,6 @@ OUTPUT=${OUTPUT:-out/default}
 
 VAMPIRE_MODE=${VAMPIRE_MODE:-vampire}
 VAMPIRE_SYMBOL_PRECEDENCE=${VAMPIRE_SYMBOL_PRECEDENCE:-scramble}
-STRATEGY_ID=${STRATEGY_ID:-$VAMPIRE_MODE-$VAMPIRE_SYMBOL_PRECEDENCE}
 SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
@@ -36,7 +35,6 @@ XARGS_COMMAND=(
   python -O
   vampire-ml.py vampire
   --output "$OUTPUT"
-  --strategy-id "$STRATEGY_ID"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
   --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit 10"

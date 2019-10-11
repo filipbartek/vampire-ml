@@ -14,7 +14,7 @@ import utils
 
 
 class Batch:
-    def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, strategy_id, vampire_timeout=None,
+    def __init__(self, vampire, vampire_options, output_path, solve_runs_per_problem, vampire_timeout=None,
                  cpus=1, overwrite='none', scratch=None, job_file_path=None, stock_vampire=False):
         self._vampire = vampire
         self._vampire_options = vampire_options
@@ -22,7 +22,6 @@ class Batch:
         self._output_path = output_path
         assert solve_runs_per_problem >= 1
         self._solve_runs_per_problem = solve_runs_per_problem
-        self._strategy_id = strategy_id
         self._vampire_timeout = vampire_timeout
         assert cpus >= 1
         self._cpus = cpus
@@ -47,8 +46,6 @@ class Batch:
                 if problem_path != problem_base_path:
                     problem_output_path = os.path.join(self._output_path,
                                                        os.path.relpath(problem_path, problem_base_path))
-                if self._strategy_id is not None:
-                    problem_output_path = os.path.join(problem_output_path, self._strategy_id)
                 self.__solve_one_problem_async(problem_output_path, problem_path, problem_base_path, csv_writer)
             for future in concurrent.futures.as_completed(self._futures):
                 assert future.done()

@@ -38,8 +38,7 @@ def call(namespace):
     assert namespace.output is not None
     output_job = os.path.join(namespace.output, 'jobs')
     output_problems = os.path.join(namespace.output, 'problems')
-    if namespace.strategy_id is not None:
-        output_job = os.path.join(output_job, namespace.strategy_id)
+    # Multiple jobs are expected to populate a common output directory.
     if namespace.job_id is not None:
         output_job = os.path.join(output_job, namespace.job_id)
     csv_file_path = os.path.join(output_job, 'runs.csv')
@@ -60,7 +59,6 @@ def call(namespace):
             'problems_successful': os.path.relpath(problems_successful_path, output_job),
             'solve_runs_per_problem': namespace.solve_runs,
             'cpus': namespace.cpus,
-            'strategy_id': namespace.strategy_id,
             'job_id': namespace.job_id,
             'scratch': namespace.scratch,
             'cwd': os.getcwd(),
@@ -73,7 +71,7 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
     assert namespace.solve_runs >= 1
-    batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs, namespace.strategy_id,
+    batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs,
                   namespace.vampire_timeout, namespace.cpus, namespace.overwrite, namespace.scratch,
                   os.path.join(output_job, 'job.json'), namespace.stock_vampire)
     problems_successful = set()
@@ -98,8 +96,6 @@ def add_arguments(parser):
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
-    parser.add_argument('--strategy-id',
-                        help='Identifier of strategy. Disambiguates job and problem run output directories.')
     parser.add_argument('--job-id', help='Identifier of job. Disambiguates job output directory.')
     parser.add_argument('--overwrite', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
                         help='Which existing run results should be overwritten? Default: interrupted')

@@ -6,10 +6,10 @@ set -euo pipefail
 
 source env.sh
 
-RESULTS_BASE=${RESULTS_BASE:-out/default}
 STRATEGY_ID=${STRATEGY_ID:-probe}
-RESULTS=${RESULTS:-$RESULTS_BASE/problems/**/$STRATEGY_ID/**/result.json}
-OUTPUT_ID=${OUTPUT_ID:-$STRATEGY_ID}
+RESULTS_BASE=${RESULTS_BASE:-out/default/$STRATEGY_ID}
+RESULTS=${RESULTS:-$RESULTS_BASE/problems/**/result.json}
+OUTPUT_ID=${OUTPUT_ID:-default}
 OUTPUT=${OUTPUT:-$RESULTS_BASE/stats/$OUTPUT_ID}
 PROBLEMS=${PROBLEMS:-problems_cnf_fof.txt}
 
