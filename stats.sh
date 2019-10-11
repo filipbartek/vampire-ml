@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#SBATCH --mem=1G
+#SBATCH --mem=2G
 
 set -euo pipefail
 
