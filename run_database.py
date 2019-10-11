@@ -88,8 +88,6 @@ class Run:
             })
         except FileNotFoundError:
             logging.warning(f'Symbols CSV file not found: {file_path}')
-        except Exception as e:
-            raise RuntimeError(f'Parsing of symbols CSV file failed: {file_path}') from e
 
     def load_clauses(self):
         if self._clauses is not None:
@@ -265,20 +263,21 @@ class Run:
         # Populate the series with run data
         with tqdm.tqdm(desc='Loading runs', total=run_count, unit='run') as t:
             for i, run in enumerate(runs):
-                # This may be useful for debugging in case the processing of a run crashes.
-                t.set_postfix({'result_path': run.result_path()})
                 assert i < run_count
-                # Run expensive functions first to facilitate profiling.
-                run.result_json_data()
-                if 'stdout' in sources:
-                    run.load_stdout()
-                if 'symbols' in sources:
-                    run.load_symbols()
-                if 'clauses' in sources:
-                    run.load_clauses()
-                for fieldname in fieldnames:
-                    series[fieldname][i] = run[fieldname]
-                run.unload()
+                try:
+                    # Run expensive functions first to facilitate profiling.
+                    run.result_json_data()
+                    if 'stdout' in sources:
+                        run.load_stdout()
+                    if 'symbols' in sources:
+                        run.load_symbols()
+                    if 'clauses' in sources:
+                        run.load_clauses()
+                    for fieldname in fieldnames:
+                        series[fieldname][i] = run[fieldname]
+                    run.unload()
+                except Exception as e:
+                    raise RuntimeError(f'Error when processing run result: {run.result_path()}') from e
                 t.update()
         # Establish categories in respective series
         for fieldname in fieldnames:
