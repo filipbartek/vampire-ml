@@ -2,7 +2,7 @@
 
 # This script only uses one Slurm task.
 
-#SBATCH --mem-per-cpu=2G
+#SBATCH --mem-per-cpu=9G
 #SBATCH --time=60
 #SBATCH --requeue
 
@@ -27,6 +27,7 @@ OUTPUT=${OUTPUT:-out/default}
 
 VAMPIRE_MODE=${VAMPIRE_MODE:-vampire}
 VAMPIRE_SYMBOL_PRECEDENCE=${VAMPIRE_SYMBOL_PRECEDENCE:-scramble}
+VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
 SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
@@ -38,7 +39,7 @@ XARGS_COMMAND=(
   --output "$OUTPUT"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
-  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit 10"
+  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit $VAMPIRE_TIME_LIMIT"
   --cpus "$CPUS"
   --problem-base-path "$TPTP_PROBLEMS"
   "$@"
