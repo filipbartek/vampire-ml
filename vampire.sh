@@ -28,6 +28,7 @@ OUTPUT=${OUTPUT:-out/default}
 VAMPIRE_MODE=${VAMPIRE_MODE:-vampire}
 VAMPIRE_SYMBOL_PRECEDENCE=${VAMPIRE_SYMBOL_PRECEDENCE:-scramble}
 VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
+VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-8000}
 SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
@@ -39,7 +40,7 @@ XARGS_COMMAND=(
   --output "$OUTPUT"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
-  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit $VAMPIRE_TIME_LIMIT"
+  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit $VAMPIRE_TIME_LIMIT --memory_limit $VAMPIRE_MEMORY_LIMIT"
   --cpus "$CPUS"
   --problem-base-path "$TPTP_PROBLEMS"
   "$@"
