@@ -89,6 +89,8 @@ class Run:
                                         })
         except FileNotFoundError:
             logging.warning(f'Symbols CSV file not found: {file_path}')
+        except Exception as e:
+            raise RuntimeError(f'Error when reading CSV file: {file_path}') from e
 
     def load_clauses(self):
         if self._clauses is not None:
