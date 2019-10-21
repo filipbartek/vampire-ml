@@ -97,8 +97,10 @@ def call(namespace):
     fill_category_na(runs_df)
     fill_category_na(problem_first_runs)
 
-    # Distributions of some combinations of category fields
-    print('Run termination distribution:', runs_df.groupby(termination_fieldnames).size(), sep='\n')
+    # Distribution of run terminations
+    os.makedirs(namespace.output, exist_ok=True)
+    print(runs_df.groupby(termination_fieldnames).size(), sep='\n',
+          file=open(os.path.join(namespace.output, 'terminations.txt'), 'w'))
 
     problems_df = generate_problems_df(problem_paths, runs_df, namespace.input_probe_runs_pickle)
     print('Problems info:')
