@@ -44,7 +44,6 @@ def call(namespace):
     csv_file_path = os.path.join(output_job, 'runs.csv')
     # TODO: Do not save any problems list. runs.csv should suffice.
     problems_path = os.path.join(output_job, 'problems.txt')
-    problems_successful_path = os.path.join(output_job, 'problems_successful.txt')
 
     # We assume that `os.makedirs` is thread-safe.
     os.makedirs(output_job, exist_ok=True)
@@ -56,7 +55,6 @@ def call(namespace):
             'runs_csv': os.path.relpath(csv_file_path, output_job),
             'problem_base_path': problem_base_path,
             'problems': os.path.relpath(problems_path, output_job),
-            'problems_successful': os.path.relpath(problems_successful_path, output_job),
             'solve_runs_per_problem': namespace.solve_runs,
             'cpus': namespace.cpus,
             'job_id': namespace.job_id,
@@ -74,16 +72,12 @@ def call(namespace):
     batch = Batch(namespace.vampire, vampire_options, output_problems, namespace.solve_runs,
                   namespace.vampire_timeout, namespace.cpus, namespace.overwrite, namespace.scratch,
                   os.path.join(output_job, 'job.json'), namespace.stock_vampire)
-    problems_successful = set()
-    with open(csv_file_path, 'w') as csv_file, open(problems_successful_path, 'w') as problems_successful_file:
+    with open(csv_file_path, 'w') as csv_file:
         csv_writer = LazyCsvWriter(csv_file)
         with tqdm(desc='Running Vampire', total=len(problem_paths) * namespace.solve_runs, unit='problems') as t:
             stats = collections.Counter()
             t.set_postfix_str(stats)
             for run_info in batch.generate_results(problem_paths, problem_base_path, csv_writer):
-                if run_info['result']['exit_code'] == 0 and run_info['paths']['problem'] not in problems_successful:
-                    problems_successful_file.write(run_info['paths']['problem'] + '\n')
-                    problems_successful.add(run_info['paths']['problem'])
                 stats[(run_info['result']['status'], run_info['result']['exit_code'])] += 1
                 t.set_postfix_str(stats)
                 t.update()
