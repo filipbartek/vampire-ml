@@ -116,6 +116,8 @@ def call(namespace):
         problems_interesting_df = problems_interesting_df.sort_values(('saturation_iterations', 'variation'),
                                                                       ascending=False)
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
+    problems_interesting_df.index.to_series().to_csv(os.path.join(namespace.output, 'problems_interesting.txt'),
+                                                     header=False, index=False)
 
     if namespace.plot_format is not None:
         plot_formats = list(itertools.chain(*namespace.plot_format))
