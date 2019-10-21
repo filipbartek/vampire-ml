@@ -99,8 +99,6 @@ def call(namespace):
 
     # Distributions of some combinations of category fields
     print('Run termination distribution:', runs_df.groupby(termination_fieldnames).size(), sep='\n')
-    print('Problem first run termination distribution:', problem_first_runs.groupby(termination_fieldnames).size(),
-          sep='\n')
 
     problems_df = generate_problems_df(problem_paths, runs_df, namespace.input_probe_runs_pickle)
     print('Problems info:')
