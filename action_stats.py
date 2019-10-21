@@ -98,9 +98,11 @@ def call(namespace):
     fill_category_na(problem_first_runs)
 
     # Distribution of run terminations
-    os.makedirs(namespace.output, exist_ok=True)
-    print(runs_df.groupby(termination_fieldnames).size(), sep='\n',
-          file=open(os.path.join(namespace.output, 'terminations.txt'), 'w'))
+    terminations = runs_df.groupby(termination_fieldnames).size()
+    print('Distribution of run terminations:', terminations, sep='\n')
+    if namespace.output is not None:
+        os.makedirs(namespace.output, exist_ok=True)
+        print(terminations, file=open(os.path.join(namespace.output, 'terminations.txt'), 'w'))
 
     problems_df = generate_problems_df(problem_paths, runs_df, namespace.input_probe_runs_pickle)
     print('Problems info:')
@@ -116,8 +118,9 @@ def call(namespace):
         problems_interesting_df = problems_interesting_df.sort_values(('saturation_iterations', 'variation'),
                                                                       ascending=False)
     save_df(problems_interesting_df, 'problems_interesting', namespace.output)
-    problems_interesting_df.index.to_series().to_csv(os.path.join(namespace.output, 'problems_interesting.txt'),
-                                                     header=False, index=False)
+    if namespace.output is not None:
+        problems_interesting_df.index.to_series().to_csv(os.path.join(namespace.output, 'problems_interesting.txt'),
+                                                         header=False, index=False)
 
     if namespace.plot_format is not None:
         plot_formats = list(itertools.chain(*namespace.plot_format))
