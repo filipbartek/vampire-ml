@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# This script only uses one Slurm task.
-
 #SBATCH --mem-per-cpu=3128
 #SBATCH --time=60
 #SBATCH --requeue
