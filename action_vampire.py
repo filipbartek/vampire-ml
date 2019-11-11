@@ -90,7 +90,10 @@ def add_arguments(parser):
     parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
-    parser.add_argument('--job-id', help='Identifier of job. Disambiguates job output directory.')
+    parser.add_argument('--job-id', default='default',
+                        help='Identifier of this job. '
+                             'Disambiguates name of the output directory with the job configuration. '
+                             'Useful if multiple jobs share the output directory.')
     parser.add_argument('--overwrite', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
                         help='Which existing run results should be overwritten? Default: interrupted')
     parser.add_argument('--scratch', help='temporary output directory')
