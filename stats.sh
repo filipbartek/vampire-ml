@@ -7,8 +7,7 @@ set -euo pipefail
 
 source env.sh
 
-STRATEGY_ID=${STRATEGY_ID:-probe}
-RESULTS_BASE=${RESULTS_BASE:-out/default/$STRATEGY_ID}
+RESULTS_BASE=${RESULTS_BASE:-out/default}
 RESULTS=${RESULTS:-$RESULTS_BASE/problems/**/result.json}
 OUTPUT_ID=${OUTPUT_ID:-default}
 OUTPUT=${OUTPUT:-$RESULTS_BASE/stats/$OUTPUT_ID}
