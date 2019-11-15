@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-#SBATCH --mem=2G
+#SBATCH --mem=4G
 #SBATCH --time=240
 
 set -euo pipefail
