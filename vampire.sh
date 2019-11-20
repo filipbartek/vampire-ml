@@ -40,6 +40,7 @@ XARGS_COMMAND=(
   --vampire "$VAMPIRE"
   --vampire-options "{include: $TPTP, mode: $VAMPIRE_MODE, symbol_precedence: $VAMPIRE_SYMBOL_PRECEDENCE, time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
   --problem-base-path "$TPTP_PROBLEMS"
+  --timeout $((VAMPIRE_TIME_LIMIT + 10))
   "$@"
 )
 
