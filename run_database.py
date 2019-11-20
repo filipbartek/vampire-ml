@@ -10,6 +10,7 @@ import pandas as pd
 import tqdm
 
 import extractor
+import vampire
 
 
 class Run:
@@ -71,22 +72,7 @@ class Run:
             return
         file_path = os.path.join(self.path_abs(), self.paths()['symbols_csv'])
         try:
-            # The column 'name' may contain single quoted strings.
-            # See http://www.tptp.org/TPTP/SyntaxBNF.html
-            # <fof_plain_term> ::= <functor> ::= <atomic_word> ::= <single_quoted> ::= <single_quote> ::: [']
-            self._symbols = pd.read_csv(file_path, index_col=['isFunction', 'id'], quotechar='\'', escapechar='\\',
-                                        dtype={
-                                            'isFunction': np.bool,
-                                            'id': pd.UInt64Dtype(),
-                                            'name': 'object',
-                                            'arity': pd.UInt64Dtype(),
-                                            'usageCnt': pd.UInt64Dtype(),
-                                            'unitUsageCnt': pd.UInt64Dtype(),
-                                            'inGoal': np.bool,
-                                            'inUnit': np.bool,
-                                            'skolem': np.bool,
-                                            'inductionSkolem': np.bool
-                                        })
+            self._symbols = vampire.load_symbols(file_path)
         except FileNotFoundError:
             logging.warning(f'Symbols CSV file not found: {file_path}')
         except Exception as e:
@@ -100,8 +86,7 @@ class Run:
             return
         file_path = os.path.join(self.path_abs(), self.paths()['clauses_json'])
         try:
-            with open(file_path) as clauses_json_file:
-                self._clauses = json.load(clauses_json_file)
+            self._clauses = vampire.load_clauses(file_path)
         except FileNotFoundError:
             logging.warning(f'Clauses JSON file not found: {file_path}')
 

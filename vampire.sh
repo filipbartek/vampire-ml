@@ -31,6 +31,7 @@ SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
 # TODO: Expose more Vampire options.
+# TODO: Parallelize vampire-ml.py and pass $CPUS.
 XARGS_COMMAND=(
   xargs --verbose
   python -O
@@ -38,15 +39,14 @@ XARGS_COMMAND=(
   --output "$OUTPUT"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
-  --vampire-options "--include $TPTP --mode $VAMPIRE_MODE --symbol_precedence $VAMPIRE_SYMBOL_PRECEDENCE --time_limit $VAMPIRE_TIME_LIMIT --memory_limit $VAMPIRE_MEMORY_LIMIT"
-  --cpus "$CPUS"
+  --vampire-options "{include: $TPTP, mode: $VAMPIRE_MODE, symbol_precedence: $VAMPIRE_SYMBOL_PRECEDENCE, time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
   --problem-base-path "$TPTP_PROBLEMS"
   "$@"
 )
 
 if [ -n "${VAMPIRE_OPTIONS-}" ]; then XARGS_COMMAND+=(--vampire-options "$VAMPIRE_OPTIONS"); fi
 
-if [ -n "${JOB_ID-}" ]; then XARGS_COMMAND+=(--job-id "$JOB_ID"); fi
+if [ -n "${JOB_ID-}" ]; then XARGS_COMMAND+=(--batch-id "$JOB_ID"); fi
 
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 

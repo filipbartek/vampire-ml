@@ -17,7 +17,7 @@ class ReExtractor:
     def __call__(self, s):
         m = self.pattern.search(s)
         if m is None:
-            raise RuntimeError(f'Pattern {self.name} failed to match.')
+            return None
         return self.convert(m)
 
 

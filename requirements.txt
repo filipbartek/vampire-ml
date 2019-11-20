@@ -2,7 +2,9 @@ matplotlib
 methodtools
 numpy
 pandas
+pyyaml
 scipy
 seaborn
 sklearn
+tensorflow
 tqdm
