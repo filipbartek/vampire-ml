@@ -35,10 +35,3 @@ def fill_category_na(df, value='NA'):
         assert value not in series.cat.categories
         series.cat.add_categories(value, inplace=True)
         series.fillna(value, inplace=True)
-
-
-def save_df(df, base_name, output_dir):
-    if output_dir is not None:
-        os.makedirs(output_dir, exist_ok=True)
-        df.to_pickle(os.path.join(output_dir, f'{base_name}.pkl'))
-        df.to_csv(os.path.join(output_dir, f'{base_name}.csv'))

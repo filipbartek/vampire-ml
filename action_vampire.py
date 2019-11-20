@@ -7,16 +7,14 @@ import os
 from collections import Counter
 from itertools import chain
 
-import numpy as np
-import pandas as pd
-import scipy.stats
 import tensorflow as tf
 import yaml
 from tqdm import tqdm
 
 import file_path_list
+import results
 import vampire
-from utils import save_df, fill_category_na, makedirs_open
+from utils import makedirs_open
 
 
 def add_arguments(parser):
@@ -98,120 +96,56 @@ def call(namespace):
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
                                      scratch_dir=namespace.scratch)
-    with tqdm(desc='Running Vampire', total=len(problem_paths) * ((not namespace.no_clausify) + namespace.solve_runs),
-              unit='run') as t:
-        stats = {'hits': Counter(), 'clausify': Counter(), 'solve': Counter()}
-        solve_i = 0
-        for problem_path in problem_paths:
-            problem_name = os.path.relpath(problem_path, problem_base_path)
-            problem_configuration = base_configuration.spawn(problem_path=problem_path, output_dir_rel=problem_name)
-            clausify_run = None
-            if clausify_run_table is not None:
-                clausify_run = problem_configuration.spawn(output_dir_rel='clausify', base_options={'mode': 'clausify'})
-                # TODO: Refine the conditions under which we skip execution. Shall we retry runs that terminated with code -11?
-                loaded = clausify_run.load_or_run()
-                clausify_run_table.add_run(clausify_run)
-                stats['hits'][loaded] += 1
-                stats['clausify'][(clausify_run.status, clausify_run.exit_code)] += 1
-                t.set_postfix_str(stats['hits'])
-                t.update()
-            if clausify_run is None or clausify_run.exit_code == 0:
-                # TODO: Parallelize.
-                for solve_run_i in range(namespace.solve_runs):
-                    precedences = None
-                    if clausify_run is not None:
-                        assert clausify_run.exit_code == 0
-                        precedences = {'predicate': clausify_run.random_precedence('predicate', solve_run_i),
-                                       'function': clausify_run.random_precedence('function', solve_run_i)}
-                    # TODO: As an alterantive to setting precedences explicitly, add support for `vampire --random_seed`.
-                    solve_execution = problem_configuration.spawn(precedences=precedences,
-                                                                  output_dir_rel=os.path.join('solve',
-                                                                                              str(solve_run_i)),
-                                                                  base_options={'mode': 'vampire'})
-                    loaded = solve_execution.load_or_run()
-                    solve_run_table.add_run(solve_execution, clausify_run)
+    try:
+        with tqdm(desc='Running Vampire',
+                  total=len(problem_paths) * ((not namespace.no_clausify) + namespace.solve_runs),
+                  unit='run') as t:
+            stats = {'hits': Counter(), 'clausify': Counter(), 'solve': Counter()}
+            solve_i = 0
+            for problem_path in problem_paths:
+                problem_name = os.path.relpath(problem_path, problem_base_path)
+                problem_configuration = base_configuration.spawn(problem_path=problem_path, output_dir_rel=problem_name)
+                clausify_run = None
+                if clausify_run_table is not None:
+                    clausify_run = problem_configuration.spawn(output_dir_rel='clausify',
+                                                               base_options={'mode': 'clausify'})
+                    # TODO: Refine the conditions under which we skip execution. Shall we retry runs that terminated with code -11?
+                    loaded = clausify_run.load_or_run()
+                    clausify_run_table.add_run(clausify_run)
                     stats['hits'][loaded] += 1
-                    stats['solve'][(solve_execution.status, solve_execution.exit_code)] += 1
+                    stats['clausify'][(clausify_run.status, clausify_run.exit_code)] += 1
                     t.set_postfix_str(stats['hits'])
                     t.update()
-                    with summary_writer.as_default():
-                        tf.summary.text('stats', str(stats), step=solve_i)
-                    solve_i += 1
+                if clausify_run is None or clausify_run.exit_code == 0:
+                    # TODO: Parallelize.
+                    for solve_run_i in range(namespace.solve_runs):
+                        precedences = None
+                        if clausify_run is not None:
+                            assert clausify_run.exit_code == 0
+                            precedences = {'predicate': clausify_run.random_precedence('predicate', solve_run_i),
+                                           'function': clausify_run.random_precedence('function', solve_run_i)}
+                        # TODO: As an alterantive to setting precedences explicitly, add support for `vampire --random_seed`.
+                        solve_execution = problem_configuration.spawn(precedences=precedences,
+                                                                      output_dir_rel=os.path.join('solve',
+                                                                                                  str(solve_run_i)),
+                                                                      base_options={'mode': 'vampire'})
+                        loaded = solve_execution.load_or_run()
+                        solve_run_table.add_run(solve_execution, clausify_run)
+                        stats['hits'][loaded] += 1
+                        stats['solve'][(solve_execution.status, solve_execution.exit_code)] += 1
+                        t.set_postfix_str(stats['hits'])
+                        t.update()
+                        with summary_writer.as_default():
+                            tf.summary.text('stats', str(stats), step=solve_i)
+                        solve_i += 1
+    finally:
+        solve_runs_df = solve_run_table.get_data_frame()
+        results.save_df(solve_runs_df, 'runs_solve', output_batch)
+        results.save_terminations(solve_runs_df, output_batch)
 
-    solve_runs_df = solve_run_table.get_data_frame()
-    save_df(solve_runs_df, 'runs_solve', output_batch)
+        clausify_runs_df = None
+        if clausify_run_table is not None:
+            clausify_runs_df = clausify_run_table.get_data_frame()
+            results.save_df(clausify_runs_df, 'runs_clausify', output_batch)
 
-    print('Solve runs info:')
-    solve_runs_df.info()
-
-    fill_category_na(solve_runs_df)
-
-    termination_fieldnames = ['status', 'exit_code', 'termination_reason', 'termination_phase']
-
-    # Distribution of run terminations
-    terminations = solve_runs_df.groupby(termination_fieldnames).size()
-    print('Distribution of solve run terminations:', terminations, sep='\n')
-    print(terminations, file=open(os.path.join(output_batch, 'runs_solve_terminations.txt'), 'w'))
-
-    clausify_runs_df = None
-    if clausify_run_table is not None:
-        clausify_runs_df = clausify_run_table.get_data_frame()
-        save_df(clausify_runs_df, 'runs_clausify', output_batch)
-        print('Clausify runs info:')
-        clausify_runs_df.info()
-
-    problems_df = generate_problems_df(problem_paths, solve_runs_df, clausify_runs_df)
-    print('Problems info:')
-    problems_df.info()
-    save_df(problems_df, 'problems', output_batch)
-
-    problems_interesting_df = problems_df[
-        (problems_df.n_completed >= namespace.solve_runs) & (problems_df.n_exit_0 >= 1) & (
-                problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)]
-    print(f'Number of interesting problems: {len(problems_interesting_df)}')
-    # TODO: Sort the rows by more criteria, for example time_elapsed mean.
-    if ('saturation_iterations', 'variation') in problems_interesting_df:
-        problems_interesting_df = problems_interesting_df.sort_values(('saturation_iterations', 'variation'),
-                                                                      ascending=False)
-    save_df(problems_interesting_df, 'problems_interesting', output_batch)
-
-
-def generate_problems_df(problem_paths, runs_df, probe_runs_df=None):
-    problems_df = pd.DataFrame(index=problem_paths)
-    problems_df.index.name = 'problem_path'
-    problem_groups = runs_df.groupby(['problem_path'])
-    problems_df = problems_df.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
-    problems_df = problems_df.join(
-        runs_df[runs_df.status == 'completed'].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame(
-            'n_completed'))
-    problems_df = problems_df.join(
-        runs_df[runs_df.exit_code == 0].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_0'))
-    problems_df = problems_df.join(
-        runs_df[runs_df.exit_code == 1].groupby(['problem_path']).size().astype(pd.UInt64Dtype()).to_frame('n_exit_1'))
-    if 'termination_reason' in runs_df:
-        problems_df = problems_df.join(
-            runs_df[runs_df.termination_reason == 'Refutation'].groupby(['problem_path']).size().astype(
-                pd.UInt64Dtype()).to_frame(
-                'n_refutation'))
-        problems_df = problems_df.join(
-            runs_df[runs_df.termination_reason == 'Satisfiable'].groupby(['problem_path']).size().astype(
-                pd.UInt64Dtype()).to_frame(
-                'n_satisfiable'))
-        problems_df = problems_df.join(
-            runs_df[runs_df.termination_reason == 'Time limit'].groupby(['problem_path']).size().astype(
-                pd.UInt64Dtype()).to_frame(
-                'n_time_limit'))
-    problems_df.fillna(
-        {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0,
-         'n_time_limit': 0},
-        inplace=True)
-    agg_fields = ['time_elapsed_process', 'time_elapsed_vampire', 'memory_used', 'saturation_iterations']
-    agg_functions = [np.mean, np.std, scipy.stats.variation, np.min, np.max]
-    problems_df = problems_df.join(problem_groups.agg({field_name: agg_functions for field_name in agg_fields}))
-    # Merge probe run results into `problems_df`
-    if probe_runs_df is not None:
-        problems_df = problems_df.join(
-            probe_runs_df[['problem_path', 'predicates_count', 'functions_count', 'clauses_count']].set_index(
-                'problem_path'),
-            rsuffix='probe')
-    return problems_df
+        results.save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths, namespace.solve_runs)
