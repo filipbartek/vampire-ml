@@ -6,11 +6,12 @@ import logging
 import os
 
 
-def compose(sublist_file_paths, glob_patterns=None, base_path=None):
+def compose(sublist_file_paths=None, glob_patterns=None, base_path=None):
     file_paths = []
-    for sublist_file_path in sublist_file_paths:
-        with open(sublist_file_path) as sublist_file:
-            file_paths.extend(l.rstrip('\n') for l in sublist_file.readlines())
+    if sublist_file_paths is not None:
+        for sublist_file_path in sublist_file_paths:
+            with open(sublist_file_path) as sublist_file:
+                file_paths.extend(l.rstrip('\n') for l in sublist_file.readlines())
     # We modify the glob patterns to be relative to base_path.
     # Alternatively, we could change the CWD which is used by glob.iglob.
     if glob_patterns is not None:
