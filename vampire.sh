@@ -30,7 +30,6 @@ VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-3000}
 SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
-# TODO: Expose more Vampire options.
 # TODO: Parallelize vampire-ml.py and pass $CPUS.
 XARGS_COMMAND=(
   xargs --verbose
