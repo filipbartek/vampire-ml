@@ -86,7 +86,8 @@ class Run:
         'encode': 'on',
         'statistics': 'full',
         'time_statistics': 'on',
-        'proof': 'off'
+        'proof': 'off',
+        'literal_comparison_mode': 'predicate'
     }
 
     def __init__(self, program, base_options=None, timeout=None, output_dir=None, scratch_dir=None):
