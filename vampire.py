@@ -51,6 +51,9 @@ class SymbolPrecedence:
             return False
         return True
 
+    def __getitem__(self, key):
+        return self.value[key]
+
     def options(self, output_dir):
         self.save(output_dir)
         return {self.option_name: self.path_abs(output_dir)}
