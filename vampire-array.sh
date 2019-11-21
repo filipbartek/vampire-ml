@@ -6,6 +6,8 @@ set -euo pipefail
 
 export OUTPUT=${OUTPUT:-out/default}
 export VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-8192}
+export VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
+export SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 
 # sbatch parameters
 OUTPUT_SLURM=${OUTPUT_SLURM:-$OUTPUT/slurm}
