@@ -132,12 +132,15 @@ class Run:
 
     def load_or_run(self):
         try:
-            self.load_shallow()
-            return True
-        except (FileNotFoundError, RuntimeError):
-            self.run()
-            self.save()
-            return False
+            try:
+                self.load_shallow()
+                return True
+            except (FileNotFoundError, RuntimeError):
+                self.run()
+                self.save()
+                return False
+        except Exception as e:
+            raise RuntimeError(f'Error in run {str(self)}') from e
 
     def run(self):
         time_start = time.time()
