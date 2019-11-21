@@ -23,8 +23,6 @@ if [ -n "${SLURM_JOB_ID-}" ]; then
 fi
 OUTPUT=${OUTPUT:-out/default}
 
-VAMPIRE_MODE=${VAMPIRE_MODE:-vampire}
-VAMPIRE_SYMBOL_PRECEDENCE=${VAMPIRE_SYMBOL_PRECEDENCE:-scramble}
 VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
 VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-3000}
 SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
@@ -38,7 +36,7 @@ XARGS_COMMAND=(
   --output "$OUTPUT"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
-  --vampire-options "{include: $TPTP, mode: $VAMPIRE_MODE, symbol_precedence: $VAMPIRE_SYMBOL_PRECEDENCE, time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
+  --vampire-options "{include: $TPTP, time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
   --problem-base-path "$TPTP_PROBLEMS"
   --timeout $((VAMPIRE_TIME_LIMIT + 10))
   "$@"
