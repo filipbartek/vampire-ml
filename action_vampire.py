@@ -7,6 +7,7 @@ import os
 from collections import Counter
 from itertools import chain
 
+import numpy as np
 import tensorflow as tf
 import yaml
 from tqdm import tqdm
@@ -94,6 +95,7 @@ def call(namespace):
     if not namespace.no_clausify:
         clausify_run_table = vampire.RunTable()
     solve_run_table = vampire.RunTable()
+    learned_run_table = vampire.RunTable()
     summary_writer = tf.summary.create_file_writer(logs_path)
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
@@ -119,6 +121,7 @@ def call(namespace):
                     t.set_postfix_str(stats['hits'])
                     t.update()
                 if clausify_run is None or clausify_run.exit_code == 0:
+                    problem_results = list()
                     # TODO: Parallelize.
                     for solve_run_i in range(namespace.solve_runs):
                         precedences = None
@@ -132,6 +135,11 @@ def call(namespace):
                                                                 base_options={'mode': 'vampire'})
                         loaded = solve_run.load_or_run()
                         solve_run_table.add_run(solve_run, clausify_run)
+                        problem_results.append({
+                            'exit_code': solve_run.exit_code,
+                            'saturation_iterations': solve_run.saturation_iterations(),
+                            'precedences': precedences
+                        })
                         stats['hits'][loaded] += 1
                         stats['solve'][(solve_run.status, solve_run.exit_code)] += 1
                         t.set_postfix_str(stats['hits'])
@@ -139,6 +147,47 @@ def call(namespace):
                         with summary_writer.as_default():
                             tf.summary.text('stats', str(stats), step=solve_i)
                         solve_i += 1
+                    saturation_iterations = [result['saturation_iterations'] for result in problem_results if
+                                             result['saturation_iterations'] is not None]
+                    if len(saturation_iterations) == 0:
+                        continue
+                    saturation_iterations_min = min(saturation_iterations)
+                    saturation_iterations_max = max(saturation_iterations)
+                    for result in problem_results:
+                        result['score'] = -1
+                        if result['exit_code'] == 0:
+                            assert result['saturation_iterations'] is not None
+                            result['score'] = np.interp(result['saturation_iterations'],
+                                                        [saturation_iterations_min, saturation_iterations_max], [1, 0])
+                    symbol_count = {symbol_type: clausify_run.get_symbols_count(symbol_type) for symbol_type in
+                                    symbol_types}
+                    symbol_data = {symbol_type: {
+                        'n': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint),
+                        'v': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.float)} for
+                        symbol_type in symbol_types}
+                    good_permutations = dict()
+                    for symbol_type in symbol_types:
+                        n = symbol_data[symbol_type]['n']
+                        v = symbol_data[symbol_type]['v']
+                        for result in problem_results:
+                            score = result['score']
+                            precedence = result['precedences'][symbol_type]
+                            for i in range(symbol_count[symbol_type]):
+                                for j in range(i + 1, symbol_count[symbol_type]):
+                                    pi = precedence[i]
+                                    pj = precedence[j]
+                                    n[pi, pj] += 1
+                                    v[pi, pj] += (score - v[pi, pj]) / n[pi, pj]
+                        good_permutations[symbol_type] = construct_good_permutation(v)
+                        # TODO: Try to improve the permutation by two-point swaps.
+                    if clausify_run is not None:
+                        assert clausify_run.exit_code == 0
+                        precedences = {symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type])
+                                       for symbol_type in symbol_types}
+                        solve_run = problem_configuration.spawn(precedences=precedences,
+                                                                output_dir_rel=os.path.join('learned'))
+                        solve_run.load_or_run()
+                        learned_run_table.add_run(solve_run, clausify_run)
     finally:
         solve_runs_df = solve_run_table.get_data_frame()
         results.save_df(solve_runs_df, 'runs_solve', output_batch)
@@ -149,4 +198,25 @@ def call(namespace):
             clausify_runs_df = clausify_run_table.get_data_frame()
             results.save_df(clausify_runs_df, 'runs_clausify', output_batch)
 
-        results.save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths, namespace.solve_runs)
+        results.save_df(learned_run_table.get_data_frame(), 'runs_learned', output_batch)
+
+        results.save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths,
+                              namespace.solve_runs)
+
+
+def construct_good_permutation(v):
+    """Find good permutation greedily."""
+    assert len(v.shape) == 2
+    assert v.shape[0] == v.shape[1]
+    n = v.shape[0]
+    # s[i] = total score for row i - total score for column i
+    # Symbol i should be picked as the first greedily if it maximizes s[i].
+    s = v.sum(axis=1).flatten() - v.sum(axis=0).flatten()
+    perm = np.zeros(n, dtype=np.uint)
+    # https://papers.nips.cc/paper/1431-learning-to-order-things.pdf
+    for i in range(n):
+        cur = np.argmax(s)
+        perm[i] = cur
+        s += v[cur, :] - v[:, cur]
+        s[cur] = np.NINF
+    return perm
