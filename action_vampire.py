@@ -125,14 +125,13 @@ def call(namespace):
                             precedences = {'predicate': clausify_run.random_precedence('predicate', solve_run_i),
                                            'function': clausify_run.random_precedence('function', solve_run_i)}
                         # TODO: As an alterantive to setting precedences explicitly, add support for `vampire --random_seed`.
-                        solve_execution = problem_configuration.spawn(precedences=precedences,
-                                                                      output_dir_rel=os.path.join('solve',
-                                                                                                  str(solve_run_i)),
-                                                                      base_options={'mode': 'vampire'})
-                        loaded = solve_execution.load_or_run()
-                        solve_run_table.add_run(solve_execution, clausify_run)
+                        solve_run = problem_configuration.spawn(precedences=precedences,
+                                                                output_dir_rel=os.path.join('solve', str(solve_run_i)),
+                                                                base_options={'mode': 'vampire'})
+                        loaded = solve_run.load_or_run()
+                        solve_run_table.add_run(solve_run, clausify_run)
                         stats['hits'][loaded] += 1
-                        stats['solve'][(solve_execution.status, solve_execution.exit_code)] += 1
+                        stats['solve'][(solve_run.status, solve_run.exit_code)] += 1
                         t.set_postfix_str(stats['hits'])
                         t.update()
                         with summary_writer.as_default():
