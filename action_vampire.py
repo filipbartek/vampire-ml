@@ -88,6 +88,8 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
 
+    # TODO: Allow running with only some precedences under shuffling and training.
+    symbol_types = vampire.SymbolPrecedence.symbol_types.keys()
     clausify_run_table = None
     if not namespace.no_clausify:
         clausify_run_table = vampire.RunTable()
@@ -122,8 +124,8 @@ def call(namespace):
                         precedences = None
                         if clausify_run is not None:
                             assert clausify_run.exit_code == 0
-                            precedences = {'predicate': clausify_run.random_precedence('predicate', solve_run_i),
-                                           'function': clausify_run.random_precedence('function', solve_run_i)}
+                            precedences = {symbol_type: clausify_run.random_precedence(symbol_type, solve_run_i) for
+                                           symbol_type in symbol_types}
                         # TODO: As an alterantive to setting precedences explicitly, add support for `vampire --random_seed`.
                         solve_run = problem_configuration.spawn(precedences=precedences,
                                                                 output_dir_rel=os.path.join('solve', str(solve_run_i)),
