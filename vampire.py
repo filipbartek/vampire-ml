@@ -318,6 +318,12 @@ class Run:
         result.index = result.index.droplevel(0)
         return result
 
+    def get_symbol_count(self, symbol_type=None):
+        symbols = self.get_symbols(symbol_type)
+        if symbols is None:
+            raise RuntimeError(f'This Vampire run does not have {symbol_type} symbols. Cannot determine the symbol count.')
+        return len(symbols)
+
     def load_clauses(self):
         if self.clauses is not None:
             return
@@ -335,10 +341,7 @@ class Run:
         return extractor.saturation_iterations(self.get_stdout())
 
     def random_precedence(self, symbol_type, seed=None):
-        symbols = self.get_symbols(symbol_type)
-        if symbols is None:
-            raise RuntimeError(f'This Vampire run does not have {symbol_type} symbols. Cannot generate precedence.')
-        return SymbolPrecedence.random(symbol_type, len(symbols), seed)
+        return SymbolPrecedence.random(symbol_type, self.get_symbol_count(symbol_type), seed)
 
     def __getitem__(self, key):
         return self.fields[key].extract(self)
