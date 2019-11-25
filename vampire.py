@@ -188,7 +188,9 @@ class Run:
                      *((f'--{name}', str(value)) for (name, value) in self.options(current_output_dir).items()),
                      [self.problem_path])
 
-    def options(self, current_output_dir):
+    def options(self, current_output_dir=None):
+        if current_output_dir is None:
+            current_output_dir = self.output_dir
         res = self.base_options.copy()
         for precedence in self.precedences.values():
             # `SymbolPrecedence.options()` saves the precedence into a file.

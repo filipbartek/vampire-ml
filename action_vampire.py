@@ -97,6 +97,8 @@ def call(namespace):
     solve_run_table = vampire.RunTable()
     learned_run_table = vampire.RunTable()
     summary_writer = tf.summary.create_file_writer(logs_path)
+    # We rely on unset option 'symbol_precedence' as an indicator we should use randomly generated precedences.
+    assert 'symbol_precedence' not in vampire.Run.default_options
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
                                      problem_base_path=problem_base_path, scratch_dir=namespace.scratch)
@@ -125,7 +127,7 @@ def call(namespace):
                     # TODO: Parallelize.
                     for solve_run_i in range(namespace.solve_runs):
                         precedences = None
-                        if clausify_run is not None:
+                        if clausify_run is not None and 'symbol_precedence' not in problem_configuration.options():
                             assert clausify_run.exit_code == 0
                             precedences = {symbol_type: clausify_run.random_precedence(symbol_type, solve_run_i) for
                                            symbol_type in symbol_types}
@@ -170,6 +172,8 @@ def call(namespace):
                         n = symbol_data[symbol_type]['n']
                         v = symbol_data[symbol_type]['v']
                         for result in problem_results:
+                            if result['precedences'] is None or symbol_type not in result['precedences']:
+                                continue
                             score = result['score']
                             precedence = result['precedences'][symbol_type]
                             for i in range(symbol_count[symbol_type]):
