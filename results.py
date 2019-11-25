@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.7
 
+import logging
 import os
 
 import numpy as np
@@ -12,6 +13,7 @@ def save_df(df, base_name, output_dir):
         os.makedirs(output_dir, exist_ok=True)
         df.to_pickle(os.path.join(output_dir, f'{base_name}.pkl'))
         df.to_csv(os.path.join(output_dir, f'{base_name}.csv'))
+        logging.info(f'DataFrame of length {len(df.index)} saved: {os.path.join(output_dir, base_name)}.{{pkl,csv}}')
 
 
 def save_terminations(solve_runs_df, output_batch):
