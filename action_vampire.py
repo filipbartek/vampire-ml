@@ -174,6 +174,7 @@ def call(namespace):
                     good_permutations = dict()
                     for symbol_type in symbol_types:
                         n = np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint)
+                        # Preference matrix
                         v = np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.float)
                         for result in problem_results:
                             if result['precedences'] is None or symbol_type not in result['precedences']:
