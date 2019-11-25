@@ -321,7 +321,8 @@ class Run:
     def get_symbol_count(self, symbol_type=None):
         symbols = self.get_symbols(symbol_type)
         if symbols is None:
-            raise RuntimeError(f'This Vampire run does not have {symbol_type} symbols. Cannot determine the symbol count.')
+            raise RuntimeError(
+                f'This Vampire run does not have {symbol_type} symbols. Cannot determine the symbol count.')
         return len(symbols)
 
     def load_clauses(self):
