@@ -46,6 +46,8 @@ def add_arguments(parser):
                              'Recommended options: time_limit, mode, include.')
     parser.add_argument('--timeout', type=float, default=20)
     parser.add_argument('--no-clausify', action='store_true', help='Omit clausify runs. Compatible with stock Vampire.')
+    parser.add_argument('--learn-max-symbols', default=16384, type=int,
+                        help='Maximum signature size with which learning is enabled.')
 
 
 def call(namespace):
@@ -155,6 +157,12 @@ def call(namespace):
                                              result['saturation_iterations'] is not None]
                     if len(saturation_iterations) == 0 or clausify_run is None:
                         continue
+                    symbol_count = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
+                                    symbol_types}
+                    if max(symbol_count.values()) > namespace.learn_max_symbols:
+                        logging.debug(
+                            f'Precedence learning skipped for problem {problem_name} because signature is too large.')
+                        continue
                     saturation_iterations_min = min(saturation_iterations)
                     saturation_iterations_max = max(saturation_iterations)
                     for result in problem_results:
@@ -163,8 +171,6 @@ def call(namespace):
                             assert result['saturation_iterations'] is not None
                             result['score'] = np.interp(result['saturation_iterations'],
                                                         [saturation_iterations_min, saturation_iterations_max], [1, 0])
-                    symbol_count = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
-                                    symbol_types}
                     symbol_data = {symbol_type: {
                         'n': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint),
                         'v': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.float)} for
