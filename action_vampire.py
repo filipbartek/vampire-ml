@@ -115,12 +115,13 @@ def call(namespace):
                 if clausify_run_table is not None:
                     clausify_run = problem_configuration.spawn(output_dir_rel='clausify',
                                                                base_options={'mode': 'clausify'})
+                    t.set_postfix({'hits': stats['hits'], 'current_run': clausify_run})
                     # TODO: Refine the conditions under which we skip execution. Shall we retry runs that terminated with code -11?
                     loaded = clausify_run.load_or_run()
                     clausify_run_table.add_run(clausify_run)
                     stats['hits'][loaded] += 1
                     stats['clausify'][(clausify_run.status, clausify_run.exit_code)] += 1
-                    t.set_postfix_str(stats['hits'])
+                    t.set_postfix({'hits': stats['hits'], 'current_run': clausify_run})
                     t.update()
                 if clausify_run is None or clausify_run.exit_code == 0:
                     problem_results = list()
@@ -135,6 +136,7 @@ def call(namespace):
                         solve_run = problem_configuration.spawn(precedences=precedences,
                                                                 output_dir_rel=os.path.join('solve', str(solve_run_i)),
                                                                 base_options={'mode': 'vampire'})
+                        t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
                         loaded = solve_run.load_or_run()
                         solve_run_table.add_run(solve_run, clausify_run)
                         problem_results.append({
@@ -144,7 +146,7 @@ def call(namespace):
                         })
                         stats['hits'][loaded] += 1
                         stats['solve'][(solve_run.status, solve_run.exit_code)] += 1
-                        t.set_postfix_str(stats['hits'])
+                        t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
                         t.update()
                         with summary_writer.as_default():
                             tf.summary.text('stats', str(stats), step=solve_i)
