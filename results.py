@@ -35,7 +35,8 @@ def save_terminations(solve_runs_df, output_batch):
     print(terminations, file=open(os.path.join(output_batch, 'runs_solve_terminations.txt'), 'w'))
 
 
-def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None, solve_runs=0):
+def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None,
+                  solve_runs=0):
     problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path)
     save_df(problems_df, 'problems', output_batch)
 
