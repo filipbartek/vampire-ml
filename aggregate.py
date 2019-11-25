@@ -3,11 +3,12 @@
 import argparse
 import os
 
+import numpy as np
 import pandas as pd
-from pandas.api.types import union_categoricals
 
 import file_path_list
 import results
+import vampire
 
 
 def add_arguments(parser):
@@ -35,13 +36,9 @@ def concat_pickles(result_dirs, pickle_base_name):
 
 
 def concat_dfs(dfs):
-    dfs = list(dfs)
-    # https://stackoverflow.com/a/57809778/4054250
-    for col in dfs[0].select_dtypes(['category']):
-        uc = union_categoricals([df[col] for df in dfs])
-        for df in dfs:
-            df[col] = pd.Categorical(df[col], categories=uc.categories)
-    return pd.concat(dfs)
+    dfs = [df.astype({col: np.object for col in df.select_dtypes(['category'])}) for df in dfs]
+    return pd.concat(dfs).astype({col: pd.CategoricalDtype() for col, field in vampire.Run.fields.items() if
+                                  isinstance(field.dtype, pd.CategoricalDtype)})
 
 
 def pd_read_pickle_robust(path):
