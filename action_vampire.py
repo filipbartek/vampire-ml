@@ -149,7 +149,7 @@ def call(namespace):
                         solve_i += 1
                     saturation_iterations = [result['saturation_iterations'] for result in problem_results if
                                              result['saturation_iterations'] is not None]
-                    if len(saturation_iterations) == 0:
+                    if len(saturation_iterations) == 0 or clausify_run is None:
                         continue
                     saturation_iterations_min = min(saturation_iterations)
                     saturation_iterations_max = max(saturation_iterations)
