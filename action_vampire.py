@@ -159,7 +159,7 @@ def call(namespace):
                             assert result['saturation_iterations'] is not None
                             result['score'] = np.interp(result['saturation_iterations'],
                                                         [saturation_iterations_min, saturation_iterations_max], [1, 0])
-                    symbol_count = {symbol_type: clausify_run.get_symbols_count(symbol_type) for symbol_type in
+                    symbol_count = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
                                     symbol_types}
                     symbol_data = {symbol_type: {
                         'n': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint),
