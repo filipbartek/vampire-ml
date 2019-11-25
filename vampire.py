@@ -93,13 +93,16 @@ class Run:
         'literal_comparison_mode': 'predicate'
     }
 
-    def __init__(self, program, base_options=None, timeout=None, output_dir=None, scratch_dir=None):
+    def __init__(self, program, base_options=None, timeout=None, output_dir=None, problem_base_path=None,
+                 scratch_dir=None):
         # Run configuration:
         self.program = program
         self.base_options = self.default_options.copy()
         self.base_options.update(base_options)
         self.timeout = timeout
         self.output_dir = output_dir
+        self.output_dir_base = output_dir
+        self.problem_base_path = problem_base_path
         self.scratch_dir = scratch_dir
         self.problem_path = None
         self.precedences = dict()
@@ -351,8 +354,8 @@ class Run:
 
     # TODO: Add vampire job id.
     fields = {
-        'output_dir': Field(lambda job: job.output_dir, 'object'),
-        'problem_path': Field(lambda job: job.problem_path, 'object'),
+        'output_dir': Field(lambda job: os.path.relpath(job.output_dir, job.output_dir_base), 'object'),
+        'problem_path': Field(lambda job: os.path.relpath(job.problem_path, job.problem_base_path), 'object'),
         'status': Field(lambda job: job.status, pd.CategoricalDtype()),
         'exit_code': Field(lambda job: job.exit_code, pd.CategoricalDtype()),
         'termination_reason': Field(lambda job: extractor.termination_reason(job.get_stdout()), pd.CategoricalDtype()),

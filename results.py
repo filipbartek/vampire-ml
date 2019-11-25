@@ -26,8 +26,8 @@ def save_terminations(solve_runs_df, output_batch):
     print(terminations, file=open(os.path.join(output_batch, 'runs_solve_terminations.txt'), 'w'))
 
 
-def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, solve_runs=0):
-    problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths)
+def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None, solve_runs=0):
+    problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path)
     save_df(problems_df, 'problems', output_batch)
 
     problems_interesting_df = problems_df[
@@ -52,10 +52,12 @@ def fill_category_na(df, value='NA', inplace=False):
     return df
 
 
-def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None):
+def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, problem_base_path=None):
     if problem_paths is None:
-        problem_paths = runs_df.problem_path.drop_duplicates()
-    # TODO: Ensure duplicate index values are not introduced.
+        problem_paths = runs_df.problem_path
+    elif problem_base_path is not None:
+        problem_paths = [os.path.relpath(problem_path, problem_base_path) for problem_path in problem_paths]
+    problem_paths = pd.Index(problem_paths).drop_duplicates()
     problems_df = pd.DataFrame(index=problem_paths)
     problems_df.index.name = 'problem_path'
     problem_groups = runs_df.groupby(['problem_path'])

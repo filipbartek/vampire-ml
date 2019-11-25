@@ -99,7 +99,7 @@ def call(namespace):
     summary_writer = tf.summary.create_file_writer(logs_path)
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
-                                     scratch_dir=namespace.scratch)
+                                     problem_base_path=problem_base_path, scratch_dir=namespace.scratch)
     try:
         with tqdm(desc='Running Vampire',
                   total=len(problem_paths) * ((not namespace.no_clausify) + namespace.solve_runs),
@@ -201,7 +201,7 @@ def call(namespace):
 
         results.save_df(learned_run_table.get_data_frame(), 'runs_learned', output_batch)
 
-        results.save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths,
+        results.save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths, problem_base_path,
                               namespace.solve_runs)
 
 
