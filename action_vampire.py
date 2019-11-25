@@ -46,7 +46,7 @@ def add_arguments(parser):
                              'Recommended options: time_limit, mode, include.')
     parser.add_argument('--timeout', type=float, default=20)
     parser.add_argument('--no-clausify', action='store_true', help='Omit clausify runs. Compatible with stock Vampire.')
-    parser.add_argument('--learn-max-symbols', default=16384, type=int,
+    parser.add_argument('--learn-max-symbols', default=1024, type=int,
                         help='Maximum signature size with which learning is enabled.')
 
 
