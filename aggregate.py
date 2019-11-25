@@ -37,6 +37,8 @@ def concat_pickles(result_dirs, pickle_base_name):
 
 def concat_dfs(dfs):
     dfs = [df.astype({col: np.object for col in df.select_dtypes(['category'])}) for df in dfs]
+    if len(dfs) == 0:
+        return None
     return pd.concat(dfs).astype({col: pd.CategoricalDtype() for col, field in vampire.Run.fields.items() if
                                   isinstance(field.dtype, pd.CategoricalDtype)})
 
