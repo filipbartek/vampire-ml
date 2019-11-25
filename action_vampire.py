@@ -182,8 +182,9 @@ def call(namespace):
                         # TODO: Try to improve the permutation by two-point swaps.
                     if clausify_run is not None:
                         assert clausify_run.exit_code == 0
-                        precedences = {symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type])
-                                       for symbol_type in symbol_types}
+                        precedences = {
+                            symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type]) for
+                            symbol_type in symbol_types}
                         solve_run = problem_configuration.spawn(precedences=precedences,
                                                                 output_dir_rel=os.path.join('learned'))
                         solve_run.load_or_run()
