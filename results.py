@@ -8,7 +8,16 @@ import pandas as pd
 import scipy.stats
 
 
+def save_all(df_solve, df_clausify, output):
+    save_df(df_solve, 'runs_solve', output)
+    save_terminations(df_solve, output)
+    save_df(df_clausify, 'runs_clausify', output)
+    save_problems(df_solve, df_clausify, output)
+
+
 def save_df(df, base_name, output_dir):
+    if df is None:
+        return
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
         df.to_pickle(os.path.join(output_dir, f'{base_name}.pkl'))

@@ -197,18 +197,11 @@ def call(namespace):
                         learned_run_table.add_run(solve_run, clausify_run)
     finally:
         solve_runs_df = solve_run_table.get_data_frame()
-        results.save_df(solve_runs_df, 'runs_solve', output_batch)
-        results.save_terminations(solve_runs_df, output_batch)
-
         clausify_runs_df = None
         if clausify_run_table is not None:
             clausify_runs_df = clausify_run_table.get_data_frame()
-            results.save_df(clausify_runs_df, 'runs_clausify', output_batch)
-
+        results.save_all(solve_runs_df, clausify_runs_df, output_batch)
         results.save_df(learned_run_table.get_data_frame(), 'runs_learned', output_batch)
-
-        results.save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths, problem_base_path,
-                              namespace.solve_runs)
 
 
 def construct_good_permutation(v):
