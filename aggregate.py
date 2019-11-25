@@ -17,13 +17,7 @@ def add_arguments(parser):
 
 
 def call(namespace):
-    batches = list()
     result_paths, _ = file_path_list.compose(glob_patterns=namespace.batch)
-    for result_path in result_paths:
-        result_dir = os.path.dirname(result_path)
-        batches.append({'path': result_dir,
-                        'solve': pd_read_pickle_robust(os.path.join(result_dir, 'runs_solve.pkl')),
-                        'clausify': pd_read_pickle_robust(os.path.join(result_dir, 'runs_clausify.pkl'))})
     result_dirs = [os.path.dirname(result_path) for result_path in result_paths]
     df_solve = concat_pickles(result_dirs, 'runs_solve.pkl')
     df_clausify = concat_pickles(result_dirs, 'runs_clausify.pkl')
