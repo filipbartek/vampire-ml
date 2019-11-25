@@ -171,14 +171,10 @@ def call(namespace):
                             assert result['saturation_iterations'] is not None
                             result['score'] = np.interp(result['saturation_iterations'],
                                                         [saturation_iterations_min, saturation_iterations_max], [1, 0])
-                    symbol_data = {symbol_type: {
-                        'n': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint),
-                        'v': np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.float)} for
-                        symbol_type in symbol_types}
                     good_permutations = dict()
                     for symbol_type in symbol_types:
-                        n = symbol_data[symbol_type]['n']
-                        v = symbol_data[symbol_type]['v']
+                        n = np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint)
+                        v = np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.float)
                         for result in problem_results:
                             if result['precedences'] is None or symbol_type not in result['precedences']:
                                 continue
