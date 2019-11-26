@@ -47,6 +47,8 @@ def add_arguments(parser):
     parser.add_argument('--timeout', type=float, default=20,
                         help='Time in seconds after which each Vampire call is terminated.')
     parser.add_argument('--no-clausify', action='store_true', help='Omit clausify runs. Compatible with stock Vampire.')
+    parser.add_argument('--random-predicate-precedence', action='store_true')
+    parser.add_argument('--random-function-precedence', action='store_true')
     parser.add_argument('--learn-max-symbols', default=1024, type=int,
                         help='Maximum signature size with which learning is enabled.')
 
@@ -92,16 +94,21 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
 
-    # TODO: Allow running with only some precedences under shuffling and training.
-    symbol_types = vampire.SymbolPrecedence.symbol_types.keys()
+    symbol_types = list()
+    if namespace.random_predicate_precedence:
+        symbol_types.append('predicate')
+    if namespace.random_function_precedence:
+        symbol_types.append('function')
+    assert set(symbol_types) <= set(vampire.SymbolPrecedence.symbol_types.keys())
+    if namespace.solve_runs > 1 and len(symbol_types) == 0:
+        logging.warning('Requesting multiple runs per problem with identical parameters.')
+
     clausify_run_table = None
     if not namespace.no_clausify:
         clausify_run_table = vampire.RunTable()
     solve_run_table = vampire.RunTable()
     learned_run_table = vampire.RunTable()
     summary_writer = tf.summary.create_file_writer(logs_path)
-    # We rely on unset option 'symbol_precedence' as an indicator we should use randomly generated precedences.
-    assert 'symbol_precedence' not in vampire.Run.default_options
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
                                      problem_base_path=problem_base_path, scratch_dir=namespace.scratch)
@@ -131,7 +138,7 @@ def call(namespace):
                     # TODO: Parallelize.
                     for solve_run_i in range(namespace.solve_runs):
                         precedences = None
-                        if clausify_run is not None and 'symbol_precedence' not in problem_configuration.options():
+                        if clausify_run is not None:
                             assert clausify_run.exit_code == 0
                             precedences = {symbol_type: clausify_run.random_precedence(symbol_type, solve_run_i) for
                                            symbol_type in symbol_types}
@@ -154,7 +161,7 @@ def call(namespace):
                         with summary_writer.as_default():
                             tf.summary.text('stats', str(stats), step=solve_i)
                         solve_i += 1
-                    if clausify_run is None:
+                    if clausify_run is None or len(symbol_types) == 0:
                         continue
                     saturation_iterations = [result['saturation_iterations'] for result in problem_results if
                                              result['saturation_iterations'] is not None and result['exit_code'] == 0]
