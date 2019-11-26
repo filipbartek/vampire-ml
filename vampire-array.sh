@@ -29,5 +29,10 @@ echo "TIME_PER_TASK=$TIME_PER_TASK"
 
 mkdir -p "$OUTPUT_SLURM"
 ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:vampire" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" vampire.sh "$@")
+
+git rev-parse --verify HEAD > "$OUTPUT/batches/$ARRAY_JOB_ID/git-commit-sha.txt"
+env | sort > "$OUTPUT/batches/$ARRAY_JOB_ID/env.txt"
+echo "$@" > "$OUTPUT/batches/$ARRAY_JOB_ID/parameters.txt"
+
 export ARRAY_JOB_ID
 sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:aggregate" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" aggregate.sh
