@@ -23,6 +23,7 @@ def call(namespace):
     df_solve = concat_pickles(result_dirs, 'runs_solve.pkl')
     df_clausify = concat_pickles(result_dirs, 'runs_clausify.pkl')
     results.save_all(df_solve, df_clausify, namespace.output)
+    results.save_df(concat_pickles(result_dirs, 'runs_learned.pkl'), 'runs_learned', namespace.output)
 
 
 def concat_pickles(result_dirs, pickle_base_name):
