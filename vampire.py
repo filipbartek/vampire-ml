@@ -90,7 +90,10 @@ class Run:
         'statistics': 'full',
         'time_statistics': 'on',
         'proof': 'off',
-        'literal_comparison_mode': 'predicate'
+        'literal_comparison_mode': 'predicate',
+        'symbol_precedence': 'frequency',
+        'saturation_algorithm': 'discount',
+        'age_weight_ratio': '10'
     }
 
     def __init__(self, program, base_options=None, timeout=None, output_dir=None, problem_base_path=None,
