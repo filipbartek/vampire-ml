@@ -156,7 +156,7 @@ def call(namespace):
                     if clausify_run is None:
                         continue
                     saturation_iterations = [result['saturation_iterations'] for result in problem_results if
-                                             result['saturation_iterations'] is not None]
+                                             result['saturation_iterations'] is not None and result['exit_code'] == 0]
                     if len(saturation_iterations) == 0:
                         continue
                     symbol_count = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
