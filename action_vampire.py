@@ -153,9 +153,11 @@ def call(namespace):
                         with summary_writer.as_default():
                             tf.summary.text('stats', str(stats), step=solve_i)
                         solve_i += 1
+                    if clausify_run is None:
+                        continue
                     saturation_iterations = [result['saturation_iterations'] for result in problem_results if
                                              result['saturation_iterations'] is not None]
-                    if len(saturation_iterations) == 0 or clausify_run is None:
+                    if len(saturation_iterations) == 0:
                         continue
                     symbol_count = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
                                     symbol_types}
