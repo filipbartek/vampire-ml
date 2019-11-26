@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import argparse
+import logging
 import os
 
 import numpy as np
@@ -52,6 +53,7 @@ def pd_read_pickle_robust(path):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser()
     add_arguments(parser)
     namespace = parser.parse_args()
