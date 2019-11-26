@@ -42,9 +42,10 @@ def add_arguments(parser):
                              'supported by Vampire. '
                              'Format: YAML dictionary. '
                              'For example, "{include: $TPTP, time_limit: 10}" translates into '
-                             '"--input $TPTP --time_limit 10".'
-                             'Recommended options: time_limit, mode, include.')
-    parser.add_argument('--timeout', type=float, default=20)
+                             '"--include $TPTP --time_limit 10".'
+                             'Recommended options: include, time_limit.')
+    parser.add_argument('--timeout', type=float, default=20,
+                        help='Time in seconds after which each Vampire call is terminated.')
     parser.add_argument('--no-clausify', action='store_true', help='Omit clausify runs. Compatible with stock Vampire.')
     parser.add_argument('--learn-max-symbols', default=1024, type=int,
                         help='Maximum signature size with which learning is enabled.')
