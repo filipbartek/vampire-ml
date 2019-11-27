@@ -2,6 +2,7 @@
 
 import contextlib
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -145,6 +146,7 @@ class Run:
                 self.load_shallow()
                 return True
             except (FileNotFoundError, RuntimeError, json.decoder.JSONDecodeError):
+                logging.debug(f'Failed to load "{self}". Proceeding to run.', exc_info=True)
                 self.run()
                 self.save()
                 return False
