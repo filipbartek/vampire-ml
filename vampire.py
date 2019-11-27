@@ -79,7 +79,7 @@ class SymbolPrecedence:
 
 
 class Run:
-    base_name_job = 'job.json'
+    base_name_run = 'job.json'
     base_name_symbols = 'symbols.csv'
     base_name_clauses = 'clauses.json'
     base_name_stdout = 'stdout.txt'
@@ -224,7 +224,7 @@ class Run:
         if self.stderr is not None:
             with makedirs_open(self.output_dir, self.base_name_stderr, 'w') as fp:
                 fp.write(self.stderr)
-        with makedirs_open(self.output_dir, self.base_name_job, 'w') as fp:
+        with makedirs_open(self.output_dir, self.base_name_run, 'w') as fp:
             json.dump(self.as_dir(), fp, indent=4)
 
     def as_dir(self):
@@ -255,7 +255,7 @@ class Run:
 
         Loads the symbol precedences namely to check their consistency.
         """
-        with open(os.path.join(self.output_dir, self.base_name_job)) as fp:
+        with open(os.path.join(self.output_dir, self.base_name_run)) as fp:
             data = json.load(fp)
 
         # Configuration:
