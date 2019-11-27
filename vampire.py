@@ -144,7 +144,7 @@ class Run:
             try:
                 self.load_shallow()
                 return True
-            except (FileNotFoundError, RuntimeError):
+            except (FileNotFoundError, RuntimeError, json.decoder.JSONDecodeError):
                 self.run()
                 self.save()
                 return False
