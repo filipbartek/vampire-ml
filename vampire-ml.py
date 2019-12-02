@@ -4,6 +4,8 @@ import argparse
 import logging
 import sys
 
+import numpy as np
+
 import action_compare
 import action_fit
 import action_vampire
@@ -13,6 +15,7 @@ if __name__ == '__main__':
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
     sys.setrecursionlimit(2000)
+    np.seterr(all='raise')
 
     parser = argparse.ArgumentParser()
     # Why does dest need to be specified? See https://bugs.python.org/issue29298
