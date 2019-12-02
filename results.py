@@ -97,9 +97,15 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
         {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0,
          'n_time_limit': 0},
         inplace=True)
-    agg_fields = ['time_elapsed_process', 'time_elapsed_vampire', 'memory_used', 'saturation_iterations']
     agg_functions = [np.mean, np.std, scipy.stats.variation, np.min, np.max]
-    problems_df = problems_df.join(problem_groups.agg({field_name: agg_functions for field_name in agg_fields}))
+    # Aggregate memory across all runs
+    problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg(
+        {field_name: agg_functions for field_name in ['memory_used']}))
+    # Aggregate time measurements across successful runs
+    # TODO: Ensure that NANs don't spoil the aggregation.
+    problems_df = problems_df.join(runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg(
+        {field_name: agg_functions for field_name in
+         ['time_elapsed_process', 'time_elapsed_vampire', 'saturation_iterations']}))
     # Merge probe run results into `problems_df`
     if probe_runs_df is not None:
         problems_df = problems_df.join(
