@@ -7,15 +7,18 @@ import os
 from collections import Counter
 from itertools import chain
 
+import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 import tensorflow as tf
 import yaml
 from tqdm import tqdm
 
 import file_path_list
+import precedence
 import results
 import vampire
-from utils import makedirs_open
+from utils import makedirs_open, truncate
 
 
 def add_arguments(parser):
@@ -163,51 +166,26 @@ def call(namespace):
                         solve_i += 1
                     if clausify_run is None or len(symbol_types) == 0:
                         continue
-                    saturation_iterations = [result['saturation_iterations'] for result in problem_results if
-                                             result['saturation_iterations'] is not None and result['exit_code'] == 0]
-                    if len(saturation_iterations) == 0:
-                        continue
-                    symbol_count = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
-                                    symbol_types}
-                    if max(symbol_count.values()) > namespace.learn_max_symbols:
+                    symbol_counts = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
+                                     symbol_types}
+                    if max(symbol_counts.values()) > namespace.learn_max_symbols:
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because signature is too large.')
                         continue
-                    saturation_iterations_min = min(saturation_iterations)
-                    saturation_iterations_max = max(saturation_iterations)
-                    for result in problem_results:
-                        result['score'] = -1
-                        if result['exit_code'] == 0:
-                            assert result['saturation_iterations'] is not None
-                            result['score'] = np.interp(result['saturation_iterations'],
-                                                        [saturation_iterations_min, saturation_iterations_max], [1, 0])
-                    good_permutations = dict()
-                    for symbol_type in symbol_types:
-                        n = np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.uint)
-                        # Preference matrix
-                        v = np.zeros((symbol_count[symbol_type], symbol_count[symbol_type]), dtype=np.float)
-                        for result in problem_results:
-                            if result['precedences'] is None or symbol_type not in result['precedences']:
-                                continue
-                            score = result['score']
-                            precedence = result['precedences'][symbol_type]
-                            for i in range(symbol_count[symbol_type]):
-                                for j in range(i + 1, symbol_count[symbol_type]):
-                                    pi = precedence[i]
-                                    pj = precedence[j]
-                                    n[pi, pj] += 1
-                                    v[pi, pj] += (score - v[pi, pj]) / n[pi, pj]
-                        good_permutations[symbol_type] = construct_good_permutation(v)
-                        # TODO: Try to improve the permutation by two-point swaps.
+                    good_permutations = precedence.learn(problem_results, symbol_counts)
+                    # TODO: Try to improve the permutation by two-point swaps.
                     if clausify_run is not None:
                         assert clausify_run.exit_code == 0
                         precedences = {
-                            symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type]) for
+                            symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type][0]) for
                             symbol_type in symbol_types}
                         solve_run = problem_configuration.spawn(precedences=precedences,
                                                                 output_dir_rel=os.path.join('learned'))
                         solve_run.load_or_run()
                         learned_run_table.add_run(solve_run, clausify_run)
+                    for symbol_type, (permutation, v) in good_permutations.items():
+                        symbols = clausify_run.get_symbols(symbol_type)
+                        plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run)
     finally:
         solve_runs_df = solve_run_table.get_data_frame()
         clausify_runs_df = None
@@ -215,6 +193,30 @@ def call(namespace):
             clausify_runs_df = clausify_run_table.get_data_frame()
         results.save_all(solve_runs_df, clausify_runs_df, output_batch)
         results.save_df(learned_run_table.get_data_frame(), 'runs_learned', output_batch)
+
+
+def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
+    n = len(symbols)
+    assert n == v.shape[0] == v.shape[1] == len(permutation)
+    assert np.array_equal(v[permutation, :][:, permutation], v[:, permutation][permutation, :])
+    if symbol_type == 'predicate':
+        # We exclude predicate '=' because Vampire forces it to be the first predicate
+        # in the ordering.
+        assert symbols.name[0] == '='
+        permutation = permutation[permutation != 0]
+        assert len(permutation) == n - 1
+    v_permuted = v[permutation, :][:, permutation]
+    tick_labels = [f'{truncate(symbols.name[i], 32)}' for i in permutation]
+    plt.figure()
+    # We mask the diagonal because the values on the diagonal don't have a sensible interpretation.
+    sns.heatmap(v_permuted, xticklabels=tick_labels, yticklabels=tick_labels,
+                mask=np.eye(v_permuted.shape[0], dtype=np.bool), square=True)
+    plt.title(
+        f'Expected pairwise preferences of {symbol_type} symbols in problem {os.path.relpath(solve_run.problem_path, solve_run.problem_base_path)}')
+    plt.ylabel('Early symbol')
+    plt.xlabel('Late symbol')
+    plt.savefig(os.path.join(solve_run.output_dir, f'{symbol_type}_precedence_preferences.svg'),
+                bbox_inches='tight')
 
 
 def construct_good_permutation(v):

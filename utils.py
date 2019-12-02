@@ -1,6 +1,9 @@
 #!/usr/bin/env python3.7
 
 import os
+from contextlib import contextmanager
+
+import numpy as np
 
 
 def makedirs_open(dir_path, file, *args):
@@ -35,3 +38,18 @@ def fill_category_na(df, value='NA'):
         assert value not in series.cat.categories
         series.cat.add_categories(value, inplace=True)
         series.fillna(value, inplace=True)
+
+
+@contextmanager
+def numpy_err_settings(**kwargs):
+    old_settings = np.seterr(**kwargs)
+    try:
+        yield np.geterr()
+    finally:
+        np.seterr(**old_settings)
+
+
+def truncate(s, n, ellipsis_str='..'):
+    if n is None:
+        return s
+    return s[:n - len(ellipsis_str)] + ellipsis_str if len(s) > n else s
