@@ -1,5 +1,7 @@
 #!/usr/bin/env python3.7
 
+import warnings
+
 import numpy as np
 
 from utils import numpy_err_settings
@@ -49,9 +51,14 @@ def get_score(result, saturation_iterations_min, saturation_iterations_max):
     # For example: assume that failed run would finish in "max(iterations) * 2" iterations.
     score = -1
     if result['exit_code'] == 0:
-        assert result['saturation_iterations'] is not None
-        score = np.interp(result['saturation_iterations'],
-                          [saturation_iterations_min, saturation_iterations_max], [1, 0])
+        if result['saturation_iterations'] is None:
+            score = 0
+            warnings.warn(
+                f'A result is missing the number of saturation loop iterations. Defaulting score to {score}.',
+                RuntimeWarning)
+        else:
+            score = np.interp(result['saturation_iterations'],
+                              [saturation_iterations_min, saturation_iterations_max], [1, 0])
     return score
 
 

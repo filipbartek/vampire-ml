@@ -97,7 +97,11 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
         {'n_total': 0, 'n_completed': 0, 'n_exit_0': 0, 'n_exit_1': 0, 'n_refutation': 0, 'n_satisfiable': 0,
          'n_time_limit': 0},
         inplace=True)
-    agg_functions = [np.mean, np.std, scipy.stats.variation, np.min, np.max]
+
+    def variation(a):
+        return scipy.stats.variation(a.astype(np.float), nan_policy='omit')
+
+    agg_functions = [np.mean, np.std, variation, np.min, np.max]
     # Aggregate memory across all runs
     problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg(
         {field_name: agg_functions for field_name in ['memory_used']}))
