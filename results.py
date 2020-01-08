@@ -106,7 +106,6 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
     problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg(
         {field_name: agg_functions for field_name in ['memory_used']}))
     # Aggregate time measurements across successful runs
-    # TODO: Ensure that NANs don't spoil the aggregation.
     problems_df = problems_df.join(runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg(
         {field_name: agg_functions for field_name in
          ['time_elapsed_process', 'time_elapsed_vampire', 'saturation_iterations']}))
