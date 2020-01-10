@@ -193,9 +193,12 @@ def call(namespace):
                                                                 output_dir_rel=os.path.join('learned'))
                         solve_run.load_or_run()
                         learned_run_table.add_run(solve_run, clausify_run)
-                    for symbol_type, (permutation, v) in good_permutations.items():
+                    for symbol_type, (permutation, preference_matrix) in good_permutations.items():
                         symbols = clausify_run.get_symbols(symbol_type)
-                        plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run)
+                        try:
+                            plot_preference_heatmap(preference_matrix, permutation, symbol_type, symbols, solve_run)
+                        except RuntimeError as e:
+                            logging.debug('Preference heatmap plotting failed.', e)
     finally:
         solve_runs_df = solve_run_table.get_data_frame()
         clausify_runs_df = None
@@ -207,6 +210,8 @@ def call(namespace):
 
 def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
     n = len(symbols)
+    if n <= 1:
+        raise RuntimeError(f'Cannot plot preference heatmap of less than two {symbol_type} symbols in run {solve_run}.')
     assert n == v.shape[0] == v.shape[1] == len(permutation)
     assert np.array_equal(v[permutation, :][:, permutation], v[:, permutation][permutation, :])
     if symbol_type == 'predicate':
