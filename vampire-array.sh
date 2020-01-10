@@ -20,7 +20,6 @@ TIME_PER_TASK=${TIME_PER_TASK:-$((16748 * (SOLVE_RUNS_PER_PROBLEM + 1) * (VAMPIR
 
 COMMON_SBATCH_OPTIONS=(
   "--partition=$PARTITION"
-  "--cpus-per-task=$CPUS_PER_TASK"
   "--mail-type=FAIL,REQUEUE,STAGE_OUT"
   "--comment=$(git rev-parse --verify HEAD)"
 )
@@ -28,7 +27,7 @@ COMMON_SBATCH_OPTIONS=(
 echo "TIME_PER_TASK=$TIME_PER_TASK"
 
 mkdir -p "$OUTPUT_SLURM"
-ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:vampire" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" vampire.sh "$@")
+ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="$OUTPUT:vampire" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" vampire.sh "$@")
 
 BATCHES_DIR="$OUTPUT/batches/$ARRAY_JOB_ID"
 mkdir -p "$BATCHES_DIR"
