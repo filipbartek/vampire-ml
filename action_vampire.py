@@ -178,7 +178,11 @@ def call(namespace):
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because signature is too large.')
                         continue
-                    good_permutations = precedence.learn(problem_results, symbol_counts)
+                    try:
+                        good_permutations = precedence.learn(problem_results, symbol_counts)
+                    except RuntimeError as e:
+                        logging.debug(f'Precedence learning failed for problem {problem_name}.', e)
+                        continue
                     # TODO: Try to improve the permutation by two-point swaps.
                     if clausify_run is not None:
                         assert clausify_run.exit_code == 0
