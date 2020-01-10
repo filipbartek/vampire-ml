@@ -11,7 +11,6 @@ import action_fit
 import action_vampire
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
     sys.setrecursionlimit(2000)
@@ -25,7 +24,14 @@ if __name__ == '__main__':
     action_compare.add_arguments(subparsers.add_parser('compare', aliases=['c']))
     action_fit.add_arguments(subparsers.add_parser('fit', aliases=['f']))
 
+    parser.add_argument('--log', choices=['NOTSET', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO',
+                        help='Logging level')
+
     # TODO: Allow loading a trained model.
 
     namespace = parser.parse_args()
+
+    if namespace.log is not None:
+        logging.basicConfig(level=namespace.log)
+
     namespace.action(namespace)
