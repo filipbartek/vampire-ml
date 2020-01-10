@@ -164,7 +164,13 @@ def call(namespace):
                         with summary_writer.as_default():
                             tf.summary.text('stats', str(stats), step=solve_i)
                         solve_i += 1
-                    if clausify_run is None or len(symbol_types) == 0:
+                    if clausify_run is None:
+                        logging.debug(
+                            f'Precedence learning skipped for problem {problem_name} because probing clausification was not performed.')
+                        continue
+                    if len(symbol_types) == 0:
+                        logging.debug(
+                            f'Precedence learning skipped for problem {problem_name} because no symbol type was randomized.')
                         continue
                     symbol_counts = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
                                      symbol_types}
