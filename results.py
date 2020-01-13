@@ -102,9 +102,8 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
         return scipy.stats.variation(a.astype(np.float), nan_policy='omit')
 
     agg_functions = [np.mean, np.std, variation, np.min, np.max]
-    # Aggregate memory across all runs
-    problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg(
-        {field_name: agg_functions for field_name in ['memory_used']}))
+    # Aggregate score across all runs
+    problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg({'score': [np.mean, np.std]}))
     # Aggregate time measurements across successful runs
     problems_df = problems_df.join(runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg(
         {field_name: agg_functions for field_name in
@@ -113,6 +112,8 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
     problems_df = problems_df.join(
         runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg({'saturation_iterations': ['nunique']}).astype(
             pd.UInt64Dtype()))
+    # Aggregate memory across all runs
+    problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg({'memory_used': agg_functions}))
     # Merge probe run results into `problems_df`
     if probe_runs_df is not None:
         problems_df = problems_df.join(

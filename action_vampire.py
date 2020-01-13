@@ -108,9 +108,9 @@ def call(namespace):
 
     clausify_run_table = None
     if not namespace.no_clausify:
-        clausify_run_table = vampire.RunTable()
-    solve_run_table = vampire.RunTable()
-    learned_run_table = vampire.RunTable()
+        clausify_run_table = vampire.RunTable(vampire.Run.field_names_clausify)
+    solve_run_table = vampire.RunTable(vampire.Run.field_names_solve)
+    learned_run_table = vampire.RunTable(vampire.Run.field_names_solve)
     summary_writer = tf.summary.create_file_writer(logs_path)
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
@@ -137,7 +137,7 @@ def call(namespace):
                     t.set_postfix({'hits': stats['hits'], 'current_run': clausify_run})
                     t.update()
                 if clausify_run is None or clausify_run.exit_code == 0:
-                    problem_results = list()
+                    problem_solve_runs = list()
                     # TODO: Parallelize.
                     for solve_run_i in range(namespace.solve_runs):
                         precedences = None
@@ -151,12 +151,7 @@ def call(namespace):
                                                                 base_options={'mode': 'vampire'})
                         t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
                         loaded = solve_run.load_or_run()
-                        solve_run_table.add_run(solve_run, clausify_run)
-                        problem_results.append({
-                            'exit_code': solve_run.exit_code,
-                            'saturation_iterations': solve_run.saturation_iterations(),
-                            'precedences': precedences
-                        })
+                        problem_solve_runs.append(solve_run)
                         stats['hits'][loaded] += 1
                         stats['solve'][(solve_run.status, solve_run.exit_code)] += 1
                         t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
@@ -164,6 +159,14 @@ def call(namespace):
                         with summary_writer.as_default():
                             tf.summary.text('stats', str(stats), step=solve_i)
                         solve_i += 1
+                        # TODO: Consider unloading immediately.
+                    saturation_iterations_min, saturation_iterations_max = assign_scores(problem_solve_runs)
+                    solve_run_table.extend(problem_solve_runs)
+                    if saturation_iterations_min is None or saturation_iterations_max is None:
+                        logging.debug(
+                            f'Precedence learning skipped for problem {problem_name} because there are no successful solve runs to learn from.')
+                        continue
+                    # TODO: Plot histogram of saturation iterations and scores.
                     if clausify_run is None:
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because probing clausification was not performed.')
@@ -179,7 +182,7 @@ def call(namespace):
                             f'Precedence learning skipped for problem {problem_name} because signature is too large.')
                         continue
                     try:
-                        good_permutations = precedence.learn(problem_results, symbol_counts)
+                        good_permutations = precedence.learn(problem_solve_runs, symbol_counts)
                     except RuntimeError as e:
                         logging.debug(f'Precedence learning failed for problem {problem_name}.', e)
                         continue
@@ -192,7 +195,8 @@ def call(namespace):
                         solve_run = problem_configuration.spawn(precedences=precedences,
                                                                 output_dir_rel=os.path.join('learned'))
                         solve_run.load_or_run()
-                        learned_run_table.add_run(solve_run, clausify_run)
+                        assign_score(solve_run, saturation_iterations_min, saturation_iterations_max)
+                        learned_run_table.add_run(solve_run)
                     for symbol_type, (permutation, preference_matrix) in good_permutations.items():
                         symbols = clausify_run.get_symbols(symbol_type)
                         try:
@@ -206,6 +210,35 @@ def call(namespace):
             clausify_runs_df = clausify_run_table.get_data_frame()
         results.save_all(solve_runs_df, clausify_runs_df, output_batch)
         results.save_df(learned_run_table.get_data_frame(), 'runs_learned', output_batch)
+
+
+def run_score(exit_code, saturation_iterations, saturation_iterations_min, saturation_iterations_max):
+    if exit_code == 0:
+        if saturation_iterations is None:
+            raise RuntimeError('A result is missing the number of saturation loop iterations.')
+        if saturation_iterations_min == saturation_iterations == saturation_iterations_max:
+            return 0
+        return np.interp(saturation_iterations, [saturation_iterations_min, saturation_iterations_max], [0, 1])
+    else:
+        return 2
+
+
+def assign_score(run, saturation_iterations_min, saturation_iterations_max):
+    run.score = run_score(run.exit_code, run.saturation_iterations(), saturation_iterations_min,
+                          saturation_iterations_max)
+
+
+def assign_scores(runs):
+    saturation_iterations = np.asarray(
+        [run.saturation_iterations() for run in runs if run.exit_code == 0 and run.saturation_iterations() is not None])
+    saturation_iterations_min = None
+    saturation_iterations_max = None
+    if len(saturation_iterations) >= 1:
+        saturation_iterations_min = saturation_iterations.min()
+        saturation_iterations_max = saturation_iterations.max()
+    for run in runs:
+        assign_score(run, saturation_iterations_min, saturation_iterations_max)
+    return saturation_iterations_min, saturation_iterations_max
 
 
 def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):

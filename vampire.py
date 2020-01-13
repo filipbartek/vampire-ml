@@ -128,6 +128,8 @@ class Run:
         self.symbols = None
         self.clauses = None
 
+        self.score = None
+
     def __str__(self):
         return self.output_dir
 
@@ -363,7 +365,7 @@ class Run:
     def __getitem__(self, key):
         return self.fields[key].extract(self)
 
-    Field = namedtuple('Field', ['extract', 'dtype', 'inheritable'], defaults=[False])
+    Field = namedtuple('Field', ['extract', 'dtype'])
 
     # TODO: Add vampire job id.
     fields = {
@@ -377,24 +379,28 @@ class Run:
         'time_elapsed_vampire': Field(lambda job: extractor.time_elapsed(job.get_stdout()), np.float),
         'memory_used': Field(lambda job: extractor.memory_used(job.get_stdout()), pd.UInt64Dtype()),
         'saturation_iterations': Field(lambda job: job.saturation_iterations(), pd.UInt64Dtype()),
-        'predicates_count': Field(lambda job: len_robust(job.get_symbols('predicate')), pd.UInt64Dtype(), True),
-        'functions_count': Field(lambda job: len_robust(job.get_symbols('function')), pd.UInt64Dtype(), True),
-        'clauses_count': Field(lambda job: len_robust(job.get_clauses()), pd.UInt64Dtype(), True)
+        'predicates_count': Field(lambda job: len_robust(job.get_symbols('predicate')), pd.UInt64Dtype()),
+        'functions_count': Field(lambda job: len_robust(job.get_symbols('function')), pd.UInt64Dtype()),
+        'clauses_count': Field(lambda job: len_robust(job.get_clauses()), pd.UInt64Dtype()),
+        'score': Field(lambda job: job.score, np.float)
     }
+
+    field_names_clausify = ['output_dir', 'problem_path', 'status', 'exit_code', 'termination_reason',
+                            'termination_phase', 'time_elapsed_process', 'time_elapsed_vampire', 'memory_used',
+                            'predicates_count', 'functions_count', 'clauses_count']
+    field_names_solve = ['output_dir', 'problem_path', 'status', 'exit_code', 'termination_reason', 'termination_phase',
+                         'time_elapsed_process', 'time_elapsed_vampire', 'memory_used', 'saturation_iterations',
+                         'score']
 
 
 class RunTable:
-    def __init__(self, field_names=None):
-        if field_names is None:
-            field_names = Run.fields.keys()
+    def __init__(self, field_names):
+        assert set(field_names) <= set(Run.fields.keys())
         self.series = {name: list() for name in field_names}
 
-    def add_run(self, solve_run, clausify_run=None):
-        assert clausify_run is None or clausify_run.problem_path == solve_run.problem_path
+    def add_run(self, solve_run):
         for field_name, series in self.series.items():
             value = solve_run[field_name]
-            if value is None and clausify_run is not None and Run.fields[field_name].inheritable:
-                value = clausify_run[field_name]
             series.append(value)
 
     def get_data_frame(self):
@@ -405,6 +411,10 @@ class RunTable:
             df.set_index('output_dir', inplace=True)
             assert df.index.name == 'output_dir'
         return df
+
+    def extend(self, runs):
+        for run in runs:
+            self.add_run(run)
 
 
 def load_symbols(file):
