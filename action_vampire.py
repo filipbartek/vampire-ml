@@ -256,12 +256,8 @@ def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
         raise RuntimeError(f'Cannot plot preference heatmap of less than two {symbol_type} symbols in run {solve_run}.')
     assert n == v.shape[0] == v.shape[1] == len(permutation)
     assert np.array_equal(v[permutation, :][:, permutation], v[:, permutation][permutation, :])
-    if symbol_type == 'predicate':
-        # We exclude predicate '=' because Vampire forces it to be the first predicate
-        # in the ordering.
-        assert symbols.name[0] == '='
-        permutation = permutation[permutation != 0]
-        assert len(permutation) == n - 1
+    # Vampire forces '=' to be the first predicate.
+    assert symbol_type != 'predicate' or (symbols.name[0] == '=' and permutation[0] == 0)
     v_permuted = v[permutation, :][:, permutation]
     tick_labels = [f'{truncate(symbols.name[i], 32)}' for i in permutation]
     plt.figure()

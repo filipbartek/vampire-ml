@@ -36,7 +36,15 @@ def learn_precedence(symbol_type, symbol_count, runs):
     # Default the unknown values to the mean value.
     mean_score = score_sum / len(runs)
     np.nan_to_num(v, copy=False, nan=mean_score)
-    return construct_good_permutation(v), v
+    if symbol_type == 'predicate':
+        head = np.asarray([0], dtype=np.uint)
+        tail = construct_good_permutation(v[1:, 1:]) + 1
+        assert np.all(tail > 0)
+        perm = np.concatenate((head, tail))
+    else:
+        perm = construct_good_permutation(v)
+    assert perm.shape == (symbol_count,)
+    return perm, v
 
 
 def get_score(result, saturation_iterations_min, saturation_iterations_max):
