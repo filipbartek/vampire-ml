@@ -233,9 +233,9 @@ class Run:
             with makedirs_open(self.output_dir, self.base_name_stderr, 'w') as fp:
                 fp.write(self.stderr)
         with makedirs_open(self.output_dir, self.base_name_run, 'w') as fp:
-            json.dump(self.as_dir(), fp, indent=4)
+            json.dump(self.as_dict(), fp, indent=4)
 
-    def as_dir(self):
+    def as_dict(self):
         res = {
             'program': self.program,
             'base_options': self.base_options,
