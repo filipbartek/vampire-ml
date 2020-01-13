@@ -119,4 +119,5 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
             probe_runs_df[['problem_path', 'predicates_count', 'functions_count', 'clauses_count']].drop_duplicates(
                 'problem_path').set_index('problem_path'),
             rsuffix='probe')
+    problems_df.sort_index(inplace=True)
     return problems_df
