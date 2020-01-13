@@ -71,12 +71,17 @@ class SymbolPrecedence:
         return os.path.join(output_dir, self.file_base_name)
 
     @classmethod
-    def random(cls, symbol_type, length, seed=None):
-        return cls(symbol_type, value=cls.random_value(length, seed))
-
-    @classmethod
-    def random_value(cls, length, seed=None):
-        return np.random.RandomState(seed).permutation(length).astype(cls.dtype)
+    def random(cls, symbol_type, length, seed=None, equality_first=True):
+        if symbol_type == 'predicate' and equality_first:
+            # The equality symbol should be placed first in all the predicate precedences.
+            # We assume that the equality symbol has the index 0, which is a convention in Vampire.
+            head = np.asarray([0], dtype=cls.dtype)
+            tail = np.random.RandomState(seed).permutation(np.arange(1, length, dtype=cls.dtype))
+            value = np.concatenate((head, tail))
+            assert value.dtype == cls.dtype
+        else:
+            value = np.random.RandomState(seed).permutation(length).astype(cls.dtype)
+        return cls(symbol_type, value=value)
 
 
 class Run:
