@@ -111,7 +111,8 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
          ['time_elapsed_process', 'time_elapsed_vampire', 'saturation_iterations']}))
     # Count unique numbers of saturation iterations across successful runs
     problems_df = problems_df.join(
-        runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg({'saturation_iterations': ['nunique']}))
+        runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg({'saturation_iterations': ['nunique']}).astype(
+            pd.UInt64Dtype()))
     # Merge probe run results into `problems_df`
     if probe_runs_df is not None:
         problems_df = problems_df.join(
