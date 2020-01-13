@@ -143,8 +143,8 @@ def call(namespace):
                         precedences = None
                         if clausify_run is not None:
                             assert clausify_run.exit_code == 0
-                            precedences = {symbol_type: clausify_run.random_precedence(symbol_type, solve_run_i) for
-                                           symbol_type in symbol_types}
+                            precedences = {symbol_type: clausify_run.random_precedence(symbol_type, seed=solve_run_i)
+                                           for symbol_type in symbol_types}
                         # TODO: As an alterantive to setting precedences explicitly, add support for `vampire --random_seed`.
                         solve_run = problem_configuration.spawn(precedences=precedences,
                                                                 output_dir_rel=os.path.join('solve', str(solve_run_i)),
