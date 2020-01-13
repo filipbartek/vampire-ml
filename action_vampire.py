@@ -160,13 +160,22 @@ def call(namespace):
                             tf.summary.text('stats', str(stats), step=solve_i)
                         solve_i += 1
                         # TODO: Consider unloading immediately.
-                    saturation_iterations_min, saturation_iterations_max = assign_scores(problem_solve_runs)
+                    saturation_iterations_min, saturation_iterations_max, saturation_iterations = assign_scores(
+                        problem_solve_runs)
                     solve_run_table.extend(problem_solve_runs)
                     if saturation_iterations_min is None or saturation_iterations_max is None:
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because there are no successful solve runs to learn from.')
                         continue
-                    # TODO: Plot histogram of saturation iterations and scores.
+                    if len(saturation_iterations) >= 2:
+                        sns.distplot(saturation_iterations)
+                        plt.title(
+                            f'Distribution of saturation iteration counts in successful solve runs on problem {os.path.relpath(problem_configuration.problem_path, problem_configuration.problem_base_path)}')
+                        plt.ylabel('Density')
+                        plt.xlabel('Number of saturation iterations')
+                        plt.savefig(
+                            os.path.join(problem_configuration.output_dir, 'solve', 'saturation_iterations.svg'),
+                            bbox_inches='tight')
                     if clausify_run is None:
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because probing clausification was not performed.')
@@ -238,7 +247,7 @@ def assign_scores(runs):
         saturation_iterations_max = saturation_iterations.max()
     for run in runs:
         assign_score(run, saturation_iterations_min, saturation_iterations_max)
-    return saturation_iterations_min, saturation_iterations_max
+    return saturation_iterations_min, saturation_iterations_max, saturation_iterations
 
 
 def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
