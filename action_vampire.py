@@ -167,15 +167,21 @@ def call(namespace):
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because there are no successful solve runs to learn from.')
                         continue
-                    if len(saturation_iterations) >= 2:
+                    problem_name = os.path.relpath(problem_configuration.problem_path,
+                                                   problem_configuration.problem_base_path)
+                    try:
                         sns.distplot(saturation_iterations)
                         plt.title(
-                            f'Distribution of saturation iteration counts in successful solve runs on problem {os.path.relpath(problem_configuration.problem_path, problem_configuration.problem_base_path)}')
+                            f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
                         plt.ylabel('Density')
                         plt.xlabel('Number of saturation iterations')
                         plt.savefig(
                             os.path.join(problem_configuration.output_dir, 'solve', 'saturation_iterations.svg'),
                             bbox_inches='tight')
+                    except (ValueError, np.linalg.LinAlgError) as e:
+                        logging.debug(
+                            f'Plotting of histogram of saturation iterations failed on problem {problem_name}. Number of valid measurements: {len(saturation_iterations)}. Number of unique measurements: {len(np.unique(saturation_iterations))}.',
+                            e)
                     if clausify_run is None:
                         logging.debug(
                             f'Precedence learning skipped for problem {problem_name} because probing clausification was not performed.')
