@@ -33,5 +33,6 @@ if __name__ == '__main__':
 
     if namespace.log is not None:
         logging.basicConfig(level=namespace.log)
+    logging.getLogger('matplotlib').setLevel(logging.INFO)
 
     namespace.action(namespace)
