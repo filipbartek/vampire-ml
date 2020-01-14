@@ -123,6 +123,7 @@ def call(namespace):
             solve_i = 0
             for problem_path in problem_paths:
                 problem_name = os.path.relpath(problem_path, problem_base_path)
+                logger = logging.getLogger(f'vampire-ml.problem.{problem_name}')
                 problem_configuration = base_configuration.spawn(problem_path=problem_path, output_dir_rel=problem_name)
                 clausify_run = None
                 if clausify_run_table is not None:
@@ -136,88 +137,83 @@ def call(namespace):
                     stats['clausify'][(clausify_run.status, clausify_run.exit_code)] += 1
                     t.set_postfix({'hits': stats['hits'], 'current_run': clausify_run})
                     t.update()
-                if clausify_run is None or clausify_run.exit_code == 0:
-                    problem_solve_runs = list()
-                    # TODO: Parallelize.
-                    for solve_run_i in range(namespace.solve_runs):
-                        precedences = None
-                        if clausify_run is not None:
-                            assert clausify_run.exit_code == 0
-                            precedences = {symbol_type: clausify_run.random_precedence(symbol_type, seed=solve_run_i)
-                                           for symbol_type in symbol_types}
-                        # TODO: As an alterantive to setting precedences explicitly, add support for `vampire --random_seed`.
-                        solve_run = problem_configuration.spawn(precedences=precedences,
-                                                                output_dir_rel=os.path.join('solve', str(solve_run_i)),
-                                                                base_options={'mode': 'vampire'})
-                        t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
-                        loaded = solve_run.load_or_run()
-                        problem_solve_runs.append(solve_run)
-                        stats['hits'][loaded] += 1
-                        stats['solve'][(solve_run.status, solve_run.exit_code)] += 1
-                        t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
-                        t.update()
-                        with summary_writer.as_default():
-                            tf.summary.text('stats', str(stats), step=solve_i)
-                        solve_i += 1
-                        # TODO: Consider unloading immediately.
-                    saturation_iterations_min, saturation_iterations_max, saturation_iterations = assign_scores(
-                        problem_solve_runs)
-                    solve_run_table.extend(problem_solve_runs)
-                    if saturation_iterations_min is None or saturation_iterations_max is None:
-                        logging.debug(
-                            f'Precedence learning skipped for problem {problem_name} because there are no successful solve runs to learn from.')
-                        continue
-                    problem_name = os.path.relpath(problem_configuration.problem_path,
-                                                   problem_configuration.problem_base_path)
-                    try:
-                        sns.distplot(saturation_iterations)
-                        plt.title(
-                            f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
-                        plt.ylabel('Density')
-                        plt.xlabel('Number of saturation iterations')
-                        plt.savefig(
-                            os.path.join(problem_configuration.output_dir, 'solve', 'saturation_iterations.svg'),
-                            bbox_inches='tight')
-                    except (ValueError, np.linalg.LinAlgError) as e:
-                        logging.debug(
-                            f'Plotting of histogram of saturation iterations failed on problem {problem_name}. Number of valid measurements: {len(saturation_iterations)}. Number of unique measurements: {len(np.unique(saturation_iterations))}.',
-                            e)
-                    if clausify_run is None:
-                        logging.debug(
-                            f'Precedence learning skipped for problem {problem_name} because probing clausification was not performed.')
-                        continue
-                    if len(symbol_types) == 0:
-                        logging.debug(
-                            f'Precedence learning skipped for problem {problem_name} because no symbol type was randomized.')
-                        continue
-                    symbol_counts = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
-                                     symbol_types}
-                    if max(symbol_counts.values()) > namespace.learn_max_symbols:
-                        logging.debug(
-                            f'Precedence learning skipped for problem {problem_name} because signature is too large.')
-                        continue
-                    try:
-                        good_permutations = precedence.learn(problem_solve_runs, symbol_counts)
-                    except RuntimeError as e:
-                        logging.debug(f'Precedence learning failed for problem {problem_name}.', e)
-                        continue
-                    # TODO: Try to improve the permutation by two-point swaps.
+                if clausify_run is not None and clausify_run.exit_code != 0:
+                    t.update(namespace.solve_runs)
+                    logger.debug('Skipping solve runs because clausify run failed.')
+                    continue
+                problem_solve_runs = list()
+                # TODO: Parallelize.
+                # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
+                for solve_run_i in range(namespace.solve_runs):
+                    # TODO: Run two runs for each permutation: forward and reversed.
+                    precedences = None
                     if clausify_run is not None:
                         assert clausify_run.exit_code == 0
-                        precedences = {
-                            symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type][0]) for
-                            symbol_type in symbol_types}
-                        solve_run = problem_configuration.spawn(precedences=precedences,
-                                                                output_dir_rel=os.path.join('learned'))
-                        solve_run.load_or_run()
-                        assign_score(solve_run, saturation_iterations_min, saturation_iterations_max)
-                        learned_run_table.add_run(solve_run)
-                    for symbol_type, (permutation, preference_matrix) in good_permutations.items():
-                        symbols = clausify_run.get_symbols(symbol_type)
-                        try:
-                            plot_preference_heatmap(preference_matrix, permutation, symbol_type, symbols, solve_run)
-                        except RuntimeError as e:
-                            logging.debug('Preference heatmap plotting failed.', e)
+                        precedences = {symbol_type: clausify_run.random_precedence(symbol_type, seed=solve_run_i)
+                                       for symbol_type in symbol_types}
+                    solve_run = problem_configuration.spawn(precedences=precedences,
+                                                            output_dir_rel=os.path.join('solve', str(solve_run_i)),
+                                                            base_options={'mode': 'vampire'})
+                    t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
+                    loaded = solve_run.load_or_run()
+                    problem_solve_runs.append(solve_run)
+                    stats['hits'][loaded] += 1
+                    stats['solve'][(solve_run.status, solve_run.exit_code)] += 1
+                    t.set_postfix({'hits': stats['hits'], 'current_run': solve_run})
+                    t.update()
+                    with summary_writer.as_default():
+                        tf.summary.text('stats', str(stats), step=solve_i)
+                    solve_i += 1
+                    # TODO: Consider unloading immediately.
+                saturation_iterations_min, saturation_iterations_max, saturation_iterations = assign_scores(
+                    problem_solve_runs)
+                solve_run_table.extend(problem_solve_runs)
+                if saturation_iterations_min is None or saturation_iterations_max is None:
+                    logger.debug(
+                        'Precedence learning skipped because there are no successful solve runs to learn from.')
+                    continue
+                try:
+                    sns.distplot(saturation_iterations)
+                    plt.title(
+                        f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
+                    plt.ylabel('Density')
+                    plt.xlabel('Number of saturation iterations')
+                    plt.savefig(
+                        os.path.join(problem_configuration.output_dir, 'solve', 'saturation_iterations.svg'),
+                        bbox_inches='tight')
+                except (ValueError, np.linalg.LinAlgError):
+                    logger.debug(
+                        f'Plotting of histogram of saturation iterations failed. Unique measurements: {len(np.unique(saturation_iterations))}.',
+                        exc_info=True)
+                if clausify_run is None:
+                    logger.debug('Precedence learning skipped because probing clausification was not performed.')
+                    continue
+                if len(symbol_types) == 0:
+                    logger.debug('Precedence learning skipped because no symbol type was randomized.')
+                    continue
+                symbol_counts = {symbol_type: clausify_run.get_symbol_count(symbol_type) for symbol_type in
+                                 symbol_types}
+                if max(symbol_counts.values()) > namespace.learn_max_symbols:
+                    logger.debug('Precedence learning skipped because signature is too large.')
+                    continue
+                good_permutations = precedence.learn(problem_solve_runs, symbol_counts)
+                # TODO: Try to improve the permutation by two-point swaps (hillclimbing).
+                if clausify_run is not None:
+                    assert clausify_run.exit_code == 0
+                    precedences = {
+                        symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type][0]) for
+                        symbol_type in symbol_types}
+                    solve_run = problem_configuration.spawn(precedences=precedences,
+                                                            output_dir_rel=os.path.join('learned'))
+                    solve_run.load_or_run()
+                    assign_score(solve_run, saturation_iterations_min, saturation_iterations_max)
+                    learned_run_table.add_run(solve_run)
+                for symbol_type, (permutation, preference_matrix) in good_permutations.items():
+                    symbols = clausify_run.get_symbols(symbol_type)
+                    try:
+                        plot_preference_heatmap(preference_matrix, permutation, symbol_type, symbols, solve_run)
+                    except ValueError:
+                        logger.debug('Preference heatmap plotting failed.', exc_info=True)
     finally:
         solve_runs_df = solve_run_table.get_data_frame()
         clausify_runs_df = None
@@ -258,9 +254,8 @@ def assign_scores(runs):
 
 def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
     n = len(symbols)
-    if n <= 1:
-        raise RuntimeError(f'Cannot plot preference heatmap of less than two {symbol_type} symbols in run {solve_run}.')
-    assert n == v.shape[0] == v.shape[1] == len(permutation)
+    assert v.shape == (n, n)
+    assert len(permutation) == n
     assert np.array_equal(v[permutation, :][:, permutation], v[:, permutation][permutation, :])
     # Vampire forces '=' to be the first predicate.
     assert symbol_type != 'predicate' or (symbols.name[0] == '=' and permutation[0] == 0)
