@@ -54,7 +54,8 @@ def add_arguments(parser):
     parser.add_argument('--random-function-precedence', action='store_true')
     parser.add_argument('--learn-max-symbols', default=1024, type=int,
                         help='Maximum signature size with which learning is enabled.')
-    parser.add_argument('--run-policy', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted')
+    parser.add_argument('--run-policy', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
+                        help='Which Vampire run configurations should be executed?')
 
 
 def call(namespace):
