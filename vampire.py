@@ -436,7 +436,10 @@ def load_symbols(file):
     # The column 'name' may contain single quoted strings.
     # See http://www.tptp.org/TPTP/SyntaxBNF.html
     # <fof_plain_term> ::= <functor> ::= <atomic_word> ::= <single_quoted> ::= <single_quote> ::: [']
-    return pd.read_csv(file, index_col=['isFunction', 'id'], quotechar='\'', escapechar='\\',
+    # We assume that there are no NAs in the symbols CSV table.
+    # Note that for example in SWV478+2.p there is a symbol called 'null' that may alias with the NA filtering
+    # (its name being misinterpreted as a missing value).
+    return pd.read_csv(file, index_col=['isFunction', 'id'], quotechar='\'', escapechar='\\', na_filter=False,
                        dtype={
                            'isFunction': np.bool,
                            'id': pd.UInt64Dtype(),
