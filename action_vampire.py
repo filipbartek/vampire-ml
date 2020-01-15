@@ -263,7 +263,13 @@ def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
     # Vampire forces '=' to be the first predicate.
     assert symbol_type != 'predicate' or (symbols.name[0] == '=' and permutation[0] == 0)
     v_permuted = v[permutation, :][:, permutation]
-    tick_labels = [f'{truncate(symbols.name[i], 32)}' for i in permutation]
+    tick_labels = False
+    if n <= 32:
+        tick_labels = [f'{truncate(symbols.name[i], 16)}' for i in permutation]
+    file_type = 'svg'
+    if n > 64:
+        # For large n, the svg file size is too large.
+        file_type = 'png'
     # We mask the diagonal because the values on the diagonal don't have a sensible interpretation.
     sns.heatmap(v_permuted, xticklabels=tick_labels, yticklabels=tick_labels,
                 mask=np.eye(v_permuted.shape[0], dtype=np.bool), square=True)
@@ -271,7 +277,7 @@ def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
         f'Expected pairwise preferences of {symbol_type} symbols in problem {os.path.relpath(solve_run.problem_path, solve_run.problem_base_path)}')
     plt.ylabel('Early symbol')
     plt.xlabel('Late symbol')
-    plt.savefig(os.path.join(solve_run.output_dir, f'{symbol_type}_precedence_preferences.svg'),
+    plt.savefig(os.path.join(solve_run.output_dir, f'{symbol_type}_precedence_preferences.{file_type}'),
                 bbox_inches='tight')
 
 
