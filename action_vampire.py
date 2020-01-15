@@ -54,6 +54,7 @@ def add_arguments(parser):
     parser.add_argument('--random-function-precedence', action='store_true')
     parser.add_argument('--learn-max-symbols', default=1024, type=int,
                         help='Maximum signature size with which learning is enabled.')
+    parser.add_argument('--run-policy', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted')
 
 
 def call(namespace):
@@ -114,7 +115,8 @@ def call(namespace):
     summary_writer = tf.summary.create_file_writer(logs_path)
     base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
-                                     problem_base_path=problem_base_path, scratch_dir=namespace.scratch)
+                                     problem_base_path=problem_base_path, scratch_dir=namespace.scratch,
+                                     run_policy=namespace.run_policy)
     try:
         with tqdm(desc='Running Vampire',
                   total=len(problem_paths) * ((not namespace.no_clausify) + namespace.solve_runs),

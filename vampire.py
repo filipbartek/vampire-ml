@@ -104,7 +104,7 @@ class Run:
     }
 
     def __init__(self, program, base_options=None, timeout=None, output_dir=None, problem_base_path=None,
-                 scratch_dir=None):
+                 scratch_dir=None, run_policy='interrupted'):
         # Run configuration:
         self.program = program
         self.base_options = self.default_options.copy()
@@ -114,6 +114,7 @@ class Run:
         self.output_dir_base = output_dir
         self.problem_base_path = problem_base_path
         self.scratch_dir = scratch_dir
+        self.run_policy = run_policy
         self.problem_path = None
         self.precedences = dict()
 
@@ -149,17 +150,28 @@ class Run:
         return instance
 
     def load_or_run(self):
-        try:
+        assert self.run_policy in ['none', 'interrupted', 'failed', 'all']
+        if self.run_policy != 'all':
+            # If run_policy is 'always', we always run, irrespective of the presence or content of the previous result.
             try:
                 self.load_shallow()
-                return True
-            except (FileNotFoundError, RuntimeError, json.decoder.JSONDecodeError):
-                logging.debug(f'Failed to load "{self}". Proceeding to run.', exc_info=True)
-                self.run()
-                self.save()
-                return False
+                assert self.run_policy != 'all'
+                if (self.run_policy == 'none' or
+                        (self.run_policy == 'interrupted' and self.exit_code in [0, 1]) or
+                        (self.run_policy == 'failed' and self.exit_code == 0)):
+                    # We are satisfied with the loaded result.
+                    return True
+            except (FileNotFoundError, RuntimeError, json.decoder.JSONDecodeError) as e:
+                if self.run_policy == 'none':
+                    raise RuntimeError(f'Failed to load "{self}"') from e
+                logging.debug(f'Failed to load "{self}"', exc_info=True)
+        try:
+            assert self.run_policy != 'none'
+            self.run()
+            self.save()
         except Exception as e:
-            raise RuntimeError(f'Error in run {str(self)}') from e
+            raise RuntimeError(f'Failed to run "{self}"') from e
+        return False
 
     def run(self):
         time_start = time.time()
