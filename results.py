@@ -99,7 +99,11 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
         inplace=True)
 
     def variation(a):
-        return scipy.stats.variation(a.astype(np.float), nan_policy='omit')
+        res = scipy.stats.variation(a.astype(np.float), nan_policy='omit')
+        if isinstance(res, np.ma.core.MaskedConstant):
+            # The input array contains all nans.
+            return np.nan
+        return res
 
     agg_functions = [np.mean, np.std, variation, np.min, np.max]
     # Aggregate score across all runs
