@@ -51,7 +51,7 @@ def numpy_err_settings(**kwargs):
         np.seterr(**old_settings)
 
 
-def truncate(s, n, ellipsis_str='..'):
+def truncate(s, n, ellipsis_str='...'):
     if n is None:
         return s
     return s[:n - len(ellipsis_str)] + ellipsis_str if len(s) > n else s
