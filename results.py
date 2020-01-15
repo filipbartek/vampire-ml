@@ -40,16 +40,6 @@ def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=N
     problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path)
     save_df(problems_df, 'problems', output_batch)
 
-    problems_interesting_df = problems_df[
-        (problems_df.n_completed >= solve_runs) & (problems_df.n_exit_0 >= 1) & (
-                problems_df.n_exit_0 + problems_df.n_exit_1 == problems_df.n_total)]
-    print(f'Number of interesting problems: {len(problems_interesting_df)}')
-    # TODO: Sort the rows by more criteria, for example time_elapsed mean.
-    if ('saturation_iterations', 'variation') in problems_interesting_df and len(problems_interesting_df.index) >= 2:
-        problems_interesting_df = problems_interesting_df.sort_values(('saturation_iterations', 'variation'),
-                                                                      ascending=False)
-    save_df(problems_interesting_df, 'problems_interesting', output_batch)
-
 
 def fill_category_na(df, value='NA', inplace=False):
     if not inplace:
