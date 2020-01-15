@@ -281,11 +281,11 @@ class Run:
             data = json.load(fp)
 
         # Configuration:
-        self.program = get_consistent(data, 'program', self.program)
-        self.base_options = get_consistent(data, 'base_options', self.base_options)
+        self.program = self.get_consistent(data, 'program', self.program)
+        self.base_options = self.get_consistent(data, 'base_options', self.base_options)
         # We ignore `data['command']`.
-        self.timeout = get_consistent(data, 'timeout', self.timeout)
-        self.problem_path = get_consistent(data, 'problem', self.problem_path)
+        self.timeout = self.get_consistent(data, 'timeout', self.timeout)
+        self.problem_path = self.get_consistent(data, 'problem', self.problem_path)
         assert self.precedences is not None
         if 'precedence' in data:
             if set(data['precedence'].keys()) != set(self.precedences.keys()):
@@ -303,8 +303,8 @@ class Run:
         if 'time_elapsed' in data:
             # We do not check time_elapsed for consistency.
             self.time_elapsed = data['time_elapsed']
-        self.status = get_consistent(data, 'status', self.status)
-        self.exit_code = get_consistent(data, 'exit_code', self.exit_code)
+        self.status = self.get_consistent(data, 'status', self.status)
+        self.exit_code = self.get_consistent(data, 'exit_code', self.exit_code)
 
         if 'stdout' in data and data['stdout'] != self.base_name_stdout:
             raise RuntimeError('Stdout filename mismatch.')
@@ -314,6 +314,9 @@ class Run:
             raise RuntimeError('Symbols filename mismatch.')
         if 'clauses' in data and data['clauses'] != self.base_name_clauses:
             raise RuntimeError('Clauses filename mismatch.')
+
+    def get_consistent(self, d, key, value=None):
+        return get_consistent(d, key, value, override=self.run_policy == 'none')
 
     def unload(self):
         self.stdout = None

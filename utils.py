@@ -12,7 +12,7 @@ def makedirs_open(dir_path, file, *args):
     return open(file_abs, *args)
 
 
-def get_consistent(d, key, value=None):
+def get_consistent(d, key, value=None, override=False):
     """
     Get the value `d[key]`, ensuring it is consistent with `value`.
     """
@@ -22,6 +22,8 @@ def get_consistent(d, key, value=None):
         return d[key]
     if d[key] == value:
         return value
+    if override:
+        return d[key]
     raise RuntimeError(f'Inconsistent value of key {key}. Expected: {value}. Actual: {d[key]}.')
 
 
