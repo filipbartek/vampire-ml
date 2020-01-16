@@ -176,6 +176,7 @@ def call(namespace):
                         'Precedence learning skipped because there are no successful solve runs to learn from.')
                     continue
                 try:
+                    plt.figure()
                     sns.distplot(saturation_iterations)
                     plt.title(
                         f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
@@ -184,6 +185,7 @@ def call(namespace):
                     plt.savefig(
                         os.path.join(problem_configuration.output_dir, 'solve', 'saturation_iterations.svg'),
                         bbox_inches='tight')
+                    plt.close()
                 except (ValueError, np.linalg.LinAlgError):
                     logger.debug(
                         f'Plotting of histogram of saturation iterations failed. Unique measurements: {len(np.unique(saturation_iterations))}.',
@@ -271,6 +273,7 @@ def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
         # For large n, the svg file size is too large.
         file_type = 'png'
     # We mask the diagonal because the values on the diagonal don't have a sensible interpretation.
+    plt.figure()
     sns.heatmap(v_permuted, xticklabels=tick_labels, yticklabels=tick_labels,
                 mask=np.eye(v_permuted.shape[0], dtype=np.bool), square=True)
     plt.title(
@@ -279,6 +282,7 @@ def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
     plt.xlabel('Late symbol')
     plt.savefig(os.path.join(solve_run.output_dir, f'{symbol_type}_precedence_preferences.{file_type}'),
                 bbox_inches='tight')
+    plt.close()
 
 
 def construct_good_permutation(v):
