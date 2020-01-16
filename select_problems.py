@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import logging
+import os
 
 import numpy as np
 import pandas as pd
@@ -31,4 +32,7 @@ if __name__ == '__main__':
 
     # Save
     save_df(problems_chosen, 'problems_selected', namespace.output_dir)
-    problems_chosen.index.to_series().to_csv('problems_selected.txt', index=False, header=False)
+    path_txt = 'problems_selected.txt'
+    if namespace.output_dir is not None:
+        path_txt = os.path.join(namespace.output_dir, path_txt)
+    problems_chosen.index.to_series().to_csv(path_txt, index=False, header=False)
