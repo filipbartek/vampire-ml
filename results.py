@@ -15,14 +15,17 @@ def save_all(df_solve, df_clausify, output):
     save_problems(df_solve, df_clausify, output)
 
 
-def save_df(df, base_name, output_dir):
+def save_df(df, base_name, output_dir=None):
     if df is None:
         return
+    assert base_name is not None
+    path_common = base_name
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
-        df.to_pickle(os.path.join(output_dir, f'{base_name}.pkl'))
-        df.to_csv(os.path.join(output_dir, f'{base_name}.csv'))
-        logging.info(f'DataFrame of length {len(df.index)} saved: {os.path.join(output_dir, base_name)}.{{pkl,csv}}')
+        path_common = os.path.join(output_dir, path_common)
+    df.to_pickle(f'{path_common}.pkl')
+    df.to_csv(f'{path_common}.csv')
+    logging.info(f'DataFrame of length {len(df.index)} saved: {path_common}.{{pkl,csv}}')
 
 
 def save_terminations(solve_runs_df, output_batch):
