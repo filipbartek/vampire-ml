@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+import sys
 from collections import Counter
 from itertools import chain
 
@@ -59,6 +60,10 @@ def add_arguments(parser):
 
 
 def call(namespace):
+    # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
+    # making `json.load()` raise `RecursionError`.
+    sys.setrecursionlimit(2000)
+
     if namespace.no_clausify and namespace.solve_runs > 1:
         logging.warning('Clausification disabled and while running more than 1 solve run per problem.')
 
