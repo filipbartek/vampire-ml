@@ -10,7 +10,7 @@ import action_fit
 import action_vampire
 
 if __name__ == '__main__':
-    np.seterr(all='raise')
+    np.seterr(all='raise', under='warn')
 
     parser = argparse.ArgumentParser()
     # Why does dest need to be specified? See https://bugs.python.org/issue29298
