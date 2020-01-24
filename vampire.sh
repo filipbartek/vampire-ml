@@ -50,6 +50,7 @@ if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$US
 
 # See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out
 function finish {
+  echo Finish: Removing directory "$OUTPUT_SCRATCH"
   if [ -n "${OUTPUT_SCRATCH-}" ]; then rm -rf "$OUTPUT_SCRATCH"; fi
 }
 trap finish EXIT INT TERM
