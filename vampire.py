@@ -174,10 +174,10 @@ class Run:
         return False
 
     def run(self):
-        time_start = time.time()
-        try:
-            # Vampire fails if the output directory does not exist.
-            with self.current_output_directory() as vampire_output_dir:
+        with self.current_output_directory() as vampire_output_dir:
+            time_start = time.time()
+            try:
+                # Vampire fails if the output directory does not exist.
                 cp = subprocess.run(list(self.args(vampire_output_dir)), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                     timeout=self.timeout, text=True)
                 self.time_elapsed = time.time() - time_start
@@ -185,28 +185,20 @@ class Run:
                 self.exit_code = cp.returncode
                 self.stdout = cp.stdout
                 self.stderr = cp.stderr
-                if vampire_output_dir != self.output_dir and self.exit_code == 0:
-                    os.makedirs(self.output_dir, exist_ok=True)
+            except subprocess.TimeoutExpired as e:
+                self.time_elapsed = time.time() - time_start
+                self.status = 'timeout_expired'
+                self.exit_code = None
+                self.stdout = e.stdout
+                self.stderr = e.stderr
+            finally:
+                if self.exit_code != 0:
                     for base_name in [self.base_name_symbols, self.base_name_clauses]:
+                        # Vampire may or may not have created the file.
                         try:
-                            shutil.move(os.path.join(vampire_output_dir, base_name),
-                                        os.path.join(self.output_dir, base_name))
+                            os.remove(os.path.join(self.output_dir, base_name))
                         except FileNotFoundError:
                             pass
-        except subprocess.TimeoutExpired as e:
-            self.time_elapsed = time.time() - time_start
-            self.status = 'timeout_expired'
-            self.exit_code = None
-            self.stdout = e.stdout
-            self.stderr = e.stderr
-        finally:
-            if self.exit_code != 0:
-                for base_name in [self.base_name_symbols, self.base_name_clauses]:
-                    # Vampire may or may not have created the file.
-                    try:
-                        os.remove(os.path.join(self.output_dir, base_name))
-                    except FileNotFoundError:
-                        pass
 
     def args(self, current_output_dir):
         return chain([self.program],
@@ -229,11 +221,20 @@ class Run:
 
     @contextlib.contextmanager
     def current_output_directory(self):
-        """Yield temporary scratch directory name or None if self.scratch is None."""
-        if self.scratch_dir is not None:
+        if self.scratch_dir is not None and os.path.abspath(self.scratch_dir) != os.path.abspath(self.output_dir):
             os.makedirs(self.scratch_dir, exist_ok=True)
-            with tempfile.TemporaryDirectory(dir=self.scratch_dir) as tempdirname:
-                yield tempdirname
+            with tempfile.TemporaryDirectory(dir=self.scratch_dir) as temp_dir:
+                try:
+                    yield temp_dir
+                finally:
+                    if self.exit_code == 0:
+                        os.makedirs(self.output_dir, exist_ok=True)
+                        for base_name in [self.base_name_symbols, self.base_name_clauses]:
+                            try:
+                                shutil.move(os.path.join(temp_dir, base_name),
+                                            os.path.join(self.output_dir, base_name))
+                            except FileNotFoundError:
+                                pass
         else:
             os.makedirs(self.output_dir, exist_ok=True)
             yield self.output_dir
