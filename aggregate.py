@@ -23,6 +23,7 @@ def call(namespace):
     result_dirs = [os.path.dirname(result_path) for result_path in result_paths]
     df_solve = concat_pickles(result_dirs, 'runs_solve.pkl')
     df_clausify = concat_pickles(result_dirs, 'runs_clausify.pkl')
+    # TODO: Drop rows with duplicate index. Ensure that they have the same content.
     results.save_all(df_solve, df_clausify, namespace.output)
     results.save_df(concat_pickles(result_dirs, 'runs_learned.pkl'), 'runs_learned', namespace.output)
 
