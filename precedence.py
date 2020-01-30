@@ -13,7 +13,7 @@ def learn(runs, symbol_counts):
 def learn_precedence(symbol_type, symbol_count, runs):
     # `n[i, j]` is the number of hits of the symbol pair (i, j).
     n = np.zeros((symbol_count, symbol_count), dtype=np.uint)
-    # `c[i, j]` is the cummulative score of the symbol pair (i, j).
+    # `c[i, j]` is the cumulative score of the symbol pair (i, j).
     c = np.zeros((symbol_count, symbol_count), dtype=np.float)
     # Sum of scores across the results.
     score_sum = 0
