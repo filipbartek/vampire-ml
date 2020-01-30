@@ -182,7 +182,7 @@ def call(namespace):
                     continue
                 try:
                     plt.figure()
-                    sns.distplot(saturation_iterations)
+                    sns.distplot(saturation_iterations, rug=True)
                     plt.title(
                         f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
                     plt.ylabel('Density')
