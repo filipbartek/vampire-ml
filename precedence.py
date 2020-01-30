@@ -47,16 +47,16 @@ def learn_precedence(symbol_type, symbol_count, runs):
 
 def construct_good_permutation(v):
     """Find good permutation greedily."""
-    assert len(v.shape) == 2
-    assert v.shape[0] == v.shape[1]
     n = v.shape[0]
+    assert v.shape == (n, n)
     # s[i] = total score for row i - total score for column i
     # Symbol i should be picked as the first greedily if it maximizes s[i].
     s = v.sum(axis=1).flatten() - v.sum(axis=0).flatten()
-    perm = np.zeros(n, dtype=np.uint)
+    perm = np.empty(n, dtype=np.uint)
     # https://papers.nips.cc/paper/1431-learning-to-order-things.pdf
     for i in range(n):
         cur = np.argmax(s)
+        assert s[cur] != np.NINF
         perm[i] = cur
         s += v[cur, :] - v[:, cur]
         s[cur] = np.NINF
