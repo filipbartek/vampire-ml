@@ -5,8 +5,6 @@ import logging
 
 import numpy as np
 
-import action_compare
-import action_fit
 import action_vampire
 
 if __name__ == '__main__':
@@ -17,8 +15,6 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(help='action', dest='action', required=True)
 
     action_vampire.add_arguments(subparsers.add_parser('vampire', aliases=['v']))
-    action_compare.add_arguments(subparsers.add_parser('compare', aliases=['c']))
-    action_fit.add_arguments(subparsers.add_parser('fit', aliases=['f']))
 
     parser.add_argument('--log', choices=['NOTSET', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO',
                         help='Logging level')
