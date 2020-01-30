@@ -18,7 +18,8 @@ def compose(sublist_file_paths=None, glob_patterns=None, base_path=None):
         glob_patterns_rel_to_base = glob_patterns
         if base_path is not None:
             glob_patterns_rel_to_base = (os.path.join(base_path, pattern) for pattern in glob_patterns_rel_to_base)
-        file_paths.extend(itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in glob_patterns_rel_to_base)))
+        file_paths.extend(
+            itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in glob_patterns_rel_to_base)))
     if base_path is None and len(file_paths) >= 1:
         base_path = os.path.commonpath(file_paths)
         logging.info(f'Defaulting base path to \"{base_path}\".')
