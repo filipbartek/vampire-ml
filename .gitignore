@@ -12,4 +12,3 @@ slurm-*.out
 
 # Temporary output files
 /out/
-
