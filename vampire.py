@@ -156,6 +156,10 @@ class Run:
             try:
                 self.load_shallow()
                 assert self.run_policy != 'all'
+                # See definitions of Vampire exit codes in `vampire/Lib/System.hpp`.
+                # Filip Bartek: I have observed the exit codes 0, 1, 3, -9 and -11.
+                # Out of these, only 0 and 1 seem to guarantee a completed execution.
+                # See also: https://www.nsnam.org/wiki/HOWTO_understand_and_find_cause_of_exited_with_code_-11_errors
                 if (self.run_policy == 'none' or
                         (self.run_policy == 'interrupted' and self.exit_code in [0, 1]) or
                         (self.run_policy == 'failed' and self.exit_code == 0)):
@@ -458,11 +462,3 @@ def load_symbols(file):
 def load_clauses(file):
     with open(file) as clauses_json_file:
         return json.load(clauses_json_file)
-
-
-def is_exit_code_interruption(code):
-    # See definitions of Vampire exit codes in `vampire/Lib/System.hpp`.
-    # Filip Bartek: I have observed the exit codes 0, 1, 3, -9 and -11.
-    # Out of these, only 0 and 1 seem to guarantee a completed execution.
-    # See also: https://www.nsnam.org/wiki/HOWTO_understand_and_find_cause_of_exited_with_code_-11_errors
-    return code not in [0, 1]
