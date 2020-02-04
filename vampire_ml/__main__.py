@@ -5,12 +5,12 @@ import logging
 
 import numpy as np
 
-import action_vampire
+from . import action_vampire
 
 if __name__ == '__main__':
     np.seterr(all='raise', under='warn')
 
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(prog='python -m vampire_ml')
     # Why does dest need to be specified? See https://bugs.python.org/issue29298
     subparsers = parser.add_subparsers(help='action', dest='action', required=True)
 

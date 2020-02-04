@@ -15,11 +15,11 @@ import tensorflow as tf
 import yaml
 from tqdm import tqdm
 
-import file_path_list
-import precedence
-import results
-import vampire
+from utils import file_path_list
 from utils import makedirs_open, truncate
+from vampyre import vampire
+from . import precedence
+from . import results
 
 
 def add_arguments(parser):

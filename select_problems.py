@@ -6,7 +6,7 @@ import os
 import numpy as np
 import pandas as pd
 
-from results import save_df
+from vampire_ml.results import save_df
 
 if __name__ == '__main__':
     np.seterr(all='raise')

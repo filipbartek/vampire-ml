@@ -15,8 +15,8 @@ from itertools import chain
 import numpy as np
 import pandas as pd
 
-import extractor
 from utils import makedirs_open, get_consistent, len_robust
+from . import extractor
 
 
 class SymbolPrecedence:

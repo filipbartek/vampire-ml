@@ -32,7 +32,7 @@ CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 XARGS_COMMAND=(
   xargs --verbose
   python -O
-  vampire-ml.py vampire
+  -m vampire_ml vampire
   --output "$OUTPUT"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
