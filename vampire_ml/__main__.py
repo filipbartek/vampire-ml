@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 
-from . import action_vampire
+from vampire_ml import action_vampire
 
 if __name__ == '__main__':
     np.seterr(all='raise', under='warn')
