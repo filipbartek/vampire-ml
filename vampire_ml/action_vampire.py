@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 from utils import file_path_list
 from utils import makedirs_open, truncate
-from vampyre import vampire
+import vampyre
 from . import precedence
 from . import results
 
@@ -109,17 +109,17 @@ def call(namespace):
         symbol_types.append('predicate')
     if namespace.random_function_precedence:
         symbol_types.append('function')
-    assert set(symbol_types) <= set(vampire.SymbolPrecedence.symbol_types.keys())
+    assert set(symbol_types) <= set(vampyre.SymbolPrecedence.symbol_types.keys())
     if namespace.solve_runs > 1 and len(symbol_types) == 0:
         logging.warning('Requesting multiple runs per problem with identical parameters.')
 
     clausify_run_table = None
     if not namespace.no_clausify:
-        clausify_run_table = vampire.RunTable(vampire.Run.field_names_clausify)
-    solve_run_table = vampire.RunTable(vampire.Run.field_names_solve)
-    learned_run_table = vampire.RunTable(vampire.Run.field_names_solve)
+        clausify_run_table = vampyre.RunTable(vampyre.Run.field_names_clausify)
+    solve_run_table = vampyre.RunTable(vampyre.Run.field_names_solve)
+    learned_run_table = vampyre.RunTable(vampyre.Run.field_names_solve)
     summary_writer = tf.summary.create_file_writer(logs_path)
-    base_configuration = vampire.Run(namespace.vampire, base_options=vampire_options,
+    base_configuration = vampyre.Run(namespace.vampire, base_options=vampire_options,
                                      timeout=namespace.timeout, output_dir=output_problems,
                                      problem_base_path=problem_base_path, scratch_dir=namespace.scratch,
                                      run_policy=namespace.run_policy)
@@ -211,7 +211,7 @@ def call(namespace):
                 if clausify_run is not None:
                     assert clausify_run.exit_code == 0
                     precedences = {
-                        symbol_type: vampire.SymbolPrecedence(symbol_type, good_permutations[symbol_type][0]) for
+                        symbol_type: vampyre.SymbolPrecedence(symbol_type, good_permutations[symbol_type][0]) for
                         symbol_type in symbol_types}
                     solve_run = problem_configuration.spawn(precedences=precedences,
                                                             output_dir_rel=os.path.join('learned'))
