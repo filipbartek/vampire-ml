@@ -181,16 +181,8 @@ def call(namespace):
                         'Precedence learning skipped because there are no successful solve runs to learn from.')
                     continue
                 try:
-                    plt.figure()
-                    sns.distplot(saturation_iterations, rug=True)
-                    plt.title(
-                        f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
-                    plt.ylabel('Density')
-                    plt.xlabel('Number of saturation iterations')
-                    plt.savefig(
-                        os.path.join(problem_configuration.output_dir, 'solve', 'saturation_iterations.svg'),
-                        bbox_inches='tight')
-                    plt.close()
+                    plot_saturation_iterations_distribution(saturation_iterations, problem_name,
+                                                            problem_configuration.output_dir)
                 except (ValueError, np.linalg.LinAlgError):
                     logger.debug(
                         f'Plotting of histogram of saturation iterations failed. Unique measurements: {len(np.unique(saturation_iterations))}.',
@@ -260,6 +252,16 @@ def assign_scores(runs):
     for run in runs:
         assign_score(run, saturation_iterations_min, saturation_iterations_max)
     return saturation_iterations_min, saturation_iterations_max, saturation_iterations
+
+
+def plot_saturation_iterations_distribution(saturation_iterations, problem_name, output_dir):
+    plt.figure()
+    sns.distplot(saturation_iterations, rug=True)
+    plt.title(f'Distribution of saturation iteration counts in successful solve runs on problem {problem_name}')
+    plt.ylabel('Density')
+    plt.xlabel('Number of saturation iterations')
+    plt.savefig(os.path.join(output_dir, 'solve', 'saturation_iterations.svg'), bbox_inches='tight')
+    plt.close()
 
 
 def plot_preference_heatmap(v, permutation, symbol_type, symbols, solve_run):
