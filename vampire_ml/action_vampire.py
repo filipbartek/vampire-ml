@@ -15,9 +15,9 @@ import tensorflow as tf
 import yaml
 from tqdm import tqdm
 
+import vampyre
 from utils import file_path_list
 from utils import makedirs_open, truncate
-import vampyre
 from . import precedence
 from . import results
 
