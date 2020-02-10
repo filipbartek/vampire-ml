@@ -10,9 +10,10 @@ import scipy.stats
 
 def save_all(df_solve, df_clausify, output):
     save_df(df_solve, 'runs_solve', output)
-    save_terminations(df_solve, output)
     save_df(df_clausify, 'runs_clausify', output)
-    save_problems(df_solve, df_clausify, output)
+    if df_solve is not None:
+        save_terminations(df_solve, output)
+        save_problems(df_solve, df_clausify, output)
 
 
 def save_df(df, base_name, output_dir=None):
@@ -38,8 +39,7 @@ def save_terminations(solve_runs_df, output_batch):
     print(terminations, file=open(os.path.join(output_batch, 'runs_solve_terminations.txt'), 'w'))
 
 
-def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None,
-                  solve_runs=0):
+def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None):
     problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path)
     save_df(problems_df, 'problems', output_batch)
 
