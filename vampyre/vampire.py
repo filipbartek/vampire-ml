@@ -14,9 +14,9 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
-import extractor
-import process
 from utils import len_robust
+from . import extractor
+from . import process
 
 
 class Execution:

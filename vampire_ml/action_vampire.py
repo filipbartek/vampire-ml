@@ -11,11 +11,11 @@ import numpy as np
 import seaborn as sns
 import yaml
 
-import results
 import vampyre
 from utils import file_path_list
 from utils import makedirs_open
 from . import precedence
+from . import results
 
 
 def add_arguments(parser):
