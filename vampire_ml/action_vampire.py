@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 import yaml
-from scipy.stats import lognorm
 
 import results
 import vampyre
