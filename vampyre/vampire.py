@@ -178,7 +178,8 @@ class Problem:
     def get_configuration_path(self, mode='vampire', precedences=None):
         return self.workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
 
-    def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False):
+    def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False,
+                                      reverse=True):
         # TODO: Parallelize.
         # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
         # TODO: Allow solving for reverse precedences automatically.
@@ -195,6 +196,18 @@ class Problem:
                 execution = self.get_execution(precedences=precedences)
                 assert execution.path == self.get_configuration_path(precedences=precedences)
                 yield execution
+                if reverse:
+                    reversed_precedences = dict()
+                    if random_predicates:
+                        head = np.asarray([0], dtype=np.uint)
+                        tail = precedences['predicate_precedence'][:0:-1]
+                        reversed_precedences['predicate_precedence'] = np.concatenate((head, tail))
+                    if random_functions:
+                        reversed_precedences['function_precedence'] = precedences['function_precedence'][::-1]
+                    t.set_postfix({'current_configuration': self.get_configuration_path(precedences=reversed_precedences)})
+                    execution = self.get_execution(precedences=reversed_precedences)
+                    assert execution.path == self.get_configuration_path(precedences=reversed_precedences)
+                    yield execution
                 t.update()
 
     def random_predicate_precedence(self, seed=None):
