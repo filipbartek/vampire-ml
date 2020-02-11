@@ -198,7 +198,7 @@ def call(namespace):
             except (RuntimeError, FileNotFoundError, json.decoder.JSONDecodeError):
                 logging.debug('Solving with random precedences failed.', exc_info=True)
     finally:
-        logging.debug(workspace.cache_info)
+        logging.info(workspace.cache_info)
         solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
         clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
         results.save_all(solve_runs_df, clausify_runs_df, output_batch)
