@@ -67,9 +67,6 @@ class Execution:
         typed_series = {field_name: pd.Series([self[field_name]], dtype=self.fields[field_name].dtype) for field_name in
                         self.fields.keys() if field_name in field_names_obligatory or self[field_name] is not None}
         df = pd.DataFrame(typed_series)
-        if 'output_dir' in df:
-            df.set_index('output_dir', inplace=True)
-            assert df.index.name == 'output_dir'
         return df
 
     @classmethod
