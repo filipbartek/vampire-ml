@@ -236,7 +236,8 @@ def assign_scores(runs):
 
 def plot_saturation_iterations_distribution(saturation_iterations, problem, custom_points=None, output_dir=None):
     plt.figure()
-    sns.distplot(saturation_iterations, rug=True, kde=False, norm_hist=True, fit=lognorm)
+    # TODO: Fit lognorm or log-logistic similar.
+    sns.distplot(saturation_iterations, rug=True, norm_hist=True)
     plt.title(f'Distribution of saturation iteration counts in successful solve runs on problem {problem}')
     plt.ylabel('Density')
     plt.xlabel('Number of saturation iterations')
