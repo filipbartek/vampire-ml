@@ -342,6 +342,8 @@ class Configuration:
         res.update(self.base_options)
         if include_dir is not None:
             res.update({'include': include_dir})
+        if scratch_dir is not None:
+            os.makedirs(scratch_dir, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=scratch_dir) as temp_dir:
             if len(self.precedences) >= 1:
                 precedence_dir = os.path.join(temp_dir, 'precedence')
