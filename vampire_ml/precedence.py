@@ -55,7 +55,9 @@ def plot_preference_heatmap(preference, permutation, symbol_type, problem, outpu
     n = len(symbols)
     assert preference.shape == (n, n)
     assert len(permutation) == n
-    assert np.array_equal(preference[permutation, :][:, permutation], preference[:, permutation][permutation, :])
+    # https://stackoverflow.com/a/58709110/4054250
+    assert np.allclose(preference[permutation, :][:, permutation], preference[:, permutation][permutation, :],
+                       rtol=0, atol=0, equal_nan=True)
     # Vampire forces '=' to be the first predicate.
     assert symbol_type != 'predicate' or (symbols.name[0] == '=' and permutation[0] == 0)
     v_permuted = preference[permutation, :][:, permutation]
