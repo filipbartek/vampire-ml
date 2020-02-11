@@ -244,7 +244,7 @@ class Workspace:
             result = self.load(configuration, configuration_path)
             self.cache_info['hits'] += 1
             return result, configuration_path
-        except (FileNotFoundError, RuntimeError) as e:
+        except (FileNotFoundError, RuntimeError):
             self.cache_info['misses'] += 1
             if self.never_run:
                 raise RuntimeError('Loading failed.')
