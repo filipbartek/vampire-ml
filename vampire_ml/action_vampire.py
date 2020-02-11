@@ -85,21 +85,10 @@ def learn_ltot_lexicographic(executions, problem=None, output_dir=None):
     return good_precedences
 
 
-def learn_best(executions, problem=None, output_dir=None):
-    best_score = None
-    best_execution = None
-    for execution in executions:
-        if best_score is None or execution.score < best_score:
-            best_score = execution.score
-            best_execution = execution
-    return best_execution.configuration.precedences
-
-
 precedence_learners = {
     'ltot': learn_ltot,
     'ltot_successful': learn_ltot_successful,
-    'ltot_lex': learn_ltot_lexicographic,
-    'best': learn_best
+    'ltot_lex': learn_ltot_lexicographic
 }
 
 
