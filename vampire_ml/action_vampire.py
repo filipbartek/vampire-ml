@@ -43,7 +43,7 @@ def add_arguments(parser):
                              'Run `vampire --show_options on --show_experimental_options on` to print the options '
                              'supported by Vampire. '
                              'Format: YAML dictionary. '
-                             'For example, "{include: $TPTP, time_limit: 10}" translates into '
+                             'For example, "{time_limit: 10}" translates into '
                              '"--include $TPTP --time_limit 10".'
                              'Recommended options: include, time_limit.')
     parser.add_argument('--timeout', type=float, default=20,
