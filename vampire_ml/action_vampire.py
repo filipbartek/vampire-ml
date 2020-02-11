@@ -154,7 +154,6 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
 
-    # TODO: Test scratch dir functionality.
     workspace = vampyre.vampire.Workspace(path=namespace.output, program=namespace.vampire,
                                           problem_dir=problem_base_path, include_dir=namespace.include,
                                           scratch_dir=namespace.scratch,
