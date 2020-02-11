@@ -43,13 +43,14 @@ def learn_precedence(precedence_scores, symbol_type, problem=None, output_dir=No
         perm = construct_good_permutation(v)
     assert perm.shape == (symbol_count,)
     try:
-        plot_preference_heatmap(v, perm, symbol_type, problem, output_dir=os.path.join(output_dir, 'preferences'))
+        plot_preference_heatmap(v, perm, symbol_type, problem,
+                                output_file=os.path.join(output_dir, 'preferences', f'{problem.name()}_{symbol_type}'))
     except ValueError:
         logging.debug('Preference heatmap plotting failed.', exc_info=True)
     return perm
 
 
-def plot_preference_heatmap(preference, permutation, symbol_type, problem, output_dir=None):
+def plot_preference_heatmap(preference, permutation, symbol_type, problem, output_file=None):
     symbols = problem.get_symbols(symbol_type)
     n = len(symbols)
     assert preference.shape == (n, n)
@@ -73,10 +74,9 @@ def plot_preference_heatmap(preference, permutation, symbol_type, problem, outpu
         f'Expected pairwise preferences of {symbol_type} symbols in problem {problem}')
     plt.ylabel('Early symbol')
     plt.xlabel('Late symbol')
-    if output_dir is not None:
-        os.makedirs(output_dir, exist_ok=True)
-        plt.savefig(os.path.join(output_dir, f'{problem.name()}_{symbol_type}.{file_type}'),
-                    bbox_inches='tight')
+    if output_file is not None:
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        plt.savefig(f'{output_file}.{file_type}', bbox_inches='tight')
     else:
         plt.show()
     plt.close()
