@@ -161,7 +161,7 @@ def construct_good_permutation_lex(failure_rate, average_iterations):
     perm = np.empty(n, dtype=np.uint)
     # https://papers.nips.cc/paper/1431-learning-to-order-things.pdf
     for i in range(n):
-        minimum_failure_rate_indices = np.flatnonzero(s_failure_rate == np.min(s_failure_rate))
+        minimum_failure_rate_indices = np.flatnonzero(np.isclose(s_failure_rate, np.min(s_failure_rate)))
         cur = minimum_failure_rate_indices[np.argmin(s_average_iterations[minimum_failure_rate_indices])]
         assert s_failure_rate[cur] != np.inf
         assert s_average_iterations[cur] != np.inf
