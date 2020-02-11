@@ -179,6 +179,11 @@ def call(namespace):
                     execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
                     execution in executions)
                 custom_points = dict()
+                # Run with the default settings without randomized precedences.
+                execution = problem.get_execution()
+                logging.info({'default': str(execution.result)})
+                if execution.result.exit_code == 0:
+                    custom_points['default'] = execution['saturation_iterations']
                 if max(len(problem.get_predicates()), len(problem.get_functions())) > namespace.learn_max_symbols:
                     logging.debug('Precedence learning skipped because signature is too large.')
                 else:
