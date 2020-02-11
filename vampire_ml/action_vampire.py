@@ -150,7 +150,8 @@ def call(namespace):
                                           result_is_ok_to_load=result_is_ok_to_load)
     solve_dfs = []
     clausify_dfs = []
-    learned_dfs = {name: [] for name in precedence_learners.keys()}
+    custom_dfs = {'default': list()}
+    custom_dfs.update({name: list() for name in precedence_learners.keys()})
     try:
         for problem_path in problem_paths:
             problem = vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path), workspace,
@@ -172,6 +173,10 @@ def call(namespace):
                 logging.info({'default': str(execution.result)})
                 if execution.result.exit_code == 0:
                     custom_points['default'] = execution['saturation_iterations']
+                else:
+                    custom_points['default'] = None
+                custom_dfs['default'].append(
+                    execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
                 if max(len(problem.get_predicates()), len(problem.get_functions())) > namespace.learn_max_symbols:
                     logging.debug('Precedence learning skipped because signature is too large.')
                 else:
@@ -187,7 +192,9 @@ def call(namespace):
                         logging.info({name: str(execution.result)})
                         if execution.result.exit_code == 0:
                             custom_points[name] = execution['saturation_iterations']
-                        learned_dfs[name].append(
+                        else:
+                            custom_points[name] = None
+                        custom_dfs[name].append(
                             execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
                 try:
                     plot_saturation_iterations_distribution(saturation_iterations, problem, custom_points,
@@ -203,10 +210,8 @@ def call(namespace):
         logging.info(workspace.cache_info)
         solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
         clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
-        results.save_all(solve_runs_df, clausify_runs_df, output_batch)
-        for name, dfs in learned_dfs.items():
-            df = vampyre.vampire.Execution.concat_dfs(dfs)
-            results.save_all(df, None, os.path.join(output_batch, name))
+        custom_dfs_joint = {name: vampyre.vampire.Execution.concat_dfs(value) for (name, value) in custom_dfs.items()}
+        results.save_all(solve_runs_df, clausify_runs_df, output_batch, custom_dfs_joint)
 
 
 def run_score(exit_code, saturation_iterations, saturation_iterations_min, saturation_iterations_max):
@@ -248,7 +253,8 @@ def plot_saturation_iterations_distribution(saturation_iterations, problem, cust
     plt.xlabel('Number of saturation iterations')
     if custom_points is not None:
         for i, (name, x) in enumerate(custom_points.items()):
-            plt.axvline(x, 0, 1, label=name, color=f'C{i % 10}')
+            if x is not None:
+                plt.axvline(x, 0, 1, label=name, color=f'C{i % 10}')
     plt.legend()
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)

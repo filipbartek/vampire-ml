@@ -7,16 +7,23 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
+import vampyre
 
-def save_all(df_solve, df_clausify, output):
-    save_df(df_solve, 'runs_solve', output)
-    save_df(df_clausify, 'runs_clausify', output)
+
+def save_all(df_solve, df_clausify, output, custom_dfs=None):
+    save_df(df_solve, 'runs_solve', output, index=False)
+    save_df(df_clausify, 'runs_clausify', output, index=False)
+    if custom_dfs is not None:
+        df_custom = vampyre.vampire.Execution.concat_dfs(
+            value.assign(name=name) for (name, value) in custom_dfs.items())
+        save_df(df_custom, 'runs_custom', output, index=False)
+        save_terminations(df_custom, os.path.join(output, 'runs_custom_terminations.txt'))
     if df_solve is not None:
-        save_terminations(df_solve, output)
-        save_problems(df_solve, df_clausify, output)
+        save_terminations(df_solve, os.path.join(output, 'runs_solve_terminations.txt'))
+        save_problems(df_solve, df_clausify, output, custom_runs_df=custom_dfs)
 
 
-def save_df(df, base_name, output_dir=None):
+def save_df(df, base_name, output_dir=None, index=True):
     if df is None:
         return
     assert base_name is not None
@@ -25,22 +32,26 @@ def save_df(df, base_name, output_dir=None):
         os.makedirs(output_dir, exist_ok=True)
         path_common = os.path.join(output_dir, path_common)
     df.to_pickle(f'{path_common}.pkl')
-    df.to_csv(f'{path_common}.csv')
+    df.to_csv(f'{path_common}.csv', index=index)
     logging.info(f'DataFrame of length {len(df.index)} saved: {path_common}.{{pkl,csv}}')
 
 
 def save_terminations(solve_runs_df, output_batch):
     solve_runs_df = fill_category_na(solve_runs_df)
-    termination_fieldnames = ['status', 'exit_code', 'termination_reason', 'termination_phase']
+    termination_fieldnames = [col for col in ['name', 'status', 'exit_code', 'termination_reason', 'termination_phase']
+                              if col in solve_runs_df.columns]
 
     # Distribution of run terminations
     terminations = solve_runs_df.groupby(termination_fieldnames).size()
     print('Distribution of solve run terminations:', terminations, sep='\n')
-    print(terminations, file=open(os.path.join(output_batch, 'runs_solve_terminations.txt'), 'w'))
+    os.makedirs(os.path.dirname(output_batch), exist_ok=True)
+    print(terminations, file=open(output_batch, 'w'))
 
 
-def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None):
-    problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path)
+def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=None, problem_base_path=None,
+                  custom_runs_df=None):
+    problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path,
+                                       custom_runs_df)
     save_df(problems_df, 'problems', output_batch)
 
 
@@ -56,7 +67,7 @@ def fill_category_na(df, value='NA', inplace=False):
     return df
 
 
-def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, problem_base_path=None):
+def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, problem_base_path=None, custom_runs_df=None):
     if problem_paths is None:
         problem_paths = runs_df.problem_path
     elif problem_base_path is not None:
@@ -64,6 +75,13 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
     problem_paths = pd.Index(problem_paths).drop_duplicates()
     problems_df = pd.DataFrame(index=problem_paths)
     problems_df.index.name = 'problem_path'
+    # Merge probe run results into `problems_df`
+    if probe_runs_df is not None:
+        problems_df = problems_df.join(
+            probe_runs_df[['problem_path', 'predicates_count', 'functions_count', 'clauses_count']].drop_duplicates(
+                'problem_path').set_index('problem_path'),
+            rsuffix='probe')
+    # Random solve run stats
     problem_groups = runs_df.groupby(['problem_path'])
     problems_df = problems_df.join(problem_groups.size().astype(pd.UInt64Dtype()).to_frame('n_total'))
     problems_df = problems_df.join(
@@ -111,11 +129,12 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
             pd.UInt64Dtype()))
     # Aggregate memory across all runs
     problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg({'memory_used': agg_functions}))
-    # Merge probe run results into `problems_df`
-    if probe_runs_df is not None:
-        problems_df = problems_df.join(
-            probe_runs_df[['problem_path', 'predicates_count', 'functions_count', 'clauses_count']].drop_duplicates(
-                'problem_path').set_index('problem_path'),
-            rsuffix='probe')
+    if custom_runs_df is not None:
+        for name, value in custom_runs_df.items():
+            value = value.set_index('problem_path')
+            value = value[['exit_code', 'saturation_iterations']]
+            # https://stackoverflow.com/a/40225796/4054250
+            value.columns = pd.MultiIndex.from_product([[name], value.columns])
+            problems_df = problems_df.join(value, rsuffix=name)
     problems_df.sort_index(inplace=True)
     return problems_df
