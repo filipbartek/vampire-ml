@@ -150,6 +150,9 @@ def construct_good_permutation_lex(failure_rate, average_iterations):
     n = failure_rate.shape[0]
     assert failure_rate.shape == (n, n)
     assert average_iterations.shape == (n, n)
+    perm = np.empty(n, dtype=np.uint)
+    if n == 0:
+        return perm
     # s[i] = total score for row i - total score for column i
     # s[i] is the score we get by picking symbol i as the first symbol.
     # Symbol i should be picked as the first greedily if it minimizes s[i].
@@ -158,7 +161,6 @@ def construct_good_permutation_lex(failure_rate, average_iterations):
     average_iterations = np.nan_to_num(average_iterations, nan=np.nanmean(average_iterations))
     s_failure_rate = np.sum(failure_rate, axis=1).flatten() - np.sum(failure_rate, axis=0).flatten()
     s_average_iterations = np.sum(average_iterations, axis=1).flatten() - np.sum(average_iterations, axis=0).flatten()
-    perm = np.empty(n, dtype=np.uint)
     # https://papers.nips.cc/paper/1431-learning-to-order-things.pdf
     for i in range(n):
         minimum_failure_rate_indices = np.flatnonzero(np.isclose(s_failure_rate, np.min(s_failure_rate)))
