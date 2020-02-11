@@ -73,6 +73,18 @@ def learn_ltot_successful(executions, problem=None, output_dir=None):
     return learn_ltot([execution for execution in executions if execution.result.exit_code == 0], problem, output_dir)
 
 
+def learn_ltot_lexicographic(executions, problem=None, output_dir=None):
+    good_precedences = dict()
+    for precedence_option in executions[0].configuration.precedences.keys():
+        precedence_scores = ((execution.configuration.precedences[precedence_option],
+                              (execution['exit_code'] == 0, execution['saturation_iterations']))
+                             for execution in executions)
+        symbol_type = {'predicate_precedence': 'predicate', 'function_precedence': 'function'}[precedence_option]
+        good_precedences[precedence_option] = precedence.learn_precedence_lex(precedence_scores, symbol_type, problem,
+                                                                              output_dir=output_dir)
+    return good_precedences
+
+
 def learn_best(executions, problem=None, output_dir=None):
     best_score = None
     best_execution = None
@@ -86,6 +98,7 @@ def learn_best(executions, problem=None, output_dir=None):
 precedence_learners = {
     'ltot': learn_ltot,
     'ltot_successful': learn_ltot_successful,
+    'ltot_lex': learn_ltot_lexicographic,
     'best': learn_best
 }
 

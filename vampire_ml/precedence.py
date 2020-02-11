@@ -100,3 +100,74 @@ def construct_good_permutation(v):
         s += v[cur, :] - v[:, cur]
         s[cur] = np.NINF
     return perm
+
+
+def learn_precedence_lex(precedence_scores, symbol_type, problem=None, output_dir=None):
+    precedence_scores = list(precedence_scores)
+    symbol_count = len(precedence_scores[0][0])
+    # `n[i, j]` is the number of hits of the symbol pair (i, j).
+    n = np.zeros((symbol_count, symbol_count), dtype=np.uint)
+    # Number of success hits
+    n0 = np.zeros((symbol_count, symbol_count), dtype=np.uint)
+    # `c[i, j]` is the cumulative score of the symbol pair (i, j).
+    c = np.zeros((symbol_count, symbol_count), dtype=np.uint)
+    for precedence, (success, saturation_iterations) in precedence_scores:
+        assert len(precedence) == symbol_count
+        for i in range(symbol_count):
+            for j in range(i + 1, symbol_count):
+                pi = precedence[i]
+                pj = precedence[j]
+                n[pi, pj] += 1
+                if success:
+                    n0[pi, pj] += 1
+                    c[pi, pj] += saturation_iterations
+    with numpy_err_settings(invalid='ignore'):
+        # Preference matrix. `v[i, j]` is the expected score of a run with the symbol pair (i, j).
+        failure_rate = 1 - n0 / n
+        average_iterations = c / n0
+    if symbol_type == 'predicate':
+        head = np.asarray([0], dtype=np.uint)
+        tail = construct_good_permutation_lex(failure_rate[1:, 1:], average_iterations[1:, 1:]) + 1
+        assert np.all(tail > 0)
+        perm = np.concatenate((head, tail))
+    else:
+        perm = construct_good_permutation_lex(failure_rate, average_iterations)
+    assert perm.shape == (symbol_count,)
+    try:
+        plot_preference_heatmap(failure_rate, perm, symbol_type, problem,
+                                output_file=os.path.join(output_dir, 'preferences_lex',
+                                                         f'{problem.name()}_{symbol_type}_failures'))
+        plot_preference_heatmap(average_iterations, perm, symbol_type, problem,
+                                output_file=os.path.join(output_dir, 'preferences_lex',
+                                                         f'{problem.name()}_{symbol_type}_iterations'))
+    except ValueError:
+        logging.debug('Preference heatmap plotting failed.', exc_info=True)
+    return perm
+
+
+def construct_good_permutation_lex(failure_rate, average_iterations):
+    """Find good permutation greedily."""
+    n = failure_rate.shape[0]
+    assert failure_rate.shape == (n, n)
+    assert average_iterations.shape == (n, n)
+    # s[i] = total score for row i - total score for column i
+    # s[i] is the score we get by picking symbol i as the first symbol.
+    # Symbol i should be picked as the first greedily if it minimizes s[i].
+    # TODO: Test with all-nan slice (1 run).
+    failure_rate = np.nan_to_num(failure_rate, nan=np.nanmean(failure_rate))
+    average_iterations = np.nan_to_num(average_iterations, nan=np.nanmean(average_iterations))
+    s_failure_rate = np.sum(failure_rate, axis=1).flatten() - np.sum(failure_rate, axis=0).flatten()
+    s_average_iterations = np.sum(average_iterations, axis=1).flatten() - np.sum(average_iterations, axis=0).flatten()
+    perm = np.empty(n, dtype=np.uint)
+    # https://papers.nips.cc/paper/1431-learning-to-order-things.pdf
+    for i in range(n):
+        minimum_failure_rate_indices = np.flatnonzero(s_failure_rate == np.min(s_failure_rate))
+        cur = minimum_failure_rate_indices[np.argmin(s_average_iterations[minimum_failure_rate_indices])]
+        assert s_failure_rate[cur] != np.inf
+        assert s_average_iterations[cur] != np.inf
+        perm[i] = cur
+        s_failure_rate += failure_rate[cur, :] - failure_rate[:, cur]
+        s_failure_rate[cur] = np.inf
+        s_average_iterations += average_iterations[cur, :] - average_iterations[:, cur]
+        s_average_iterations[cur] = np.inf
+    return perm
