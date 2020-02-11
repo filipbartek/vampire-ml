@@ -178,12 +178,9 @@ def call(namespace):
                             logging.debug('Learning failed.', exc_info=True)
                             continue
                         # TODO: Try to improve the permutation by two-point swaps (hillclimbing).
-                        configuration = problem.get_configuration(precedences=precedences)
-                        configuration_path = workspace.get_configuration_path(configuration)
-                        result, path = workspace.load_or_run(configuration, configuration_path)
-                        logging.info({name: str(result)})
-                        execution = vampyre.vampire.Execution(configuration, result, path)
-                        if result.exit_code == 0:
+                        execution = problem.get_execution(precedences=precedences)
+                        logging.info({name: str(execution.result)})
+                        if execution.result.exit_code == 0:
                             custom_points[name] = execution['saturation_iterations']
                         learned_dfs[name].append(
                             execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))

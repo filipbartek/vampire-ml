@@ -130,7 +130,7 @@ class Problem:
         else:
             self.base_options = base_options
         self.timeout = timeout
-        self.successful_clausify_result = None
+        self.clausify_execution = None
 
     def __str__(self):
         return self.path
@@ -154,28 +154,29 @@ class Problem:
         return self.get_successful_clausify_result().clauses
 
     def get_successful_clausify_result(self):
-        # Cache the result in a member variable to avoid repeated file loading from the result cache.
-        if self.successful_clausify_result is None:
-            result = self.get_clausify_execution().result
-            if result.exit_code != 0:
-                raise RuntimeError('Clausify run failed.',
-                                   {'status': result.status, 'exit_code': result.exit_code, 'stdout': result.stdout})
-            self.successful_clausify_result = result
-        return self.successful_clausify_result
+        result = self.get_clausify_execution().result
+        if result.exit_code != 0:
+            raise RuntimeError('Clausify run failed.',
+                               {'status': result.status, 'exit_code': result.exit_code, 'stdout': result.stdout})
+        return result
 
     def get_clausify_execution(self):
-        return self.get_execution(mode='clausify')
+        # Cache the result in a member variable to avoid repeated file loading from the result cache.
+        if self.clausify_execution is None:
+            self.clausify_execution = self.get_execution(mode='clausify')
+        return self.clausify_execution
 
     def get_execution(self, mode='vampire', precedences=None):
-        configuration = self.get_configuration(mode, precedences)
-        result, path = self.workspace.load_or_run(configuration)
-        return Execution(configuration, result, path)
+        return self.workspace.get_execution(self.get_configuration(mode, precedences))
 
     def get_configuration(self, mode='vampire', precedences=None):
         assert self.base_options is not None
         base_options = self.base_options.copy()
         base_options.update({'mode': mode})
         return Configuration(self.path, base_options=base_options, precedences=precedences, timeout=self.timeout)
+
+    def get_configuration_path(self, mode='vampire', precedences=None):
+        return self.workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False):
         # TODO: Parallelize.
@@ -190,11 +191,10 @@ class Problem:
                     precedences['predicate_precedence'] = self.random_predicate_precedence(seed)
                 if random_functions:
                     precedences['function_precedence'] = self.random_function_precedence(seed)
-                configuration = self.get_configuration(precedences=precedences)
-                configuration_path = self.workspace.get_configuration_path(configuration)
-                t.set_postfix({'current_configuration': configuration_path})
-                result, path = self.workspace.load_or_run(configuration, configuration_path)
-                yield Execution(configuration, result, path)
+                t.set_postfix({'current_configuration': self.get_configuration_path(precedences=precedences)})
+                execution = self.get_execution(precedences=precedences)
+                assert execution.path == self.get_configuration_path(precedences=precedences)
+                yield execution
                 t.update()
 
     def random_predicate_precedence(self, seed=None):
@@ -232,13 +232,15 @@ class Workspace:
     def __str__(self):
         return self.path
 
-    def load_or_run(self, configuration, configuration_path=None):
-        if configuration_path is None:
-            if self.path is None:
-                logging.debug('Running because result caching is disabled.')
-                self.cache_info['misses'] += 1
-                return self.run(configuration), None
-            configuration_path = self.get_configuration_path(configuration)
+    def get_execution(self, configuration):
+        return Execution(configuration, *self.load_or_run(configuration))
+
+    def load_or_run(self, configuration):
+        if self.path is None:
+            logging.debug('Running because result caching is disabled.')
+            self.cache_info['misses'] += 1
+            return self.run(configuration), None
+        configuration_path = self.get_configuration_path(configuration)
         logging.debug({'problem': configuration.problem, 'configuration_path': configuration_path})
         try:
             result = self.load(configuration, configuration_path)
