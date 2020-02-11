@@ -125,7 +125,10 @@ class Problem:
     def __init__(self, path, workspace, base_options=None, timeout=None):
         self.path = path
         self.workspace = workspace
-        self.base_options = base_options
+        if base_options is None:
+            self.base_options = dict()
+        else:
+            self.base_options = base_options
         self.timeout = timeout
         self.successful_clausify_result = None
 
@@ -169,10 +172,8 @@ class Problem:
         return Execution(configuration, result, path)
 
     def get_configuration(self, mode='vampire', precedences=None):
-        if self.base_options is None:
-            base_options = dict()
-        else:
-            base_options = self.base_options.copy()
+        assert self.base_options is not None
+        base_options = self.base_options.copy()
         base_options.update({'mode': mode})
         # TODO: Use relative path.
         return Configuration(self.path, base_options=base_options, precedences=precedences, timeout=self.timeout)
