@@ -310,7 +310,6 @@ class Configuration:
     def __eq__(self, other):
         if not isinstance(other, Configuration):
             return False
-        # TODO: Robustify by using relative path.
         if self.problem != other.problem:
             return False
         if self.base_options != other.base_options:
