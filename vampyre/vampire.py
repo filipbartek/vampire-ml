@@ -175,7 +175,6 @@ class Problem:
         assert self.base_options is not None
         base_options = self.base_options.copy()
         base_options.update({'mode': mode})
-        # TODO: Use relative path.
         return Configuration(self.path, base_options=base_options, precedences=precedences, timeout=self.timeout)
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False):
