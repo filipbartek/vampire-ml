@@ -202,12 +202,12 @@ class Problem:
         # We assume that the equality symbol has the index 0, which is a convention in Vampire.
         head = np.asarray([0], dtype=np.uint)
         length = len(self.get_predicates())
-        tail = np.random.RandomState(seed).permutation(np.arange(1, length, dtype=np.uint))
+        tail = np.random.RandomState([0, seed]).permutation(np.arange(1, length, dtype=np.uint))
         return np.concatenate((head, tail))
 
     def random_function_precedence(self, seed=None):
         length = len(self.get_functions())
-        return np.random.RandomState(seed).permutation(np.arange(length, dtype=np.uint))
+        return np.random.RandomState([1, seed]).permutation(np.arange(length, dtype=np.uint))
 
 
 class Workspace:
