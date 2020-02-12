@@ -10,17 +10,15 @@ import scipy.stats
 import vampyre
 
 
-def save_all(df_solve, df_clausify, output, custom_dfs=None):
+def save_all(df_solve, df_clausify, output, df_custom=None):
     save_df(df_solve, 'runs_solve', output, index=False)
     save_df(df_clausify, 'runs_clausify', output, index=False)
-    if custom_dfs is not None:
-        df_custom = vampyre.vampire.Execution.concat_dfs(
-            value.assign(name=name) for (name, value) in custom_dfs.items() if value is not None)
+    if df_custom is not None:
         save_df(df_custom, 'runs_custom', output, index=False)
         save_terminations(df_custom, os.path.join(output, 'runs_custom_terminations.txt'))
     if df_solve is not None:
         save_terminations(df_solve, os.path.join(output, 'runs_solve_terminations.txt'))
-        save_problems(df_solve, df_clausify, output, custom_runs_df=custom_dfs)
+        save_problems(df_solve, df_clausify, output, custom_runs_df=df_custom)
 
 
 def save_df(df, base_name, output_dir=None, index=True):
@@ -130,9 +128,7 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
     # Aggregate memory across all runs
     problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg({'memory_used': agg_functions}))
     if custom_runs_df is not None:
-        for name, value in custom_runs_df.items():
-            if value is None:
-                continue
+        for name, value in custom_runs_df.groupby(['name']):
             value = value.set_index('problem_path')
             value = value[['exit_code', 'saturation_iterations']]
             # https://stackoverflow.com/a/40225796/4054250

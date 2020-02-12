@@ -212,7 +212,9 @@ def call(namespace):
         solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
         clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
         custom_dfs_joint = {name: vampyre.vampire.Execution.concat_dfs(value) for (name, value) in custom_dfs.items()}
-        results.save_all(solve_runs_df, clausify_runs_df, output_batch, custom_dfs_joint)
+        df_custom = vampyre.vampire.Execution.concat_dfs(
+            value.assign(name=name) for (name, value) in custom_dfs_joint.items() if value is not None)
+        results.save_all(solve_runs_df, clausify_runs_df, output_batch, df_custom)
 
 
 def run_score(exit_code, saturation_iterations, saturation_iterations_min, saturation_iterations_max):
