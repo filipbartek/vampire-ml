@@ -22,12 +22,10 @@ def learn_precedence(precedence_scores, symbol_type, problem=None, output_dir=No
     for precedence, score in precedence_scores:
         assert len(precedence) == symbol_count
         score_sum += score
-        for i in range(symbol_count):
-            for j in range(i + 1, symbol_count):
-                pi = precedence[i]
-                pj = precedence[j]
-                n[pi, pj] += 1
-                c[pi, pj] += score
+        precedence_inverse = invert_permutation(precedence)
+        n_part = np.tri(symbol_count, k=-1, dtype=np.uint).transpose()[precedence_inverse, :][:, precedence_inverse]
+        n += n_part
+        c += n_part * score
     with numpy_err_settings(invalid='ignore'):
         # Preference matrix. `v[i, j]` is the expected score of a run with the symbol pair (i, j).
         v = c / n
@@ -48,6 +46,13 @@ def learn_precedence(precedence_scores, symbol_type, problem=None, output_dir=No
     except ValueError:
         logging.debug('Preference heatmap plotting failed.', exc_info=True)
     return perm
+
+
+def invert_permutation(p):
+    # https://stackoverflow.com/a/25535723/4054250
+    s = np.empty(p.size, p.dtype)
+    s[p] = np.arange(p.size)
+    return s
 
 
 def plot_preference_heatmap(preference, permutation, symbol_type, problem, output_file=None):
@@ -113,14 +118,12 @@ def learn_precedence_lex(precedence_scores, symbol_type, problem=None, output_di
     c = np.zeros((symbol_count, symbol_count), dtype=np.uint)
     for precedence, (success, saturation_iterations) in precedence_scores:
         assert len(precedence) == symbol_count
-        for i in range(symbol_count):
-            for j in range(i + 1, symbol_count):
-                pi = precedence[i]
-                pj = precedence[j]
-                n[pi, pj] += 1
-                if success:
-                    n0[pi, pj] += 1
-                    c[pi, pj] += saturation_iterations
+        precedence_inverse = invert_permutation(precedence)
+        n_part = np.tri(symbol_count, k=-1, dtype=np.uint).transpose()[precedence_inverse, :][:, precedence_inverse]
+        n += n_part
+        if success:
+            n0 += n_part
+            c += n_part * saturation_iterations
     with numpy_err_settings(invalid='ignore'):
         # Preference matrix. `v[i, j]` is the expected score of a run with the symbol pair (i, j).
         failure_rate = 1 - n0 / n
