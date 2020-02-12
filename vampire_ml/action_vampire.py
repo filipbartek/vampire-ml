@@ -178,7 +178,8 @@ def call(namespace):
                 custom_dfs['default'].append(
                     execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
                 if max(len(problem.get_predicates()), len(problem.get_functions())) > namespace.learn_max_symbols:
-                    logging.debug('Precedence learning skipped because signature is too large.')
+                    logging.info(
+                        f'Precedence learning skipped because signature is too large. Predicates: {len(problem.get_predicates())}. Functions: {len(problem.get_functions())}. Maximum: {namespace.learn_max_symbols}.')
                 else:
                     for name, learn_precedence in precedence_learners.items():
                         try:
