@@ -15,7 +15,7 @@ def save_all(df_solve, df_clausify, output, custom_dfs=None):
     save_df(df_clausify, 'runs_clausify', output, index=False)
     if custom_dfs is not None:
         df_custom = vampyre.vampire.Execution.concat_dfs(
-            value.assign(name=name) for (name, value) in custom_dfs.items())
+            value.assign(name=name) for (name, value) in custom_dfs.items() if value is not None)
         save_df(df_custom, 'runs_custom', output, index=False)
         save_terminations(df_custom, os.path.join(output, 'runs_custom_terminations.txt'))
     if df_solve is not None:
