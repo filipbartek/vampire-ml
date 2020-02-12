@@ -131,6 +131,8 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
     problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg({'memory_used': agg_functions}))
     if custom_runs_df is not None:
         for name, value in custom_runs_df.items():
+            if value is None:
+                continue
             value = value.set_index('problem_path')
             value = value[['exit_code', 'saturation_iterations']]
             # https://stackoverflow.com/a/40225796/4054250
