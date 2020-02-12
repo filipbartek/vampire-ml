@@ -6,9 +6,9 @@ import os
 
 import pandas as pd
 
+import vampyre
 from utils import file_path_list
 from vampire_ml import results
-import vampyre
 
 
 def add_arguments(parser):
