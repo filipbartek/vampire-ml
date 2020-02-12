@@ -13,7 +13,8 @@ from vampire_ml import results
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
-    parser.add_argument('batch', nargs='+', help='glob pattern of batch configuration files')
+    parser.add_argument('batch', nargs='+',
+                        help='glob pattern of batch configuration files, for example "workspace/batches/*/batch.json"')
     parser.add_argument('--output', '-o', required=True, type=str, help='output directory')
 
 
