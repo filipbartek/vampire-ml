@@ -4,7 +4,6 @@ import argparse
 import logging
 import os
 
-import numpy as np
 import pandas as pd
 
 from utils import file_path_list
@@ -35,15 +34,7 @@ def concat_pickles(result_dirs, pickle_base_name):
             dfs.append(pd.read_pickle(os.path.join(result_dir, pickle_base_name)).assign(batch=result_dir))
         except FileNotFoundError:
             pass
-    return concat_dfs(dfs)
-
-
-def concat_dfs(dfs):
-    dfs = [df.astype({col: np.object for col in df.select_dtypes(['category'])}) for df in dfs]
-    if len(dfs) == 0:
-        return None
-    return pd.concat(dfs).astype({col: pd.CategoricalDtype() for col, field in vampyre.Run.fields.items() if
-                                  isinstance(field.dtype, pd.CategoricalDtype)})
+    return vampyre.vampire.Execution.concat_dfs(dfs)
 
 
 def pd_read_pickle_robust(path):
