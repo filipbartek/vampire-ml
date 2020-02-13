@@ -138,10 +138,10 @@ def learn_precedence_lex(precedence_scores, symbol_type, problem=None, output_di
     assert perm.shape == (symbol_count,)
     try:
         plot_preference_heatmap(failure_rate, perm, symbol_type, problem,
-                                output_file=os.path.join(output_dir, 'preferences_lex',
+                                output_file=os.path.join(output_dir, 'preferences',
                                                          f'{problem.name()}_{symbol_type}_failures'))
         plot_preference_heatmap(average_iterations, perm, symbol_type, problem,
-                                output_file=os.path.join(output_dir, 'preferences_lex',
+                                output_file=os.path.join(output_dir, 'preferences',
                                                          f'{problem.name()}_{symbol_type}_iterations'))
     except ValueError:
         logging.debug('Preference heatmap plotting failed.', exc_info=True)
