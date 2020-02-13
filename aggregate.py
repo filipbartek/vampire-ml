@@ -22,6 +22,8 @@ def add_arguments(parser):
 
 
 def call(namespace):
+    logging.info(f'Output directory: {namespace.output}')
+    logging.info(f'Batch glob patterns: {namespace.batch}')
     result_paths, _ = file_path_list.compose(glob_patterns=namespace.batch)
     result_dirs = [os.path.dirname(result_path) for result_path in result_paths]
     logging.info(f'Number of result directories: {len(result_dirs)}')
