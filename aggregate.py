@@ -24,6 +24,7 @@ def add_arguments(parser):
 def call(namespace):
     result_paths, _ = file_path_list.compose(glob_patterns=namespace.batch)
     result_dirs = [os.path.dirname(result_path) for result_path in result_paths]
+    logging.info(f'Number of result directories: {len(result_dirs)}')
     df_solve = concat_pickles(result_dirs, 'runs_solve.pkl')
     df_clausify = concat_pickles(result_dirs, 'runs_clausify.pkl')
     df_custom = concat_pickles(result_dirs, 'runs_custom.pkl')
