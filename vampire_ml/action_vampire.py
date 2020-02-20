@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.7
 
+import itertools
 import json
 import logging
 import os
@@ -59,36 +60,33 @@ def add_arguments(parser):
                         help='Which Vampire run configurations should be executed?')
 
 
-def learn_ltot(executions, problem=None, output_dir=None):
+def execution_base_score(execution):
+    if execution['exit_code'] == 0:
+        return execution['saturation_iterations']
+    return np.nan
+
+
+def generate_scores(executions, log_scale=False, normalize=False):
+    scores = map(lambda execution: execution_base_score(execution), executions)
+    scores = np.asarray(list(scores))
+    if log_scale:
+        scores = np.log(scores)
+    if normalize:
+        scores = (scores - np.nanmean(scores)) / np.nanstd(scores)
+    return scores
+
+
+def learn_ltot_general(executions, problem=None, output_dir=None, log_scale=False, normalize=False, failure_score=None):
+    scores = generate_scores(executions, log_scale=log_scale, normalize=normalize)
     good_precedences = dict()
     for precedence_option in executions[0].configuration.precedences.keys():
-        precedence_scores = ((execution.configuration.precedences[precedence_option], execution.score)
-                             for execution in executions)
-        symbol_type = {'predicate_precedence': 'predicate', 'function_precedence': 'function'}[precedence_option]
-        good_precedences[precedence_option] = precedence.learn_precedence(precedence_scores, symbol_type, problem,
-                                                                          output_dir=output_dir)
-    return good_precedences
-
-
-def learn_ltot_successful(executions, problem=None, output_dir=None):
-    return learn_ltot([execution for execution in executions if execution.result.exit_code == 0], problem, output_dir)
-
-
-def learn_ltot_lexicographic(executions, problem=None, output_dir=None):
-    good_precedences = dict()
-    for precedence_option in executions[0].configuration.precedences.keys():
-        precedence_scores = ((execution.configuration.precedences[precedence_option],
-                              (execution['exit_code'] == 0, execution['saturation_iterations']))
-                             for execution in executions)
+        precedence_scores = zip((execution.configuration.precedences[precedence_option] for execution in executions),
+                                scores)
         symbol_type = {'predicate_precedence': 'predicate', 'function_precedence': 'function'}[precedence_option]
         good_precedences[precedence_option] = precedence.learn_precedence_lex(precedence_scores, symbol_type, problem,
-                                                                              output_dir=output_dir)
+                                                                              output_dir=output_dir,
+                                                                              failure_score=failure_score)
     return good_precedences
-
-
-precedence_learners = {
-    'ltot_lex': learn_ltot_lexicographic
-}
 
 
 def call(namespace):
@@ -150,7 +148,6 @@ def call(namespace):
     solve_dfs = []
     clausify_dfs = []
     custom_dfs = {'default': list()}
-    custom_dfs.update({name: list() for name in precedence_learners.keys()})
     try:
         for problem_path in problem_paths:
             problem = vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path), workspace,
@@ -181,22 +178,51 @@ def call(namespace):
                     logging.info(
                         f'Precedence learning skipped because signature is too large. Predicates: {len(problem.get_predicates())}. Functions: {len(problem.get_functions())}. Maximum: {namespace.learn_max_symbols}.')
                 else:
-                    for name, learn_precedence in precedence_learners.items():
+                    params = itertools.product([False, True], ['ignore', 'dominate', 'mean', 'median', 'max'],
+                                               [None, 1, 2, 10, 100])
+                    for log_scale, failure_base, failure_factor in params:
+                        if (failure_base in ['ignore', 'dominate']) == (failure_factor is not None):
+                            continue
+                        name = f'ltot_general_{log_scale}_{failure_base}_{failure_factor}'
+                        if failure_base in ['ignore', 'dominate']:
+                            assert failure_factor is None
+                            failure_score = failure_base
+                        else:
+                            assert failure_base in ['mean', 'median', 'max']
+                            failure_base_value = None
+                            if failure_base == 'mean':
+                                failure_base_value = np.mean(saturation_iterations)
+                            if failure_base == 'median':
+                                failure_base_value = np.median(saturation_iterations)
+                            if failure_base == 'max':
+                                failure_base_value = np.max(saturation_iterations)
+                            assert failure_base_value is not None
+                            assert failure_factor is not None
+                            failure_score = failure_base_value * failure_factor
                         try:
-                            precedences = learn_precedence(executions, problem=problem,
-                                                           output_dir=os.path.join(output_batch, name))
+                            precedences = learn_ltot_general(executions, problem=problem,
+                                                             output_dir=os.path.join(output_batch, name),
+                                                             log_scale=log_scale,
+                                                             failure_score=failure_score)
                         except IndexError:
                             logging.debug('Learning failed.', exc_info=True)
                             continue
                         # TODO: Try to improve the permutation by two-point swaps (hillclimbing).
                         execution = problem.get_execution(precedences=precedences)
-                        logging.info({name: str(execution.result)})
+                        logging.info({'name': name, 'status': execution['status'], 'exit_code': execution['exit_code'],
+                                      'saturation_iterations': execution['saturation_iterations']})
                         if execution.result.exit_code == 0:
                             custom_points[name] = execution['saturation_iterations']
                         else:
                             custom_points[name] = None
-                        custom_dfs[name].append(
-                            execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
+                        if name not in custom_dfs:
+                            custom_dfs[name] = list()
+                        df = execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve)
+                        df['log_scale'] = log_scale
+                        df['failure_base'] = failure_base
+                        df['failure_factor'] = failure_factor
+                        df['failure_score'] = failure_score
+                        custom_dfs[name].append(df)
                 try:
                     plot_saturation_iterations_distribution(saturation_iterations, problem, len(executions),
                                                             custom_points, output_dir=os.path.join(output_batch,
