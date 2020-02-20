@@ -198,9 +198,9 @@ def call(namespace):
                         custom_dfs[name].append(
                             execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
                 try:
-                    plot_saturation_iterations_distribution(saturation_iterations, problem, custom_points,
-                                                            output_dir=os.path.join(output_batch,
-                                                                                    'saturation_iterations_distribution'))
+                    plot_saturation_iterations_distribution(saturation_iterations, problem, len(executions),
+                                                            custom_points, output_dir=os.path.join(output_batch,
+                                                                                                   'saturation_iterations_distribution'))
                 except (ValueError, np.linalg.LinAlgError, FloatingPointError):
                     logging.debug(
                         f'Plotting of histogram of saturation iterations failed. Unique measurements: {len(np.unique(saturation_iterations))}.',
@@ -247,11 +247,13 @@ def assign_scores(runs):
     return saturation_iterations_min, saturation_iterations_max, saturation_iterations
 
 
-def plot_saturation_iterations_distribution(saturation_iterations, problem, custom_points=None, output_dir=None):
+def plot_saturation_iterations_distribution(saturation_iterations, problem, execution_count, custom_points=None,
+                                            output_dir=None):
     plt.figure()
     # TODO: Fit lognorm or log-logistic similar.
     sns.distplot(saturation_iterations, rug=True, norm_hist=True)
-    plt.title(f'Distribution of saturation iteration counts in successful solve runs on problem {problem}')
+    plt.title(
+        f'Distribution of saturation iteration counts in successful solve runs ({len(saturation_iterations)}/{execution_count}) on problem {problem}')
     plt.ylabel('Density')
     plt.xlabel('Number of saturation iterations')
     if custom_points is not None:
