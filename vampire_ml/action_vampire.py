@@ -87,8 +87,6 @@ def learn_ltot_lexicographic(executions, problem=None, output_dir=None):
 
 
 precedence_learners = {
-    'ltot': learn_ltot,
-    'ltot_successful': learn_ltot_successful,
     'ltot_lex': learn_ltot_lexicographic
 }
 
@@ -164,7 +162,6 @@ def call(namespace):
                                                                    random_predicates=namespace.random_predicate_precedence,
                                                                    random_functions=namespace.random_function_precedence)
                 executions = list(executions)
-                _, _, saturation_iterations = assign_scores(executions)
                 solve_dfs.extend(
                     execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
                     execution in executions)
@@ -178,6 +175,8 @@ def call(namespace):
                     custom_points['default'] = None
                 custom_dfs['default'].append(
                     execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
+                saturation_iterations = [execution['saturation_iterations'] for execution in executions if
+                                         execution['exit_code'] == 0]
                 if max(len(problem.get_predicates()), len(problem.get_functions())) > namespace.learn_max_symbols:
                     logging.info(
                         f'Precedence learning skipped because signature is too large. Predicates: {len(problem.get_predicates())}. Functions: {len(problem.get_functions())}. Maximum: {namespace.learn_max_symbols}.')
@@ -216,36 +215,6 @@ def call(namespace):
         df_custom = vampyre.vampire.Execution.concat_dfs(
             value.assign(name=name) for (name, value) in custom_dfs_joint.items() if value is not None)
         results.save_all(solve_runs_df, clausify_runs_df, output_batch, df_custom)
-
-
-def run_score(exit_code, saturation_iterations, saturation_iterations_min, saturation_iterations_max):
-    if exit_code == 0:
-        if saturation_iterations is None:
-            raise RuntimeError('A result is missing the number of saturation loop iterations.')
-        if saturation_iterations_min == saturation_iterations == saturation_iterations_max:
-            return 0
-        return np.interp(saturation_iterations, [saturation_iterations_min, saturation_iterations_max], [0, 1])
-    else:
-        return 2
-
-
-def assign_score(run, saturation_iterations_min, saturation_iterations_max):
-    run.score = run_score(run.result.exit_code, run['saturation_iterations'], saturation_iterations_min,
-                          saturation_iterations_max)
-
-
-def assign_scores(runs):
-    saturation_iterations = np.asarray(
-        [run['saturation_iterations'] for run in runs if
-         run.result.exit_code == 0 and run['saturation_iterations'] is not None])
-    saturation_iterations_min = None
-    saturation_iterations_max = None
-    if len(saturation_iterations) >= 1:
-        saturation_iterations_min = saturation_iterations.min()
-        saturation_iterations_max = saturation_iterations.max()
-    for run in runs:
-        assign_score(run, saturation_iterations_min, saturation_iterations_max)
-    return saturation_iterations_min, saturation_iterations_max, saturation_iterations
 
 
 def plot_saturation_iterations_distribution(saturation_iterations, problem, execution_count, custom_points=None,

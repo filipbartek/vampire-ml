@@ -24,7 +24,6 @@ class Execution:
         self.configuration = configuration
         self.result = result
         self.path = path
-        self.score = None
 
     def __str__(self):
         return str({'path': self.path, 'exit_code': self.result.exit_code})
@@ -49,16 +48,14 @@ class Execution:
                                        pd.UInt64Dtype()),
         'predicates_count': Field(lambda job: len_robust(job.result.get_symbols('predicate')), pd.UInt64Dtype()),
         'functions_count': Field(lambda job: len_robust(job.result.get_symbols('function')), pd.UInt64Dtype()),
-        'clauses_count': Field(lambda job: len_robust(job.result.clauses), pd.UInt64Dtype()),
-        'score': Field(lambda job: job.score, np.float)
+        'clauses_count': Field(lambda job: len_robust(job.result.clauses), pd.UInt64Dtype())
     }
 
     field_names_clausify = ['output_dir', 'problem_path', 'status', 'exit_code', 'termination_reason',
                             'termination_phase', 'time_elapsed_process', 'time_elapsed_vampire', 'memory_used',
                             'predicates_count', 'functions_count', 'clauses_count']
     field_names_solve = ['output_dir', 'problem_path', 'status', 'exit_code', 'termination_reason', 'termination_phase',
-                         'time_elapsed_process', 'time_elapsed_vampire', 'memory_used', 'saturation_iterations',
-                         'score']
+                         'time_elapsed_process', 'time_elapsed_vampire', 'memory_used', 'saturation_iterations']
 
     def get_dataframe(self, field_names_obligatory=None):
         if field_names_obligatory is None:

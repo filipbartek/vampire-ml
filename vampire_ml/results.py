@@ -115,8 +115,6 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
         return res
 
     agg_functions = [np.mean, np.std, variation, np.min, np.max]
-    # Aggregate score across all runs
-    problems_df = problems_df.join(runs_df.groupby(['problem_path']).agg({'score': [np.mean, np.std]}))
     # Aggregate time measurements across successful runs
     problems_df = problems_df.join(runs_df[runs_df.exit_code == 0].groupby(['problem_path']).agg(
         {field_name: agg_functions for field_name in
