@@ -8,6 +8,7 @@ from itertools import chain
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 import seaborn as sns
 import yaml
 
@@ -250,8 +251,7 @@ def assign_scores(runs):
 def plot_saturation_iterations_distribution(saturation_iterations, problem, execution_count, custom_points=None,
                                             output_dir=None):
     plt.figure()
-    # TODO: Fit lognorm or log-logistic similar.
-    sns.distplot(saturation_iterations, rug=True, norm_hist=True)
+    sns.distplot(saturation_iterations, rug=True, norm_hist=True, kde=False, fit=scipy.stats.fisk)
     plt.title(
         f'Distribution of saturation iteration counts in successful solve runs ({len(saturation_iterations)}/{execution_count}) on problem {problem}')
     plt.ylabel('Density')
