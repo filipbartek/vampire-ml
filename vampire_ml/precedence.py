@@ -86,8 +86,8 @@ def construct_good_permutation_lex(failure_rate, average_iterations):
     # s[i] = total score for row i - total score for column i
     # s[i] is the score we get by picking symbol i as the first symbol.
     # Symbol i should be picked as the first greedily if it minimizes s[i].
-    # TODO: Test with all-nan slice (1 run).
     failure_rate = np.nan_to_num(failure_rate, nan=np.nanmean(failure_rate))
+    # TODO: Get rid of the warning with all-nan average_iterations.
     average_iterations = np.nan_to_num(average_iterations, nan=np.nanmean(average_iterations))
     s_failure_rate = np.sum(failure_rate, axis=1).flatten() - np.sum(failure_rate, axis=0).flatten()
     s_average_iterations = np.sum(average_iterations, axis=1).flatten() - np.sum(average_iterations, axis=0).flatten()
