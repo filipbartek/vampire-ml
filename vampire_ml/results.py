@@ -11,12 +11,26 @@ import scipy.stats
 def save_all(df_solve, df_clausify, output, df_custom=None):
     save_df(df_solve, 'runs_solve', output, index=False)
     save_df(df_clausify, 'runs_clausify', output, index=False)
+    if df_solve is not None:
+        save_terminations(df_solve, os.path.join(output, 'runs_solve_terminations.txt'))
+        problems_df = save_problems(df_solve, df_clausify, output, custom_runs_df=df_custom)
+        add_normalized_iterations(df_custom, problems_df)
     if df_custom is not None:
         save_df(df_custom, 'runs_custom', output, index=False)
         save_terminations(df_custom, os.path.join(output, 'runs_custom_terminations.txt'))
-    if df_solve is not None:
-        save_terminations(df_solve, os.path.join(output, 'runs_solve_terminations.txt'))
-        save_problems(df_solve, df_clausify, output, custom_runs_df=df_custom)
+
+
+def add_normalized_iterations(df_custom, problems_df):
+    means = problems_df[('saturation_iterations', 'mean')]
+    stds = problems_df[('saturation_iterations', 'std')]
+
+    def normalized_iterations(row):
+        if row.exit_code != 0:
+            return np.nan
+        problem_path = row.problem_path
+        return (row.saturation_iterations - means[problem_path]) / stds[problem_path]
+
+    df_custom['saturation_iterations_normalized'] = df_custom.apply(normalized_iterations, axis=1)
 
 
 def save_df(df, base_name, output_dir=None, index=True):
@@ -50,6 +64,7 @@ def save_problems(solve_runs_df, clausify_runs_df, output_batch, problem_paths=N
     problems_df = generate_problems_df(solve_runs_df, clausify_runs_df, problem_paths, problem_base_path,
                                        custom_runs_df)
     save_df(problems_df, 'problems', output_batch)
+    return problems_df
 
 
 def fill_category_na(df, value='NA', inplace=False):
