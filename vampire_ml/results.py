@@ -7,8 +7,6 @@ import numpy as np
 import pandas as pd
 import scipy.stats
 
-import vampyre
-
 
 def save_all(df_solve, df_clausify, output, df_custom=None):
     save_df(df_solve, 'runs_solve', output, index=False)
