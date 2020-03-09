@@ -173,7 +173,7 @@ class Problem:
         return self.workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False,
-                                      reverse=True):
+                                      reverse=False):
         # TODO: Parallelize.
         # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
         # TODO: Allow solving for reverse precedences automatically.
