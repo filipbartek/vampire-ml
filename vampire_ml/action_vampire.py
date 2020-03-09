@@ -257,15 +257,16 @@ def call(namespace):
                                 'function_precedence': 'function'
                             }[precedence_option]
                             perm = precedence.learn_ltot(pair_scores, symbol_type=symbol_type)
-                            json.dump({
-                                'name': name,
-                                'symbol_type': symbol_type,
-                                'n_nan_pairs': np.count_nonzero(np.isnan(pair_scores)),
-                                'instance': str(reg),
-                                'train': reg.score(x_train, y_train),
-                                'test': reg.score(x_test, y_test),
-                                'greedy_precedence': str(perm)
-                            }, sys.stderr, indent=4)
+                            with np.printoptions(threshold=16, edgeitems=8):
+                                json.dump({
+                                    'name': name,
+                                    'symbol_type': symbol_type,
+                                    'n_nan_pairs': np.count_nonzero(np.isnan(pair_scores)),
+                                    'instance': str(reg),
+                                    'train': reg.score(x_train, y_train),
+                                    'test': reg.score(x_test, y_test),
+                                    'greedy_precedence': str(perm)
+                                }, sys.stderr, indent=4)
                             stats[(symbol_type, 'train')] = reg.score(x_train, y_train)
                             stats[(symbol_type, 'test')] = reg.score(x_test, y_test)
                             stats[(symbol_type, 'nonzero_coefs')] = np.count_nonzero(reg.coef_)
