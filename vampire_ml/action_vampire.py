@@ -304,6 +304,7 @@ def call(namespace):
                                 'pair_scores.n_nan': np.count_nonzero(np.isnan(pair_scores)),
                                 'reg.score.train': reg.score(x_train, y_train),
                                 'reg.score.test': reg.score(x_test, y_test),
+                                'reg.coefs.n': len(reg.coef_),
                                 'reg.coefs.n_nonzero': np.count_nonzero(reg.coef_)
                             }
                             if isinstance(reg, Lasso) or isinstance(reg, LassoCV):
