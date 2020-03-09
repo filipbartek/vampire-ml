@@ -18,6 +18,7 @@ import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
 from sklearn.linear_model import Lasso, LassoCV, LinearRegression, RidgeCV
+from sklearn.svm import LinearSVR
 
 import vampyre
 from utils import file_path_list
@@ -266,7 +267,8 @@ def call(namespace):
                         (LinearRegression(copy_X=False), None),
                         (LassoCV(copy_X=False), None),
                         (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01}),
-                        (RidgeCV(), None)
+                        (RidgeCV(), None),
+                        (LinearSVR(C=0.1), {'C': 0.1})
                     ])
                     for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, (reg, reg_params) in params:
                         reg_type_name = type(reg).__name__
@@ -310,8 +312,8 @@ def call(namespace):
                             }
                             if isinstance(reg, LassoCV) or isinstance(reg, RidgeCV):
                                 cur_stats['reg.alpha'] = reg.alpha_
-                            if isinstance(reg, Lasso) or isinstance(reg, LassoCV):
-                                cur_stats['reg.n_iter'] = reg.n_iter_
+                            if isinstance(reg, Lasso) or isinstance(reg, LassoCV) or isinstance(reg, LinearSVR):
+                                cur_stats['reg.n_iter'] = int(reg.n_iter_)
                             if isinstance(reg, LassoCV):
                                 cur_stats['reg.alphas.min'] = reg.alphas_.min()
                                 cur_stats['reg.alphas.max'] = reg.alphas_.max()
