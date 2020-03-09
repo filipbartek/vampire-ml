@@ -59,8 +59,7 @@ def add_arguments(parser):
     parser.add_argument('--no-clausify', action='store_true', help='Omit clausify runs. Compatible with stock Vampire.')
     parser.add_argument('--random-predicate-precedence', action='store_true')
     parser.add_argument('--random-function-precedence', action='store_true')
-    parser.add_argument('--learn-max-symbols', default=1024, type=int,
-                        help='Maximum signature size with which learning is enabled.')
+    parser.add_argument('--learn-max-pair-values', type=int, default=int(1e9))
     # TODO: Clean up.
     parser.add_argument('--run-policy', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
                         help='Which Vampire run configurations should be executed?')
@@ -214,9 +213,16 @@ def call(namespace):
                     execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
                 saturation_iterations = [execution['saturation_iterations'] for execution in executions if
                                          execution['exit_code'] == 0]
-                if max(len(problem.get_predicates()), len(problem.get_functions())) > namespace.learn_max_symbols:
-                    logging.info(
-                        f'Precedence learning skipped because signature is too large. Predicates: {len(problem.get_predicates())}. Functions: {len(problem.get_functions())}. Maximum: {namespace.learn_max_symbols}.')
+                pair_values = max(len(problem.get_predicates()), len(problem.get_functions())) ** 2 * len(executions)
+                logging.info(json.dumps({
+                    'n_executions': len(executions),
+                    'n_predicates': len(problem.get_predicates()),
+                    'n_functions': len(problem.get_functions()),
+                    'n_pair_values': pair_values,
+                    'max_pair_values': namespace.learn_max_pair_values
+                }, indent=4))
+                if pair_values > namespace.learn_max_pair_values:
+                    logging.info('Precedence learning skipped because the training data is too large.')
                 else:
                     scores_base = np.fromiter(map(execution_base_score, executions), dtype=np.float,
                                               count=len(executions)).reshape(-1, 1)
