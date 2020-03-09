@@ -17,7 +17,7 @@ import sklearn.linear_model
 import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
-from sklearn.linear_model import Lasso, LassoCV, LinearRegression
+from sklearn.linear_model import Lasso, LassoCV, LinearRegression, RidgeCV
 
 import vampyre
 from utils import file_path_list
@@ -265,7 +265,8 @@ def call(namespace):
                         (MeanRegression(), None),
                         (LinearRegression(copy_X=False), None),
                         (LassoCV(copy_X=False), None),
-                        (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01})
+                        (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01}),
+                        (RidgeCV(), None)
                     ])
                     for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, (reg, reg_params) in params:
                         reg_type_name = type(reg).__name__
@@ -307,14 +308,15 @@ def call(namespace):
                                 'reg.coefs.n': len(reg.coef_),
                                 'reg.coefs.n_nonzero': np.count_nonzero(reg.coef_)
                             }
+                            if isinstance(reg, LassoCV) or isinstance(reg, RidgeCV):
+                                cur_stats['reg.alpha'] = reg.alpha_
                             if isinstance(reg, Lasso) or isinstance(reg, LassoCV):
                                 cur_stats['reg.n_iter'] = reg.n_iter_
-                                if isinstance(reg, LassoCV):
-                                    cur_stats['reg.alpha'] = reg.alpha_
-                                    cur_stats['reg.alphas.min'] = reg.alphas_.min()
-                                    cur_stats['reg.alphas.max'] = reg.alphas_.max()
-                                    plot_mse_path(reg, os.path.join(output_batch, 'mse_path', str(problem), symbol_type,
-                                                                    f'{name}.svg'))
+                            if isinstance(reg, LassoCV):
+                                cur_stats['reg.alphas.min'] = reg.alphas_.min()
+                                cur_stats['reg.alphas.max'] = reg.alphas_.max()
+                                plot_mse_path(reg, os.path.join(output_batch, 'mse_path', str(problem), symbol_type,
+                                                                f'{name}.svg'))
                             with np.printoptions(threshold=16, edgeitems=8):
                                 logging.info(json.dumps({
                                     'symbol_type': symbol_type,
