@@ -179,8 +179,12 @@ class Problem:
         # TODO: Allow solving for reverse precedences automatically.
         if solve_count > 1 and not random_predicates and not random_functions:
             warnings.warn('Multiple solve runs without randomized precedences')
+        seed_count = solve_count
+        if reverse:
+            seed_count = solve_count // 2
+            solve_count = seed_count * 2
         with tqdm(total=solve_count, desc=self.path, unit='run') as t:
-            for seed in range(solve_count):
+            for seed in range(seed_count):
                 precedences = dict()
                 if random_predicates:
                     precedences['predicate_precedence'] = self.random_predicate_precedence(seed)
@@ -190,6 +194,7 @@ class Problem:
                 execution = self.get_execution(precedences=precedences)
                 assert execution.path == self.get_configuration_path(precedences=precedences)
                 yield execution
+                t.update()
                 if reverse:
                     reversed_precedences = dict()
                     if random_predicates:
@@ -202,7 +207,7 @@ class Problem:
                     execution = self.get_execution(precedences=reversed_precedences)
                     assert execution.path == self.get_configuration_path(precedences=reversed_precedences)
                     yield execution
-                t.update()
+                    t.update()
 
     def random_predicate_precedence(self, seed=None):
         # The equality symbol should be placed first in all the predicate precedences.
