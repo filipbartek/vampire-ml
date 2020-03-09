@@ -17,10 +17,12 @@ import sklearn.linear_model
 import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
+from sklearn.linear_model import Lasso, LassoCV, LinearRegression
 
 import vampyre
 from utils import file_path_list
 from utils import makedirs_open
+from utils import dict_to_name
 from . import precedence
 from . import results
 from .sklearn_extensions import MeanRegression, QuantileImputer, Flattener
@@ -259,15 +261,28 @@ def call(namespace):
                             'x_test': x_test,
                             'flattener': flattener
                         }
-                    params = itertools.chain(
-                        itertools.product([False, True], [True], [1], [1, 2, 10],
-                                          ['mean', 'linear_regression', 'lasso_cv'], [1.0]),
-                        itertools.product([False, True], [True], [1], [1, 2, 10],
-                                          ['lasso'], [0.2, 0.1, 0.01])
-                    )
-                    for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, pair_scoring, alpha in params:
-                        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{pair_scoring}-{alpha}'.replace(
-                            '.', '_')
+                    params = itertools.product([False, True], [True], [1], [1, 2, 10], [
+                        (MeanRegression(), None),
+                        (LinearRegression(copy_X=False), None),
+                        (LassoCV(copy_X=False), None),
+                        (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01})
+                    ])
+                    for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, (reg, reg_params) in params:
+                        reg_type_name = type(reg).__name__
+                        reg_name = f'{reg_type_name}_{dict_to_name(reg_params)}'
+                        logging.info(json.dumps({
+                            'log_scale': log_scale,
+                            'normalize': normalize,
+                            'failure_penalty_quantile': failure_penalty_quantile,
+                            'failure_penalty_factor': failure_penalty_factor,
+                            'reg': {
+                                'name': reg_name,
+                                'type_name': reg_type_name,
+                                'params': reg_params,
+                                'instance': str(reg)
+                            }
+                        }, indent=4))
+                        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{reg_name}'
                         logging.info(f'Processing {name}')
                         y_train, y_test, y_pipeline = preprocess_scores(y_base_train, y_base_test,
                                                                         failure_penalty_quantile,
@@ -278,12 +293,6 @@ def call(namespace):
                             x_train = data['x_train']
                             x_test = data['x_test']
                             flattener = data['flattener']
-                            reg = {
-                                'mean': MeanRegression(),
-                                'linear_regression': sklearn.linear_model.LinearRegression(copy_X=False),
-                                'lasso': sklearn.linear_model.Lasso(alpha=alpha, copy_X=False),
-                                'lasso_cv': sklearn.linear_model.LassoCV(copy_X=False)
-                            }[pair_scoring]
                             reg.fit(x_train, y_train)
                             pair_scores = flattener.inverse_transform(reg.coef_)[0]
                             symbol_type = {
@@ -297,9 +306,9 @@ def call(namespace):
                                 'reg.score.test': reg.score(x_test, y_test),
                                 'reg.coefs.n_nonzero': np.count_nonzero(reg.coef_)
                             }
-                            if pair_scoring in ['lasso', 'lasso_cv']:
+                            if isinstance(reg, Lasso) or isinstance(reg, LassoCV):
                                 cur_stats['reg.n_iter'] = reg.n_iter_
-                                if pair_scoring == 'lasso_cv':
+                                if isinstance(reg, LassoCV):
                                     cur_stats['reg.alpha'] = reg.alpha_
                                     cur_stats['reg.alphas.min'] = reg.alphas_.min()
                                     cur_stats['reg.alphas.max'] = reg.alphas_.max()
@@ -308,7 +317,6 @@ def call(namespace):
                             with np.printoptions(threshold=16, edgeitems=8):
                                 logging.info(json.dumps({
                                     'symbol_type': symbol_type,
-                                    'reg': str(reg),
                                     'stats': cur_stats,
                                     'greedy_precedence': str(perm)
                                 }, indent=4))
@@ -341,8 +349,10 @@ def call(namespace):
                         df['normalize'] = normalize
                         df['failure_penalty_quantile'] = failure_penalty_quantile
                         df['failure_penalty_factor'] = failure_penalty_factor
-                        df['pair_scoring'] = pair_scoring
-                        df['alpha'] = alpha
+                        df['reg_type_name'] = reg_type_name
+                        if reg_params is not None:
+                            for key, value in reg_params.items():
+                                df[('reg', key)] = value
                         for key, value in stats.items():
                             df[key] = value
                         custom_dfs[name].append(df)

@@ -4,6 +4,9 @@ import os
 from contextlib import contextmanager
 
 import numpy as np
+import yaml
+
+import flatten_dict
 
 
 def makedirs_open(dir_path, file, *args):
@@ -55,3 +58,19 @@ def truncate(s, n, ellipsis_str='...'):
     if n is None:
         return s
     return s[:n - len(ellipsis_str)] + ellipsis_str if len(s) > n else s
+
+
+def dict_to_name(d, line_separator='_', key_level_separator='_', key_value_separator='_'):
+    if d is None:
+        d = dict()
+    return yaml.safe_dump(flatten_dict.flatten(d, reducer='path'), sort_keys=False)\
+        .rstrip()\
+        .replace('\n', line_separator)\
+        .replace('/', key_level_separator)\
+        .replace(': ', key_value_separator)\
+        .replace('.', '')\
+        .replace('{}', '')
+
+
+assert dict_to_name(None) == ''
+assert dict_to_name({'a': 0.1, 'c': {'d': 'str'}, 'b': 2}) == 'a_01_c_d_str_b_2'
