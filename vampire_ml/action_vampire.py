@@ -86,31 +86,47 @@ def pairs_hit(precedences):
     return res
 
 
-def preprocess_scores(scores_base, failure_penalty_quantile, failure_penalty_factor, log_scale, normalize):
-    scores = scores_base.copy()
+def get_y_pipeline(failure_penalty_quantile, failure_penalty_factor, log_scale, normalize):
     y_pipeline_steps = list()
-    quantile_imputer = None
     if failure_penalty_quantile is not None:
-        quantile_imputer = QuantileImputer(copy=False, quantile=failure_penalty_quantile, factor=failure_penalty_factor)
-        y_pipeline_steps.append(('quantile', quantile_imputer))
+        y_pipeline_steps.append(
+            ('quantile', QuantileImputer(copy=False, quantile=failure_penalty_quantile, factor=failure_penalty_factor)))
     if log_scale:
         y_pipeline_steps.append(('log', sklearn.preprocessing.FunctionTransformer(func=np.log)))
     if normalize:
         y_pipeline_steps.append(('normalize', sklearn.preprocessing.StandardScaler(copy=False)))
-    y_pipeline_steps.append(('passthrough', 'passthrough'))
-    # TODO: Expose the y pipeline so that it can be reused for prediction.
-    y_pipeline = sklearn.pipeline.Pipeline(y_pipeline_steps)
-    scores = y_pipeline.fit_transform(scores)[:, 0]
-    json.dump({
-        'count': len(scores),
-        'nan_count': np.count_nonzero(np.isnan(scores)),
-        'mean': np.nanmean(scores),
-        'std': np.nanstd(scores),
-        'max': np.nanmax(scores)
-    }, sys.stderr, indent=4)
-    if quantile_imputer is not None:
-        logging.info({'failure_score': quantile_imputer.fill_value})
-    return scores
+    if len(y_pipeline_steps) == 0:
+        y_pipeline_steps.append(('passthrough', 'passthrough'))
+    return sklearn.pipeline.Pipeline(y_pipeline_steps)
+
+
+def preprocess_scores(y_train, y_test, failure_penalty_quantile, failure_penalty_factor, log_scale, normalize):
+    y_pipeline = get_y_pipeline(failure_penalty_quantile, failure_penalty_factor, log_scale, normalize)
+    y_train = y_pipeline.fit_transform(y_train.copy())[:, 0]
+    y_test = y_pipeline.transform(y_test.copy())[:, 0]
+    logging.info('scores_preprocessed: ' + json.dumps({
+        'y_train': {
+            'count': len(y_train),
+            'nan_count': np.count_nonzero(np.isnan(y_train)),
+            'mean': np.nanmean(y_train),
+            'std': np.nanstd(y_train),
+            'min': np.nanmin(y_train),
+            'max': np.nanmax(y_train)
+        },
+        'y_test': {
+            'count': len(y_test),
+            'nan_count': np.count_nonzero(np.isnan(y_test)),
+            'mean': np.nanmean(y_test),
+            'std': np.nanstd(y_test),
+            'min': np.nanmin(y_test),
+            'max': np.nanmax(y_test)
+        }
+    }, indent=4))
+    try:
+        logging.debug({'failure_score': y_pipeline['quantile'].fill_value})
+    except KeyError:
+        pass
+    return y_train, y_test, y_pipeline
 
 
 def call(namespace):
@@ -204,52 +220,64 @@ def call(namespace):
                 else:
                     scores_base = np.fromiter(map(execution_base_score, executions), dtype=np.float,
                                               count=len(executions)).reshape(-1, 1)
-                    json.dump({
+                    logging.info('scores_base: ' + json.dumps({
                         'count': len(scores_base),
                         'nan_count': np.count_nonzero(np.isnan(scores_base)),
                         'mean': np.nanmean(scores_base),
                         'std': np.nanstd(scores_base),
                         'max': np.nanmax(scores_base)
-                    }, sys.stderr, indent=4)
+                    }, indent=4))
+                    precedence_options = executions[0].configuration.precedences.keys()
+                    precedences_by_symbol_type = {
+                        precedence_option: [execution.configuration.precedences[precedence_option] for execution in
+                                            executions] for precedence_option in precedence_options}
+                    splitting = sklearn.model_selection.train_test_split(scores_base,
+                                                                         *precedences_by_symbol_type.values(),
+                                                                         shuffle=False)
+                    assert len(splitting) == 2 * (len(precedence_options) + 1)
+                    y_base_train = splitting[0]
+                    y_base_test = splitting[1]
                     symbol_type_preprocessed_data = dict()
-                    for precedence_option in executions[0].configuration.precedences.keys():
-                        precedences = [execution.configuration.precedences[precedence_option] for execution in
-                                       executions]
+                    for i, precedence_option in enumerate(precedence_options):
+                        x_train = splitting[2 * (i + 1)]
+                        x_test = splitting[2 * (i + 1) + 1]
                         flattener = Flattener()
                         pipeline = sklearn.pipeline.Pipeline([
                             ('pairs_hit', sklearn.preprocessing.FunctionTransformer(func=pairs_hit)),
                             ('flatten', flattener)
                         ])
-                        x = pipeline.fit_transform(precedences)
+                        x_train = pipeline.fit_transform(x_train)
+                        x_test = pipeline.transform(x_test)
                         symbol_type_preprocessed_data[precedence_option] = {
-                            'x': x,
+                            'x_train': x_train,
+                            'x_test': x_test,
                             'flattener': flattener
                         }
                     params = itertools.chain(
                         itertools.product([False, True], [True], [1], [1, 2, 10],
                                           ['mean', 'linear_regression', 'lasso_cv'], [1.0]),
                         itertools.product([False, True], [True], [1], [1, 2, 10],
-                                          ['lasso'], [0.01, 0.1, 0.2, 1.0])
+                                          ['lasso'], [0.2, 0.1, 0.01])
                     )
                     for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, pair_scoring, alpha in params:
-                        name = f'ltot_{log_scale}_{normalize}_{failure_penalty_quantile}_{failure_penalty_factor}_{pair_scoring}_{alpha}'
-                        # TODO: Fit score preprocessing only on the training set.
-                        y = preprocess_scores(scores_base, failure_penalty_quantile, failure_penalty_factor,
-                                              log_scale, normalize)
+                        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{pair_scoring}-{alpha}'.replace(
+                            '.', '_')
+                        logging.info(f'Processing {name}')
+                        y_train, y_test, y_pipeline = preprocess_scores(y_base_train, y_base_test,
+                                                                        failure_penalty_quantile,
+                                                                        failure_penalty_factor, log_scale, normalize)
                         good_precedences = dict()
                         stats = dict()
                         for precedence_option, data in symbol_type_preprocessed_data.items():
-                            x = data['x']
+                            x_train = data['x_train']
+                            x_test = data['x_test']
                             flattener = data['flattener']
-                            # TODO: Disable copying of x in transformers.
                             reg = {
                                 'mean': MeanRegression(),
                                 'linear_regression': sklearn.linear_model.LinearRegression(copy_X=False),
                                 'lasso': sklearn.linear_model.Lasso(alpha=alpha, copy_X=False),
                                 'lasso_cv': sklearn.linear_model.LassoCV(copy_X=False)
                             }[pair_scoring]
-                            x_train, x_test, y_train, y_test = sklearn.model_selection.train_test_split(x, y,
-                                                                                                        shuffle=False)
                             reg.fit(x_train, y_train)
                             pair_scores = flattener.inverse_transform(reg.coef_)[0]
                             symbol_type = {
@@ -257,25 +285,29 @@ def call(namespace):
                                 'function_precedence': 'function'
                             }[precedence_option]
                             perm = precedence.learn_ltot(pair_scores, symbol_type=symbol_type)
-                            with np.printoptions(threshold=16, edgeitems=8):
-                                json.dump({
-                                    'name': name,
-                                    'symbol_type': symbol_type,
-                                    'n_nan_pairs': np.count_nonzero(np.isnan(pair_scores)),
-                                    'instance': str(reg),
-                                    'train': reg.score(x_train, y_train),
-                                    'test': reg.score(x_test, y_test),
-                                    'greedy_precedence': str(perm)
-                                }, sys.stderr, indent=4)
-                            stats[(symbol_type, 'train')] = reg.score(x_train, y_train)
-                            stats[(symbol_type, 'test')] = reg.score(x_test, y_test)
-                            stats[(symbol_type, 'nonzero_coefs')] = np.count_nonzero(reg.coef_)
+                            cur_stats = {
+                                'pair_scores.n_nan': np.count_nonzero(np.isnan(pair_scores)),
+                                'reg.score.train': reg.score(x_train, y_train),
+                                'reg.score.test': reg.score(x_test, y_test),
+                                'reg.coefs.n_nonzero': np.count_nonzero(reg.coef_)
+                            }
                             if pair_scoring in ['lasso', 'lasso_cv']:
-                                stats[(symbol_type, 'n_iter')] = reg.n_iter_
+                                cur_stats['reg.n_iter'] = reg.n_iter_
                                 if pair_scoring == 'lasso_cv':
-                                    stats[(symbol_type, 'alpha')] = reg.alpha_
-                                    stats[(symbol_type, 'alphas.min')] = reg.alphas_.min()
-                                    stats[(symbol_type, 'alphas.max')] = reg.alphas_.max()
+                                    cur_stats['reg.alpha'] = reg.alpha_
+                                    cur_stats['reg.alphas.min'] = reg.alphas_.min()
+                                    cur_stats['reg.alphas.max'] = reg.alphas_.max()
+                                    plot_mse_path(reg, os.path.join(output_batch, 'mse_path', str(problem), symbol_type,
+                                                                    f'{name}.svg'))
+                            with np.printoptions(threshold=16, edgeitems=8):
+                                logging.info(json.dumps({
+                                    'symbol_type': symbol_type,
+                                    'reg': str(reg),
+                                    'stats': cur_stats,
+                                    'greedy_precedence': str(perm)
+                                }, indent=4))
+                            for key, value in cur_stats.items():
+                                stats[(symbol_type, key)] = value
                             good_precedences[precedence_option] = perm
                             try:
                                 output_dir = os.path.join(output_batch, 'ltot', name)
@@ -286,8 +318,12 @@ def call(namespace):
                             except ValueError:
                                 logging.debug('Preference heatmap plotting failed.', exc_info=True)
                         execution = problem.get_execution(precedences=good_precedences)
-                        logging.info({'name': name, 'status': execution['status'], 'exit_code': execution['exit_code'],
-                                      'saturation_iterations': execution['saturation_iterations']})
+                        logging.info(json.dumps({
+                            'status': execution['status'],
+                            'exit_code': execution['exit_code'],
+                            'saturation_iterations': execution['saturation_iterations'],
+                            'score': y_pipeline.transform([[execution_base_score(execution)]])[0, 0]
+                        }, indent=4))
                         if execution.result.exit_code == 0:
                             custom_points[name] = execution['saturation_iterations']
                         else:
@@ -343,3 +379,20 @@ def plot_saturation_iterations_distribution(saturation_iterations, problem, exec
     else:
         plt.show()
     plt.close()
+
+
+def plot_mse_path(reg, output_file=None):
+    plt.figure()
+    plt.title(output_file)
+    plt.errorbar(x=reg.alphas_, y=reg.mse_path_.mean(axis=1), yerr=reg.mse_path_.std(axis=1), label='Alphas grid')
+    plt.axvline(reg.alpha_, 0, 1, label=f'Final alpha ({reg.alpha_})', color='C1')
+    plt.xscale('log')
+    plt.ylabel('MSE')
+    plt.xlabel('alpha')
+    plt.legend()
+    if output_file is not None:
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        plt.savefig(output_file, bbox_inches='tight')
+        logging.debug(f'Plot saved: {output_file}')
+    else:
+        plt.show()
