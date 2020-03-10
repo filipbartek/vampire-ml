@@ -21,9 +21,9 @@ from sklearn.linear_model import Lasso, LassoCV, LinearRegression, RidgeCV
 from sklearn.svm import LinearSVR
 
 import vampyre
+from utils import dict_to_name
 from utils import file_path_list
 from utils import makedirs_open
-from utils import dict_to_name
 from . import precedence
 from . import results
 from .sklearn_extensions import MeanRegression, QuantileImputer, Flattener
