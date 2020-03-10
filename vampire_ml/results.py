@@ -44,7 +44,7 @@ def save_terminations(solve_runs_df, output_batch):
 
     # Distribution of run terminations
     terminations = solve_runs_df.groupby(termination_fieldnames).size()
-    print('Distribution of solve run terminations:', terminations, sep='\n')
+    print('Distribution of run terminations:', terminations, sep='\n')
     os.makedirs(os.path.dirname(output_batch), exist_ok=True)
     with pd.option_context('display.max_rows', None):
         print(terminations, file=open(output_batch, 'w'))
