@@ -15,7 +15,10 @@ class MeanRegression(RegressorMixin, LinearModel):
             if len(y_selected) == 0:
                 continue
             self.coef_[i] = y_selected.mean()
-        self.coef_ /= np.mean(np.sum(X, axis=1))
+        mean_positive_feature_count_per_sample = np.mean(np.sum(X, axis=1))
+        assert mean_positive_feature_count_per_sample >= 0
+        if mean_positive_feature_count_per_sample != 0:
+            self.coef_ /= mean_positive_feature_count_per_sample
         self.intercept_ = 0.
         return self
 
