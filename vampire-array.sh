@@ -12,7 +12,7 @@ export SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1}
 # sbatch parameters
 OUTPUT_SLURM=${OUTPUT_SLURM:-$OUTPUT/slurm}
 PROBLEMS=${PROBLEMS:-problems_cnf_fof.txt}
-PROBLEMS_COUNT=$(wc -l < "$PROBLEMS")
+PROBLEMS_COUNT=$(wc -l <"$PROBLEMS")
 CPUS_PER_TASK=${CPUS_PER_TASK:-1}
 PARTITION=${PARTITION:-compute}
 MAX_ARRAY_SIZE=$(scontrol show config | grep MaxArraySize | awk '{split($0, a, "="); print a[2]}' | sed 's/^ *//g')
@@ -35,9 +35,9 @@ ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_T
 
 BATCHES_DIR="$OUTPUT/batches/$ARRAY_JOB_ID"
 mkdir -p "$BATCHES_DIR"
-git rev-parse --verify HEAD > "$BATCHES_DIR/git-commit-sha.txt"
-env | sort > "$BATCHES_DIR/env.txt"
-echo "$@" > "$BATCHES_DIR/parameters.txt"
+git rev-parse --verify HEAD >"$BATCHES_DIR/git-commit-sha.txt"
+env | sort >"$BATCHES_DIR/env.txt"
+echo "$@" >"$BATCHES_DIR/parameters.txt"
 
 export ARRAY_JOB_ID
 sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:aggregate" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" aggregate.sh
