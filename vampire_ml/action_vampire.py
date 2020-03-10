@@ -136,6 +136,171 @@ def preprocess_scores(y_train, y_test, failure_penalty_quantile, failure_penalty
     return y_train, y_test, y_pipeline
 
 
+def learn(executions, problem, output_batch):
+    custom_dfs = dict()
+    custom_points = dict()
+    # TODO: Learn generic (across problems) pairwise preference estimator based on simple symbol features.
+    scores_base = np.fromiter(map(execution_base_score, executions), dtype=np.float,
+                              count=len(executions)).reshape(-1, 1)
+    logging.info('scores_base: ' + json.dumps({
+        'count': len(scores_base),
+        'nan_count': np.count_nonzero(np.isnan(scores_base)),
+        'mean': np.nanmean(scores_base),
+        'std': np.nanstd(scores_base),
+        'max': np.nanmax(scores_base)
+    }, indent=4))
+    precedence_options = executions[0].configuration.precedences.keys()
+    precedences_by_symbol_type = {
+        precedence_option: [execution.configuration.precedences[precedence_option] for execution in executions] for
+        precedence_option in precedence_options}
+    splitting = sklearn.model_selection.train_test_split(scores_base,
+                                                         *precedences_by_symbol_type.values(),
+                                                         shuffle=False)
+    assert len(splitting) == 2 * (len(precedence_options) + 1)
+    y_base_train = splitting[0]
+    if np.count_nonzero(~np.isnan(y_base_train)) == 0:
+        logging.debug('Cannot learn when all executions are failed.')
+        return custom_dfs, custom_points
+    y_base_test = splitting[1]
+    symbol_type_preprocessed_data = dict()
+    for i, precedence_option in enumerate(precedence_options):
+        symbol_type = {
+            'predicate_precedence': 'predicate',
+            'function_precedence': 'function'
+        }[precedence_option]
+        if len(problem.get_symbols(symbol_type)) <= 1:
+            logging.debug(
+                f'Skipping {symbol_type} precedence learning because there is no more than one symbol of that type.')
+            continue
+        x_train = splitting[2 * (i + 1)]
+        x_test = splitting[2 * (i + 1) + 1]
+        flattener = Flattener()
+        pipeline = sklearn.pipeline.Pipeline([
+            ('pairs_hit', sklearn.preprocessing.FunctionTransformer(func=pairs_hit)),
+            ('flatten', flattener)
+        ])
+        x_train = pipeline.fit_transform(x_train)
+        x_test = pipeline.transform(x_test)
+        symbol_type_preprocessed_data[precedence_option] = {
+            'x_train': x_train,
+            'x_test': x_test,
+            'flattener': flattener
+        }
+    params = itertools.product([False, True], [True], [1], [1, 2, 10], [False, True], [
+        (MeanRegression(), None),
+        (LinearRegression(copy_X=False), None),
+        (LassoCV(copy_X=False), None),
+        (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01}),
+        (RidgeCV(), None),
+        (LinearSVR(C=0.1), {'C': 0.1})
+    ])
+    for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, failure_penalty_divide_by_success_rate, (
+            reg, reg_params) in params:
+        reg_type_name = type(reg).__name__
+        reg_name = f'{reg_type_name}_{dict_to_name(reg_params)}'
+        logging.info(json.dumps({
+            'log_scale': log_scale,
+            'normalize': normalize,
+            'failure_penalty': {
+                'quantile': failure_penalty_quantile,
+                'factor': failure_penalty_factor,
+                'divide_by_success_rate': failure_penalty_divide_by_success_rate
+            },
+            'reg': {
+                'name': reg_name,
+                'type_name': reg_type_name,
+                'params': reg_params,
+                'instance': str(reg)
+            }
+        }, indent=4))
+        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{failure_penalty_divide_by_success_rate}-{reg_name}'
+        logging.info(f'Processing {name}')
+        y_train, y_test, y_pipeline = preprocess_scores(y_base_train, y_base_test,
+                                                        failure_penalty_quantile,
+                                                        failure_penalty_factor,
+                                                        failure_penalty_divide_by_success_rate,
+                                                        log_scale, normalize)
+        good_precedences = dict()
+        stats = dict()
+        for precedence_option, data in symbol_type_preprocessed_data.items():
+            x_train = data['x_train']
+            x_test = data['x_test']
+            flattener = data['flattener']
+            reg.fit(x_train, y_train)
+            pair_scores = flattener.inverse_transform(reg.coef_)[0]
+            symbol_type = {
+                'predicate_precedence': 'predicate',
+                'function_precedence': 'function'
+            }[precedence_option]
+            perm = precedence.learn_ltot(pair_scores, symbol_type=symbol_type)
+            cur_stats = {
+                'pair_scores.n_nan': np.count_nonzero(np.isnan(pair_scores)),
+                'reg.score.train': reg.score(x_train, y_train),
+                'reg.score.test': reg.score(x_test, y_test),
+                'reg.coefs.n': len(reg.coef_),
+                'reg.coefs.n_nonzero': np.count_nonzero(reg.coef_)
+            }
+            if isinstance(reg, LassoCV) or isinstance(reg, RidgeCV):
+                cur_stats['reg.alpha'] = reg.alpha_
+            if isinstance(reg, Lasso) or isinstance(reg, LassoCV) or isinstance(reg, LinearSVR):
+                cur_stats['reg.n_iter'] = int(reg.n_iter_)
+            if isinstance(reg, LassoCV):
+                cur_stats['reg.alphas.min'] = reg.alphas_.min()
+                cur_stats['reg.alphas.max'] = reg.alphas_.max()
+                plot_mse_path(reg, os.path.join(output_batch, 'mse_path', str(problem), symbol_type,
+                                                f'{name}.svg'))
+            with np.printoptions(threshold=16, edgeitems=8):
+                logging.info(json.dumps({
+                    'symbol_type': symbol_type,
+                    'stats': cur_stats,
+                    'greedy_precedence': str(perm)
+                }, indent=4))
+            for key, value in cur_stats.items():
+                stats[(symbol_type, key)] = value
+            good_precedences[precedence_option] = perm
+            try:
+                output_dir = os.path.join(output_batch, 'ltot', name)
+                precedence.plot_preference_heatmap(pair_scores, perm,
+                                                   symbol_type, problem,
+                                                   output_file=os.path.join(output_dir, 'preferences',
+                                                                            f'{problem.name()}_{symbol_type}'))
+            except ValueError:
+                logging.debug('Preference heatmap plotting failed.', exc_info=True)
+        execution = problem.get_execution(precedences=good_precedences)
+        logging.info(json.dumps({
+            'status': execution['status'],
+            'exit_code': execution['exit_code'],
+            'saturation_iterations': execution['saturation_iterations'],
+            'score': y_pipeline.transform([[execution_base_score(execution)]])[0, 0]
+        }, indent=4))
+        if execution.result.exit_code == 0:
+            custom_points[name] = execution['saturation_iterations']
+        else:
+            custom_points[name] = None
+        df = execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve)
+        df['log_scale'] = log_scale
+        df['normalize'] = normalize
+        df['failure_penalty_quantile'] = failure_penalty_quantile
+        df['failure_penalty_factor'] = failure_penalty_factor
+        df['failure_penalty_divide_by_success_rate'] = failure_penalty_divide_by_success_rate
+        try:
+            quantile_imputer = y_pipeline['quantile']
+            df['failure_penalty_score'] = quantile_imputer.fill_value
+            df['train_success_rate'] = quantile_imputer.success_rate
+        except KeyError:
+            pass
+        df['reg_type_name'] = reg_type_name
+        if reg_params is not None:
+            for key, value in reg_params.items():
+                df[('reg', key)] = value
+        for key, value in stats.items():
+            df[key] = value
+        if name not in custom_dfs:
+            custom_dfs[name] = list()
+        custom_dfs[name].append(df)
+    return custom_dfs, custom_points
+
+
 def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
@@ -232,161 +397,9 @@ def call(namespace):
                 if pair_values > namespace.learn_max_pair_values:
                     logging.info('Precedence learning skipped because the training data is too large.')
                 else:
-                    scores_base = np.fromiter(map(execution_base_score, executions), dtype=np.float,
-                                              count=len(executions)).reshape(-1, 1)
-                    logging.info('scores_base: ' + json.dumps({
-                        'count': len(scores_base),
-                        'nan_count': np.count_nonzero(np.isnan(scores_base)),
-                        'mean': np.nanmean(scores_base),
-                        'std': np.nanstd(scores_base),
-                        'max': np.nanmax(scores_base)
-                    }, indent=4))
-                    precedence_options = executions[0].configuration.precedences.keys()
-                    precedences_by_symbol_type = {
-                        precedence_option: [execution.configuration.precedences[precedence_option] for execution in
-                                            executions] for precedence_option in precedence_options}
-                    splitting = sklearn.model_selection.train_test_split(scores_base,
-                                                                         *precedences_by_symbol_type.values(),
-                                                                         shuffle=False)
-                    assert len(splitting) == 2 * (len(precedence_options) + 1)
-                    y_base_train = splitting[0]
-                    y_base_test = splitting[1]
-                    symbol_type_preprocessed_data = dict()
-                    for i, precedence_option in enumerate(precedence_options):
-                        symbol_type = {
-                            'predicate_precedence': 'predicate',
-                            'function_precedence': 'function'
-                        }[precedence_option]
-                        if len(problem.get_symbols(symbol_type)) <= 1:
-                            logging.debug(
-                                f'Skipping {symbol_type} precedence learning because there is no more than one symbol of that type.')
-                            continue
-                        x_train = splitting[2 * (i + 1)]
-                        x_test = splitting[2 * (i + 1) + 1]
-                        flattener = Flattener()
-                        pipeline = sklearn.pipeline.Pipeline([
-                            ('pairs_hit', sklearn.preprocessing.FunctionTransformer(func=pairs_hit)),
-                            ('flatten', flattener)
-                        ])
-                        x_train = pipeline.fit_transform(x_train)
-                        x_test = pipeline.transform(x_test)
-                        symbol_type_preprocessed_data[precedence_option] = {
-                            'x_train': x_train,
-                            'x_test': x_test,
-                            'flattener': flattener
-                        }
-                    params = itertools.product([False, True], [True], [1], [1, 2, 10], [False, True], [
-                        (MeanRegression(), None),
-                        (LinearRegression(copy_X=False), None),
-                        (LassoCV(copy_X=False), None),
-                        (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01}),
-                        (RidgeCV(), None),
-                        (LinearSVR(C=0.1), {'C': 0.1})
-                    ])
-                    for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, failure_penalty_divide_by_success_rate, (
-                            reg, reg_params) in params:
-                        reg_type_name = type(reg).__name__
-                        reg_name = f'{reg_type_name}_{dict_to_name(reg_params)}'
-                        logging.info(json.dumps({
-                            'log_scale': log_scale,
-                            'normalize': normalize,
-                            'failure_penalty': {
-                                'quantile': failure_penalty_quantile,
-                                'factor': failure_penalty_factor,
-                                'divide_by_success_rate': failure_penalty_divide_by_success_rate
-                            },
-                            'reg': {
-                                'name': reg_name,
-                                'type_name': reg_type_name,
-                                'params': reg_params,
-                                'instance': str(reg)
-                            }
-                        }, indent=4))
-                        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{failure_penalty_divide_by_success_rate}-{reg_name}'
-                        logging.info(f'Processing {name}')
-                        y_train, y_test, y_pipeline = preprocess_scores(y_base_train, y_base_test,
-                                                                        failure_penalty_quantile,
-                                                                        failure_penalty_factor,
-                                                                        failure_penalty_divide_by_success_rate,
-                                                                        log_scale, normalize)
-                        good_precedences = dict()
-                        stats = dict()
-                        for precedence_option, data in symbol_type_preprocessed_data.items():
-                            x_train = data['x_train']
-                            x_test = data['x_test']
-                            flattener = data['flattener']
-                            reg.fit(x_train, y_train)
-                            pair_scores = flattener.inverse_transform(reg.coef_)[0]
-                            symbol_type = {
-                                'predicate_precedence': 'predicate',
-                                'function_precedence': 'function'
-                            }[precedence_option]
-                            perm = precedence.learn_ltot(pair_scores, symbol_type=symbol_type)
-                            cur_stats = {
-                                'pair_scores.n_nan': np.count_nonzero(np.isnan(pair_scores)),
-                                'reg.score.train': reg.score(x_train, y_train),
-                                'reg.score.test': reg.score(x_test, y_test),
-                                'reg.coefs.n': len(reg.coef_),
-                                'reg.coefs.n_nonzero': np.count_nonzero(reg.coef_)
-                            }
-                            if isinstance(reg, LassoCV) or isinstance(reg, RidgeCV):
-                                cur_stats['reg.alpha'] = reg.alpha_
-                            if isinstance(reg, Lasso) or isinstance(reg, LassoCV) or isinstance(reg, LinearSVR):
-                                cur_stats['reg.n_iter'] = int(reg.n_iter_)
-                            if isinstance(reg, LassoCV):
-                                cur_stats['reg.alphas.min'] = reg.alphas_.min()
-                                cur_stats['reg.alphas.max'] = reg.alphas_.max()
-                                plot_mse_path(reg, os.path.join(output_batch, 'mse_path', str(problem), symbol_type,
-                                                                f'{name}.svg'))
-                            with np.printoptions(threshold=16, edgeitems=8):
-                                logging.info(json.dumps({
-                                    'symbol_type': symbol_type,
-                                    'stats': cur_stats,
-                                    'greedy_precedence': str(perm)
-                                }, indent=4))
-                            for key, value in cur_stats.items():
-                                stats[(symbol_type, key)] = value
-                            good_precedences[precedence_option] = perm
-                            try:
-                                output_dir = os.path.join(output_batch, 'ltot', name)
-                                precedence.plot_preference_heatmap(pair_scores, perm,
-                                                                   symbol_type, problem,
-                                                                   output_file=os.path.join(output_dir, 'preferences',
-                                                                                            f'{problem.name()}_{symbol_type}'))
-                            except ValueError:
-                                logging.debug('Preference heatmap plotting failed.', exc_info=True)
-                        execution = problem.get_execution(precedences=good_precedences)
-                        logging.info(json.dumps({
-                            'status': execution['status'],
-                            'exit_code': execution['exit_code'],
-                            'saturation_iterations': execution['saturation_iterations'],
-                            'score': y_pipeline.transform([[execution_base_score(execution)]])[0, 0]
-                        }, indent=4))
-                        if execution.result.exit_code == 0:
-                            custom_points[name] = execution['saturation_iterations']
-                        else:
-                            custom_points[name] = None
-                        if name not in custom_dfs:
-                            custom_dfs[name] = list()
-                        df = execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve)
-                        df['log_scale'] = log_scale
-                        df['normalize'] = normalize
-                        df['failure_penalty_quantile'] = failure_penalty_quantile
-                        df['failure_penalty_factor'] = failure_penalty_factor
-                        df['failure_penalty_divide_by_success_rate'] = failure_penalty_divide_by_success_rate
-                        try:
-                            quantile_imputer = y_pipeline['quantile']
-                            df['failure_penalty_score'] = quantile_imputer.fill_value
-                            df['train_success_rate'] = quantile_imputer.success_rate
-                        except KeyError:
-                            pass
-                        df['reg_type_name'] = reg_type_name
-                        if reg_params is not None:
-                            for key, value in reg_params.items():
-                                df[('reg', key)] = value
-                        for key, value in stats.items():
-                            df[key] = value
-                        custom_dfs[name].append(df)
+                    custom_dfs_cur, custom_points_cur = learn(executions, problem, output_batch)
+                    custom_dfs.update(custom_dfs_cur)
+                    custom_points.update(custom_points_cur)
                 try:
                     plot_saturation_iterations_distribution(saturation_iterations, problem, len(executions),
                                                             custom_points, output_dir=os.path.join(output_batch,
