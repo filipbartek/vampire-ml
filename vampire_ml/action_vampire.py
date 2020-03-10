@@ -129,7 +129,8 @@ def preprocess_scores(y_train, y_test, failure_penalty_quantile, failure_penalty
         }
     }, indent=4))
     try:
-        logging.debug({'failure_score': y_pipeline['quantile'].fill_value})
+        quantile_imputer = y_pipeline['quantile']
+        logging.debug({'failure_score': quantile_imputer.fill_value, 'success_rate': quantile_imputer.success_rate})
     except KeyError:
         pass
     return y_train, y_test, y_pipeline
