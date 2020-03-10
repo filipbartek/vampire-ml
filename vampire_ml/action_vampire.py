@@ -88,11 +88,13 @@ def pairs_hit(precedences):
     return res
 
 
-def get_y_pipeline(failure_penalty_quantile, failure_penalty_factor, log_scale, normalize):
+def get_y_pipeline(failure_penalty_quantile, failure_penalty_factor, failure_penalty_divide_by_success_rate, log_scale,
+                   normalize):
     y_pipeline_steps = list()
     if failure_penalty_quantile is not None:
         y_pipeline_steps.append(
-            ('quantile', QuantileImputer(copy=False, quantile=failure_penalty_quantile, factor=failure_penalty_factor)))
+            ('quantile', QuantileImputer(copy=False, quantile=failure_penalty_quantile, factor=failure_penalty_factor,
+                                         divide_by_success_rate=failure_penalty_divide_by_success_rate)))
     if log_scale:
         y_pipeline_steps.append(('log', sklearn.preprocessing.FunctionTransformer(func=np.log)))
     if normalize:
@@ -102,8 +104,10 @@ def get_y_pipeline(failure_penalty_quantile, failure_penalty_factor, log_scale, 
     return sklearn.pipeline.Pipeline(y_pipeline_steps)
 
 
-def preprocess_scores(y_train, y_test, failure_penalty_quantile, failure_penalty_factor, log_scale, normalize):
-    y_pipeline = get_y_pipeline(failure_penalty_quantile, failure_penalty_factor, log_scale, normalize)
+def preprocess_scores(y_train, y_test, failure_penalty_quantile, failure_penalty_factor,
+                      failure_penalty_divide_by_success_rate, log_scale, normalize):
+    y_pipeline = get_y_pipeline(failure_penalty_quantile, failure_penalty_factor,
+                                failure_penalty_divide_by_success_rate, log_scale, normalize)
     y_train = y_pipeline.fit_transform(y_train.copy())[:, 0]
     y_test = y_pipeline.transform(y_test.copy())[:, 0]
     logging.info('scores_preprocessed: ' + json.dumps({
@@ -262,7 +266,7 @@ def call(namespace):
                             'x_test': x_test,
                             'flattener': flattener
                         }
-                    params = itertools.product([False, True], [True], [1], [1, 2, 10], [
+                    params = itertools.product([False, True], [True], [1], [1, 2, 10], [False, True], [
                         (MeanRegression(), None),
                         (LinearRegression(copy_X=False), None),
                         (LassoCV(copy_X=False), None),
@@ -270,14 +274,18 @@ def call(namespace):
                         (RidgeCV(), None),
                         (LinearSVR(C=0.1), {'C': 0.1})
                     ])
-                    for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, (reg, reg_params) in params:
+                    for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, failure_penalty_divide_by_success_rate, (
+                            reg, reg_params) in params:
                         reg_type_name = type(reg).__name__
                         reg_name = f'{reg_type_name}_{dict_to_name(reg_params)}'
                         logging.info(json.dumps({
                             'log_scale': log_scale,
                             'normalize': normalize,
-                            'failure_penalty_quantile': failure_penalty_quantile,
-                            'failure_penalty_factor': failure_penalty_factor,
+                            'failure_penalty': {
+                                'quantile': failure_penalty_quantile,
+                                'factor': failure_penalty_factor,
+                                'divide_by_success_rate': failure_penalty_divide_by_success_rate
+                            },
                             'reg': {
                                 'name': reg_name,
                                 'type_name': reg_type_name,
@@ -285,11 +293,13 @@ def call(namespace):
                                 'instance': str(reg)
                             }
                         }, indent=4))
-                        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{reg_name}'
+                        name = f'ltot-{log_scale}-{normalize}-{failure_penalty_quantile}-{failure_penalty_factor}-{failure_penalty_divide_by_success_rate}-{reg_name}'
                         logging.info(f'Processing {name}')
                         y_train, y_test, y_pipeline = preprocess_scores(y_base_train, y_base_test,
                                                                         failure_penalty_quantile,
-                                                                        failure_penalty_factor, log_scale, normalize)
+                                                                        failure_penalty_factor,
+                                                                        failure_penalty_divide_by_success_rate,
+                                                                        log_scale, normalize)
                         good_precedences = dict()
                         stats = dict()
                         for precedence_option, data in symbol_type_preprocessed_data.items():
@@ -354,6 +364,13 @@ def call(namespace):
                         df['normalize'] = normalize
                         df['failure_penalty_quantile'] = failure_penalty_quantile
                         df['failure_penalty_factor'] = failure_penalty_factor
+                        df['failure_penalty_divide_by_success_rate'] = failure_penalty_divide_by_success_rate
+                        try:
+                            quantile_imputer = y_pipeline['quantile']
+                            df['failure_penalty_score'] = quantile_imputer.fill_value
+                            df['train_success_rate'] = quantile_imputer.success_rate
+                        except KeyError:
+                            pass
                         df['reg_type_name'] = reg_type_name
                         if reg_params is not None:
                             for key, value in reg_params.items():
