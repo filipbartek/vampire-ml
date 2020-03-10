@@ -253,6 +253,14 @@ def call(namespace):
                     y_base_test = splitting[1]
                     symbol_type_preprocessed_data = dict()
                     for i, precedence_option in enumerate(precedence_options):
+                        symbol_type = {
+                            'predicate_precedence': 'predicate',
+                            'function_precedence': 'function'
+                        }[precedence_option]
+                        if len(problem.get_symbols(symbol_type)) <= 1:
+                            logging.debug(
+                                f'Skipping {symbol_type} precedence learning because there is no more than one symbol of that type.')
+                            continue
                         x_train = splitting[2 * (i + 1)]
                         x_test = splitting[2 * (i + 1) + 1]
                         flattener = Flattener()
