@@ -34,8 +34,10 @@ class QuantileImputer(SimpleImputer):
     def fit(self, X, y=None):
         self.fill_value = np.nanquantile(X, self.quantile) * self.factor
         if self.divide_by_success_rate:
-            self.success_rate = X.size / np.count_nonzero(~np.isnan(X))
-            self.fill_value *= self.success_rate
+            self.success_rate = np.count_nonzero(~np.isnan(X)) / X.size
+            assert 0 <= self.success_rate <= 1
+            if self.success_rate != 0:
+                self.fill_value /= self.success_rate
         return super().fit(X, y)
 
 
