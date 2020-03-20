@@ -27,4 +27,6 @@ if __name__ == '__main__':
         logging.basicConfig(level=namespace.log)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
 
+    np.random.seed(0)
+
     namespace.action(namespace)
