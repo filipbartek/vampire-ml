@@ -352,72 +352,74 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
 
-    workspace = vampyre.vampire.Workspace(path=namespace.output, program=namespace.vampire,
-                                          problem_dir=problem_base_path, include_dir=namespace.include,
-                                          scratch_dir=namespace.scratch,
-                                          never_load=never_load, never_run=never_run,
-                                          result_is_ok_to_load=result_is_ok_to_load)
-    solve_dfs = []
-    clausify_dfs = []
-    custom_dfs = {'default': list()}
-    try:
-        for problem_path in problem_paths:
-            problem = vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path), workspace,
-                                              base_options=vampire_options, timeout=namespace.timeout)
-            try:
-                clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
-                    field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
-                executions = problem.solve_with_random_precedences(solve_count=namespace.solve_runs,
-                                                                   random_predicates=namespace.random_predicate_precedence,
-                                                                   random_functions=namespace.random_function_precedence)
-                executions = list(executions)
-                solve_dfs.extend(
-                    execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
-                    execution in executions)
-                custom_points = dict()
-                # Run with the default settings without randomized precedences.
-                execution = problem.get_execution()
-                logging.info({'default': str(execution.result)})
-                if execution.result.exit_code == 0:
-                    custom_points['default'] = execution['saturation_iterations']
-                else:
-                    custom_points['default'] = None
-                custom_dfs['default'].append(
-                    execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
-                saturation_iterations = [execution['saturation_iterations'] for execution in executions if
-                                         execution['exit_code'] == 0]
-                pair_values = max(len(problem.get_predicates()), len(problem.get_functions())) ** 2 * len(executions)
-                logging.info(json.dumps({
-                    'n_executions': len(executions),
-                    'n_predicates': len(problem.get_predicates()),
-                    'n_functions': len(problem.get_functions()),
-                    'n_pair_values': pair_values,
-                    'max_pair_values': namespace.learn_max_pair_values
-                }, indent=4))
-                if pair_values > namespace.learn_max_pair_values:
-                    logging.info('Precedence learning skipped because the training data is too large.')
-                else:
-                    custom_dfs_cur, custom_points_cur = learn(executions, problem, output_batch)
-                    custom_dfs.update(custom_dfs_cur)
-                    custom_points.update(custom_points_cur)
+    with vampyre.vampire.workspace_context(path=namespace.output, program=namespace.vampire,
+                                           problem_dir=problem_base_path, include_dir=namespace.include,
+                                           scratch_dir=namespace.scratch,
+                                           never_load=never_load, never_run=never_run,
+                                           result_is_ok_to_load=result_is_ok_to_load):
+        solve_dfs = []
+        clausify_dfs = []
+        custom_dfs = {'default': list()}
+        try:
+            for problem_path in problem_paths:
+                problem = vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path),
+                                                  base_options=vampire_options, timeout=namespace.timeout)
                 try:
-                    plot_saturation_iterations_distribution(saturation_iterations, problem, len(executions),
-                                                            custom_points, output_dir=os.path.join(output_batch,
-                                                                                                   'saturation_iterations_distribution'))
-                except (ValueError, np.linalg.LinAlgError, FloatingPointError):
-                    logging.debug(
-                        f'Plotting of histogram of saturation iterations failed. Unique measurements: {len(np.unique(saturation_iterations))}.',
-                        exc_info=True)
-            except (RuntimeError, FileNotFoundError, json.decoder.JSONDecodeError):
-                logging.debug('Solving with random precedences failed.', exc_info=True)
-    finally:
-        logging.info(workspace.cache_info)
-        solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
-        clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
-        custom_dfs_joint = {name: vampyre.vampire.Execution.concat_dfs(value) for (name, value) in custom_dfs.items()}
-        df_custom = vampyre.vampire.Execution.concat_dfs(
-            value.assign(name=name) for (name, value) in custom_dfs_joint.items() if value is not None)
-        results.save_all(solve_runs_df, clausify_runs_df, output_batch, df_custom)
+                    clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
+                        field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
+                    executions = problem.solve_with_random_precedences(solve_count=namespace.solve_runs,
+                                                                       random_predicates=namespace.random_predicate_precedence,
+                                                                       random_functions=namespace.random_function_precedence)
+                    executions = list(executions)
+                    solve_dfs.extend(
+                        execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
+                        execution in executions)
+                    custom_points = dict()
+                    # Run with the default settings without randomized precedences.
+                    execution = problem.get_execution()
+                    logging.info({'default': str(execution.result)})
+                    if execution.result.exit_code == 0:
+                        custom_points['default'] = execution['saturation_iterations']
+                    else:
+                        custom_points['default'] = None
+                    custom_dfs['default'].append(
+                        execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve))
+                    saturation_iterations = [execution['saturation_iterations'] for execution in executions if
+                                             execution['exit_code'] == 0]
+                    pair_values = max(len(problem.get_predicates()), len(problem.get_functions())) ** 2 * len(
+                        executions)
+                    logging.info(json.dumps({
+                        'n_executions': len(executions),
+                        'n_predicates': len(problem.get_predicates()),
+                        'n_functions': len(problem.get_functions()),
+                        'n_pair_values': pair_values,
+                        'max_pair_values': namespace.learn_max_pair_values
+                    }, indent=4))
+                    if pair_values > namespace.learn_max_pair_values:
+                        logging.info('Precedence learning skipped because the training data is too large.')
+                    else:
+                        custom_dfs_cur, custom_points_cur = learn(executions, problem, output_batch)
+                        custom_dfs.update(custom_dfs_cur)
+                        custom_points.update(custom_points_cur)
+                    try:
+                        plot_saturation_iterations_distribution(saturation_iterations, problem, len(executions),
+                                                                custom_points, output_dir=os.path.join(output_batch,
+                                                                                                       'saturation_iterations_distribution'))
+                    except (ValueError, np.linalg.LinAlgError, FloatingPointError):
+                        logging.debug(
+                            f'Plotting of histogram of saturation iterations failed. Unique measurements: {len(np.unique(saturation_iterations))}.',
+                            exc_info=True)
+                except (RuntimeError, FileNotFoundError, json.decoder.JSONDecodeError):
+                    logging.debug('Solving with random precedences failed.', exc_info=True)
+        finally:
+            logging.info(vampyre.vampire.workspace.cache_info)
+            solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
+            clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
+            custom_dfs_joint = {name: vampyre.vampire.Execution.concat_dfs(value) for (name, value) in
+                                custom_dfs.items()}
+            df_custom = vampyre.vampire.Execution.concat_dfs(
+                value.assign(name=name) for (name, value) in custom_dfs_joint.items() if value is not None)
+            results.save_all(solve_runs_df, clausify_runs_df, output_batch, df_custom)
 
 
 def plot_saturation_iterations_distribution(saturation_iterations, problem, execution_count, custom_points=None,

@@ -2,6 +2,7 @@
 
 import collections
 import contextlib
+import copy
 import hashlib
 import itertools
 import json
@@ -116,9 +117,10 @@ class Result(process.Result):
 
 
 class Problem:
-    def __init__(self, path, workspace, base_options=None, timeout=None):
+    """Configuration of a Vampire run on a problem."""
+
+    def __init__(self, path, base_options=None, timeout=None):
         self.path = path
-        self.workspace = workspace
         if base_options is None:
             self.base_options = dict()
         else:
@@ -161,7 +163,7 @@ class Problem:
         return self.clausify_execution
 
     def get_execution(self, mode='vampire', precedences=None):
-        return self.workspace.get_execution(self.get_configuration(mode, precedences))
+        return workspace.get_execution(self.get_configuration(mode, precedences))
 
     def get_configuration(self, mode='vampire', precedences=None):
         assert self.base_options is not None
@@ -170,7 +172,7 @@ class Problem:
         return Configuration(self.path, base_options=base_options, precedences=precedences, timeout=self.timeout)
 
     def get_configuration_path(self, mode='vampire', precedences=None):
-        return self.workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
+        return workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False,
                                       reverse=False):
@@ -225,8 +227,6 @@ class Problem:
 class Workspace:
     def __init__(self, path=None, program='vampire', problem_dir=None, include_dir=None, scratch_dir=None,
                  never_load=False, never_run=False, result_is_ok_to_load=None, check_hash_collisions=True):
-        if path is None:
-            warnings.warn('Workspace path not specified. Result caching is disabled.')
         self.path = path
         self.program = program
         self.problem_dir = problem_dir
@@ -292,6 +292,20 @@ class Workspace:
         if not self.result_is_ok_to_load(result):
             raise RuntimeError('Loaded result is not ok.')
         return result
+
+
+workspace = Workspace()
+
+
+@contextlib.contextmanager
+def workspace_context(**kwargs):
+    global workspace
+    old = copy.copy(workspace)
+    workspace.__dict__.update(kwargs)
+    try:
+        yield workspace
+    finally:
+        workspace = old
 
 
 class Configuration:
