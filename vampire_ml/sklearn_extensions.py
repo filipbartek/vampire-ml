@@ -4,6 +4,10 @@ from sklearn.base import RegressorMixin
 from sklearn.base import TransformerMixin
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model._base import LinearModel
+from sklearn.model_selection import ShuffleSplit
+from sklearn.model_selection._split import _validate_shuffle_split
+from sklearn.utils.validation import _num_samples
+from sklearn.utils.validation import check_random_state
 
 
 class MeanRegression(RegressorMixin, LinearModel):
@@ -60,3 +64,42 @@ class Flattener(TransformerMixin, BaseEstimator):
         assert len(X.shape) == 2
         assert X.shape[1] == np.prod(self.shape_)
         return X.reshape((X.shape[0],) + self.shape_, order=self.order)
+
+
+class StableShuffleSplit(ShuffleSplit):
+    def _iter_indices(self, X, y=None, groups=None):
+        n_samples = _num_samples(X)
+        n_train, n_test = _validate_shuffle_split(
+            n_samples, self.test_size, self.train_size,
+            default_test_size=self._default_test_size)
+
+        rng = check_random_state(self.random_state)
+        for i in range(self.n_splits):
+            # random partition
+            permutation = rng.permutation(n_samples)
+            assert n_train + n_test <= len(permutation)
+            ind_train = permutation[:n_train]
+            ind_test = permutation[:-n_test - 1:-1]
+            assert len(ind_test) == n_test
+            yield ind_train, ind_test
+
+
+class EstimatorDict(BaseEstimator):
+    def __init__(self, **params):
+        self.__dict__.update(params)
+
+    def get_params(self, deep=True):
+        res = self.__dict__.copy()
+        if deep:
+            for key, value in self.__dict__.items():
+                res.update({f'{key}__{k}': v for k, v in value.get_params().items()})
+        return res
+
+    def __getitem__(self, item):
+        return self.__dict__[item]
+
+    def keys(self):
+        return self.__dict__.keys()
+
+    def items(self):
+        return self.__dict__.items()

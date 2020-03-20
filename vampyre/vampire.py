@@ -76,6 +76,11 @@ class Execution:
         df = pd.concat(dfs, sort=False)
         return df.astype({col: cls.fields[col].dtype for col in df.columns if col in cls.fields})
 
+    def base_score(self):
+        if self['exit_code'] == 0:
+            return self['saturation_iterations']
+        return np.nan
+
 
 class Result(process.Result):
     def __init__(self, process_result, symbols=None, clauses=None):
@@ -139,6 +144,21 @@ class Problem:
 
     def name(self):
         return str(self).replace('/', '_')
+
+    @methodtools.lru_cache(maxsize=1)
+    def get_embedding(self):
+        return np.asarray([len(self.get_clauses())], dtype=np.uint)
+
+    @methodtools.lru_cache(maxsize=2)
+    def get_all_symbol_embeddings(self, symbol_type):
+        assert symbol_type == 'function' or np.all(~self.get_symbols(symbol_type)[['skolem']])
+        assert np.all(~self.get_symbols(symbol_type)[['inductionSkolem']])
+        # TODO: Only include 'skolem' in function symbol representations.
+        return self.get_symbols(symbol_type)[
+            ['arity', 'usageCnt', 'unitUsageCnt', 'inGoal', 'inUnit', 'skolem']].to_numpy(dtype=np.uint)
+
+    def get_symbols_embedding(self, symbol_type, symbol_indexes):
+        return self.get_all_symbol_embeddings(symbol_type)[symbol_indexes]
 
     def get_predicates(self):
         return self.get_symbols(symbol_type='predicate')

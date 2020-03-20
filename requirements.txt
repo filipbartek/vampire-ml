@@ -1,4 +1,6 @@
+appdirs
 flatten-dict
+joblib
 matplotlib
 methodtools
 numpy
