@@ -146,6 +146,7 @@ class Problem:
     def get_functions(self):
         return self.get_symbols(symbol_type='function')
 
+    @methodtools.lru_cache(maxsize=2)
     def get_symbols(self, symbol_type=None):
         symbols = self.get_successful_clausify_result().get_symbols(symbol_type)
         if symbols is None:
