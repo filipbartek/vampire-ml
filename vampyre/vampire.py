@@ -178,7 +178,7 @@ class Problem:
         return workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False,
-                                      reverse=False):
+                                      reverse=False, progress=True):
         # TODO: Parallelize.
         # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
         # TODO: Allow solving for reverse precedences automatically.
@@ -188,7 +188,7 @@ class Problem:
         if reverse:
             seed_count = solve_count // 2
             solve_count = seed_count * 2
-        with tqdm(total=solve_count, desc=self.path, unit='run') as t:
+        with tqdm(total=solve_count, desc=self.path, unit='run', disable=not progress) as t:
             for seed in range(seed_count):
                 precedences = dict()
                 if random_predicates:
