@@ -131,6 +131,9 @@ class Problem:
     def __str__(self):
         return self.path
 
+    def __repr__(self):
+        return f'{type(self).__name__}({self.path})'
+
     def name(self):
         return str(self).replace('/', '_')
 
