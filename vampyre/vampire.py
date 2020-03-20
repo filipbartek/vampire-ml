@@ -11,6 +11,7 @@ import os
 import tempfile
 import warnings
 
+import methodtools
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -126,13 +127,15 @@ class Problem:
         else:
             self.base_options = base_options
         self.timeout = timeout
-        self.clausify_execution = None
 
     def __str__(self):
         return self.path
 
     def __repr__(self):
         return f'{type(self).__name__}({self.path})'
+
+    def __getstate__(self):
+        return {key: self.__dict__[key] for key in ['path', 'base_options', 'timeout']}
 
     def name(self):
         return str(self).replace('/', '_')
@@ -159,11 +162,9 @@ class Problem:
                                {'status': result.status, 'exit_code': result.exit_code, 'stdout': result.stdout})
         return result
 
+    @methodtools.lru_cache(maxsize=1)
     def get_clausify_execution(self):
-        # Cache the result in a member variable to avoid repeated file loading from the result cache.
-        if self.clausify_execution is None:
-            self.clausify_execution = self.get_execution(mode='clausify')
-        return self.clausify_execution
+        return self.get_execution(mode='clausify')
 
     def get_execution(self, mode='vampire', precedences=None):
         return workspace.get_execution(self.get_configuration(mode, precedences))
