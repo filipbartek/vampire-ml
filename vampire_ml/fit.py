@@ -14,7 +14,7 @@ import sklearn.linear_model
 import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
-from sklearn.linear_model import LassoCV, LinearRegression
+from sklearn.linear_model import LassoCV
 from sklearn.model_selection import GridSearchCV
 
 import vampyre
@@ -103,7 +103,7 @@ def call(namespace):
                                                                          target_transformer,
                                                                          LassoCV(copy_X=False))
         # TODO: Try MLPRegressor.
-        preference_regressors = EstimatorDict(predicate=LinearRegression(), function=LinearRegression())
+        preference_regressors = EstimatorDict(predicate=LassoCV(copy_X=False), function=LassoCV(copy_X=False))
         preference_learner = JointProblemToPreferencesTransformer(precedence_transformer, preference_regressors,
                                                                   batch_size=1000000, progress=True)
         precedence_estimator = sklearn.pipeline.Pipeline([
