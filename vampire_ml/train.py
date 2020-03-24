@@ -123,7 +123,8 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
     """Processes a batch of problems jointly."""
 
-    def __init__(self, isolated_problem_to_preference, preference_regressors, batch_size, incremental_epochs=None):
+    def __init__(self, isolated_problem_to_preference, preference_regressors, batch_size, incremental_epochs=None,
+                 progress=True):
         """
         :param preference_regressor: estimates preference of a pair of symbols based on the embeddings of the symbols.
         """
@@ -131,10 +132,13 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         self.preference_regressors = preference_regressors
         self.batch_size = batch_size
         self.incremental_epochs = incremental_epochs
+        self.progress = progress
 
     def fit(self, problems):
         preferences = {symbol_type: list() for symbol_type in self.symbol_types()}
-        for problem_preferences in self.isolated_problem_to_preference.fit_transform(problems):
+        for problem_preferences in tqdm(self.isolated_problem_to_preference.fit_transform(problems),
+                                        desc='Calculating problem preferences', unit='problem', total=len(problems),
+                                        disable=not self.progress):
             for symbol_type in self.symbol_types():
                 preferences[symbol_type].append(problem_preferences[symbol_type])
         for symbol_type in self.symbol_types():
