@@ -43,8 +43,6 @@ XARGS_COMMAND=(
   "$@"
 )
 
-if [ -n "${VAMPIRE_OPTIONS-}" ]; then XARGS_COMMAND+=(--vampire-options "$VAMPIRE_OPTIONS"); fi
-
 if [ -n "${JOB_ID-}" ]; then XARGS_COMMAND+=(--batch-id "$JOB_ID"); fi
 
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
