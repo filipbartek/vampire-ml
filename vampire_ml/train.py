@@ -240,7 +240,8 @@ class ScorerSuccessRate:
 
 class ScorerTransforming:
     def __init__(self, problem_to_results_transformer, target_transformer, progress=True):
-        self.problem_to_results_transformer = problem_to_results_transformer
+        self.problem_to_results_transformer = sklearn.clone(problem_to_results_transformer)
+        self.problem_to_results_transformer.progress = False
         self.target_transformer = target_transformer
         self.progress = progress
 
@@ -250,17 +251,16 @@ class ScorerTransforming:
         with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Empirical success rate', unit='problem',
                   disable=not self.progress) as t:
             for problem, precedence_dict in t:
-                execution = problem.get_execution(precedences=precedence_dict)
-                target_transformer = get_fitted_transformer(self.problem_to_results_transformer,
-                                                            self.target_transformer, problem)
-                score_transformed = target_transformer.transform([[execution.base_score()]])[0, 0]
+                score_transformed = self.get_score(problem, precedence_dict)
                 assert not np.isnan(score_transformed)
                 scores.append(score_transformed)
                 t.set_postfix({'problem': problem, 'cache': vampyre.vampire.workspace.cache_info})
         return -np.nanmean(scores)
 
+    def get_score(self, problem, precedence_dict):
+        execution = problem.get_execution(precedences=precedence_dict)
+        return self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
 
-@memory.cache
-def get_fitted_transformer(problem_to_results_transformer, target_transformer, problem):
-    base_scores, _ = problem_to_results_transformer.transform(problem)
-    return sklearn.base.clone(target_transformer).fit(base_scores.reshape(-1, 1))
+    def get_fitted_target_transformer(self, problem):
+        base_scores, _ = self.problem_to_results_transformer.transform(problem)
+        return sklearn.base.clone(self.target_transformer).fit(base_scores.reshape(-1, 1))
