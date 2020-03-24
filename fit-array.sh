@@ -42,4 +42,4 @@ env | sort >"$BATCHES_DIR/env.txt"
 echo "$@" >"$BATCHES_DIR/parameters.txt"
 
 export ARRAY_JOB_ID
-sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh "$@"
+sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
