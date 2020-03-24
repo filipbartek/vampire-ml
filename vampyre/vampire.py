@@ -217,7 +217,6 @@ class Problem:
                     precedences['predicate_precedence'] = self.random_predicate_precedence(seed)
                 if random_functions:
                     precedences['function_precedence'] = self.random_function_precedence(seed)
-                t.set_postfix({'current_configuration': self.get_configuration_path(precedences=precedences)})
                 execution = self.get_execution(precedences=precedences)
                 assert execution.path == self.get_configuration_path(precedences=precedences)
                 yield execution
@@ -230,8 +229,6 @@ class Problem:
                         reversed_precedences['predicate_precedence'] = np.concatenate((head, tail))
                     if random_functions:
                         reversed_precedences['function_precedence'] = precedences['function_precedence'][::-1]
-                    t.set_postfix(
-                        {'current_configuration': self.get_configuration_path(precedences=reversed_precedences)})
                     execution = self.get_execution(precedences=reversed_precedences)
                     assert execution.path == self.get_configuration_path(precedences=reversed_precedences)
                     yield execution
