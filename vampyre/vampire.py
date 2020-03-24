@@ -276,7 +276,7 @@ class Workspace:
             self.cache_info['misses'] += 1
             return self.run(configuration), None
         configuration_path = self.get_configuration_path(configuration)
-        logging.debug({'problem': configuration.problem, 'configuration_path': configuration_path})
+        logging.debug({'problem': configuration.problem_path, 'configuration_path': configuration_path})
         try:
             result = self.load(configuration, configuration_path)
             self.cache_info['hits'] += 1
@@ -345,8 +345,8 @@ class Configuration:
         'avatar': 'off'
     }
 
-    def __init__(self, problem, base_options=None, precedences=None, timeout=None):
-        self.problem = problem
+    def __init__(self, problem_path, base_options=None, precedences=None, timeout=None):
+        self.problem_path = problem_path
         self.base_options = base_options
         self.precedences = dict()
         if precedences is not None:
@@ -362,7 +362,7 @@ class Configuration:
     def __eq__(self, other):
         if not isinstance(other, Configuration):
             return False
-        if self.problem != other.problem:
+        if self.problem_path != other.problem_path:
             return False
         if self.base_options != other.base_options:
             return False
@@ -377,7 +377,12 @@ class Configuration:
 
     def save(self, filename):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-        json.dump(self.__dict__, open(filename, 'w'), default=self.default, indent=4)
+        json.dump({
+            'problem': self.problem_path,
+            'base_options': self.base_options,
+            'precedences': self.precedences,
+            'timeout': self.timeout
+        }, open(filename, 'w'), default=self.default, indent=4)
 
     @staticmethod
     def load(filename):
@@ -417,7 +422,7 @@ class Configuration:
         with self.options(include_dir=include_dir, scratch_dir=scratch_dir) as options:
             args = list(itertools.chain([program],
                                         *((f'--{name}', str(value)) for (name, value) in options.items()),
-                                        [os.path.join(problem_dir, self.problem)]))
+                                        [os.path.join(problem_dir, self.problem_path)]))
             if configuration_dir is not None:
                 open(os.path.join(configuration_dir, 'run.sh'), 'w').write(' '.join(args))
             result = Result(process.run(args, timeout=self.timeout))
