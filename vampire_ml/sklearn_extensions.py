@@ -92,6 +92,8 @@ class EstimatorDict(BaseEstimator):
         res = self.__dict__.copy()
         if deep:
             for key, value in self.__dict__.items():
+                if value is None:
+                    continue
                 res.update({f'{key}__{k}': v for k, v in value.get_params().items()})
         return res
 

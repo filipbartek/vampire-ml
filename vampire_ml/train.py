@@ -122,7 +122,11 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         for problem_preferences in self.isolated_problem_to_preference.fit_transform(problems):
             for symbol_type in self.symbol_types():
                 preferences[symbol_type].append(problem_preferences[symbol_type])
-        for symbol_type, reg in self.preference_regressors.items():
+        for symbol_type in self.symbol_types():
+            reg = self.preference_regressors[symbol_type]
+            if reg is None:
+                continue
+            logging.info(f'Fitting {symbol_type} precedence regressor...')
             if self.incremental_epochs is not None:
                 # TODO: Implement early stopping.
                 for _ in range(self.incremental_epochs):
@@ -142,14 +146,20 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
             yield {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
 
     def symbol_types(self):
-        return self.preference_regressors.keys()
+        if self.preference_regressors is None:
+            return frozenset()
+        return frozenset(self.preference_regressors.keys()) & frozenset(
+            self.isolated_problem_to_preference.problem_to_results_transformer.symbol_types())
 
     def predict_one(self, problem, symbol_type):
+        reg = self.preference_regressors[symbol_type]
+        if reg is None:
+            return None
         n = len(problem.get_symbols(symbol_type))
         l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
         symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
         symbol_pair_embeddings = self.get_symbol_pair_embeddings(problem, symbol_type, symbol_indexes)
-        return self.preference_regressors[symbol_type].predict(symbol_pair_embeddings).reshape(n, n)
+        return reg.predict(symbol_pair_embeddings).reshape(n, n)
 
     def generate_batch(self, problems, symbol_type, preferences):
         assert len(problems) == len(preferences)

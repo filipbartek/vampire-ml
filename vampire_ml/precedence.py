@@ -10,6 +10,8 @@ from utils import truncate
 
 
 def learn_ltot(pair_scores, symbol_type=None):
+    if pair_scores is None:
+        return None
     if symbol_type == 'predicate':
         head = np.asarray([0], dtype=np.uint)
         tail = ltot_construct_permutation(pair_scores[1:, 1:]) + 1

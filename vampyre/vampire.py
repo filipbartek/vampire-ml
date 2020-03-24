@@ -353,6 +353,8 @@ class Configuration:
         self.precedences = dict()
         if precedences is not None:
             for key, value in precedences.items():
+                if value is None:
+                    continue
                 self.precedences[key] = np.asarray(value, dtype=np.uint)
         self.timeout = timeout
 
