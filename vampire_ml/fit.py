@@ -19,6 +19,8 @@ from sklearn.model_selection import GridSearchCV
 
 import vampyre
 from utils import file_path_list
+from utils import memory
+from vampire_ml.results import save_df
 from vampire_ml.sklearn_extensions import EstimatorDict
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
@@ -123,9 +125,11 @@ def call(namespace):
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=1000,
                           error_score='raise')
         gs.fit(problems)
+        df = pd.DataFrame(gs.cv_results_)
+        save_df(df, 'fit_cv_results', output_dir=namespace.output, index=False)
         with pd.option_context('display.max_seq_items', None, 'display.max_columns', None, 'display.expand_frame_repr',
                                False):
-            print(pd.DataFrame(gs.cv_results_))
+            print(df)
 
 
 def get_y_pipeline(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
