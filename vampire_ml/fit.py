@@ -26,8 +26,8 @@ from vampire_ml.train import IsolatedProblemToPreferencesTransformer
 from vampire_ml.train import JointProblemToPreferencesTransformer
 from vampire_ml.train import PreferenceToPrecedenceTransformer
 from vampire_ml.train import ProblemToResultsTransformer
+from vampire_ml.train import ScorerMeanScore
 from vampire_ml.train import ScorerSuccessRate
-from vampire_ml.train import ScorerTransforming
 
 
 def add_arguments(parser):
@@ -95,7 +95,8 @@ def call(namespace):
                                             timeout=namespace.timeout) for problem_path in problem_paths]
         problem_to_results_transformer = ProblemToResultsTransformer(namespace.solve_runs,
                                                                      namespace.random_predicate_precedence,
-                                                                     namespace.random_function_precedence)
+                                                                     namespace.random_function_precedence,
+                                                                     progress=True)
         # TODO: Expose the parameters properly.
         target_transformer = get_y_pipeline()
         precedence_transformer = IsolatedProblemToPreferencesTransformer(problem_to_results_transformer,
@@ -104,16 +105,15 @@ def call(namespace):
         # TODO: Try MLPRegressor.
         preference_regressors = EstimatorDict(predicate=LinearRegression(), function=LinearRegression())
         preference_learner = JointProblemToPreferencesTransformer(precedence_transformer, preference_regressors,
-                                                                  batch_size=1000000)
+                                                                  batch_size=1000000, progress=True)
         precedence_estimator = sklearn.pipeline.Pipeline([
             ('problem_to_preference', preference_learner),
             ('preference_to_precedence', PreferenceToPrecedenceTransformer())
         ])
 
         scorers = {
-            'success_rate': ScorerSuccessRate(),
-            'saturation_iterations': ScorerTransforming(problem_to_results_transformer, target_transformer,
-                                                        progress=True)
+            'success_rate': ScorerSuccessRate(progress=True),
+            'saturation_iterations': ScorerMeanScore(problem_to_results_transformer, target_transformer, progress=True)
         }
 
         param_grid = [{

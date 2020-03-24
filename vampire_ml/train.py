@@ -238,7 +238,7 @@ class ScorerSuccessRate:
         return 1 - n_failures / len(problems)
 
 
-class ScorerTransforming:
+class ScorerMeanScore:
     def __init__(self, problem_to_results_transformer, target_transformer, progress=True):
         self.problem_to_results_transformer = sklearn.clone(problem_to_results_transformer)
         self.problem_to_results_transformer.progress = False
