@@ -228,7 +228,7 @@ class ScorerSuccessRate:
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
         n_failures = 0
-        with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Empirical success rate', unit='problem',
+        with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Success rate', unit='problem',
                   disable=not self.progress) as t:
             for problem, precedence_dict in t:
                 execution = problem.get_execution(precedences=precedence_dict)
@@ -248,7 +248,7 @@ class ScorerTransforming:
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
         scores = list()
-        with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Empirical success rate', unit='problem',
+        with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Mean score', unit='problem',
                   disable=not self.progress) as t:
             for problem, precedence_dict in t:
                 score_transformed = self.get_score(problem, precedence_dict)
