@@ -4,6 +4,8 @@
 #SBATCH --time=600
 #SBATCH --requeue
 
+# Usage example: OUTPUT=out/sp-random-predicate sbatch --input=problems_selected_aggregated.txt --job-name=fit-predicate fit.sh --random-predicate-precedence
+
 set -euo pipefail
 
 # https://stackoverflow.com/a/949391/4054250
@@ -13,6 +15,60 @@ env | sort
 
 source env.sh
 
-VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
+if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then
+  OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID}
+  if [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then JOB_ID=${JOB_ID:-$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}; fi
+fi
+if [ -n "${SLURM_JOB_ID-}" ]; then
+  OUTPUT=${OUTPUT:-out/slurm/$SLURM_JOB_ID}
+  JOB_ID=${JOB_ID:-$SLURM_JOB_ID}
+fi
+OUTPUT=${OUTPUT:-out/default}
 
-python -O -m vampire_ml fit --vampire "$VAMPIRE" --vampire-options "{time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: ${VAMPIRE_MEMORY_LIMIT:-3000}}" --timeout $((VAMPIRE_TIME_LIMIT + 10)) --include "$TPTP" --output "${OUTPUT:-out/default}" --problem-base-path "$TPTP_PROBLEMS" --solve-runs "${SOLVE_RUNS_PER_PROBLEM:-1000}" --problem-list "${PROBLEMS:-problems_selected_aggregated.txt}" --n-splits "${N_SPLITS:-5}" --train-size "${TRAIN_SIZE:-100}" --test-size "${TEST_SIZE:-100}" "$@"
+VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
+VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-3000}
+SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1000}
+CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
+
+XARGS_COMMAND=(
+  xargs --verbose
+  python -O
+  -m vampire_ml fit
+  --output "$OUTPUT"
+  --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
+  --vampire "$VAMPIRE"
+  --vampire-options "{time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
+  --include "$TPTP"
+  --problem-base-path "$TPTP_PROBLEMS"
+  --timeout $((VAMPIRE_TIME_LIMIT + 10))
+  "$@"
+)
+
+if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
+
+# See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out
+function finish {
+  echo Finish: Removing directory "$OUTPUT_SCRATCH"
+  if [ -n "${OUTPUT_SCRATCH-}" ]; then rm -rf "$OUTPUT_SCRATCH"; fi
+}
+trap finish EXIT INT TERM
+
+if [ -n "${OUTPUT_SCRATCH-}" ]; then XARGS_COMMAND+=(--scratch "$OUTPUT_SCRATCH"); fi
+
+PROBLEM_ID=${PROBLEM_ID:-${SLURM_ARRAY_TASK_ID:-}}
+if [ -n "${SLURM_ARRAY_TASK_MAX:-}" ]; then PROBLEM_MODULUS=${PROBLEM_MODULUS:-$((SLURM_ARRAY_TASK_MAX + 1))}; fi
+# -1 stands for infinite modulus.
+PROBLEM_MODULUS=${PROBLEM_MODULUS:--1}
+
+if [ -n "${PROBLEM_ID:-}" ]; then
+  if [ -n "${PROBLEM_MODULUS:-}" ] && [ -1 -ne "${PROBLEM_MODULUS:-}" ]; then
+    echo "Processing problems with id $PROBLEM_ID modulo $PROBLEM_MODULUS."
+    sed -n "$((PROBLEM_ID + 1))~${PROBLEM_MODULUS}p" | "${XARGS_COMMAND[@]}"
+  else
+    echo "Processing problem with id $PROBLEM_ID."
+    sed -n "$((PROBLEM_ID + 1))p" | "${XARGS_COMMAND[@]}"
+  fi
+else
+  echo "Processing all problems."
+  "${XARGS_COMMAND[@]}"
+fi
