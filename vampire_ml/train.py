@@ -40,7 +40,6 @@ class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
             assert i < self.runs_per_problem
             base_scores[i] = execution.base_score()
             for symbol_type, precedence_matrix in precedences.items():
-                # TODO: Disk-cache.
                 precedence_matrix[i] = execution.configuration.precedences[self.precedence_option(symbol_type)]
         return base_scores, precedences
 
