@@ -64,7 +64,7 @@ def add_arguments(parser):
     parser.add_argument('--n-splits', type=int, default=1)
     parser.add_argument('--train-size', type=int)
     parser.add_argument('--test-size', type=int)
-    parser.add_arg8ment('--precompute', action='store_true')
+    parser.add_argument('--precompute', action='store_true')
 
 
 def call(namespace):
