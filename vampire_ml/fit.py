@@ -60,12 +60,20 @@ def add_arguments(parser):
     parser.add_argument('--random-function-precedence', action='store_true')
     parser.add_argument('--run-policy', choices=['none', 'interrupted', 'failed', 'all'], default='interrupted',
                         help='Which Vampire run configurations should be executed?')
+    parser.add_argument('--clear-cache-joblib', action='store_true')
+    parser.add_argument('--n-splits', type=int, default=1)
+    parser.add_argument('--train-size', type=int, default=None)
+    parser.add_argument('--test-size', type=int, default=None)
 
 
 def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
     sys.setrecursionlimit(2000)
+    logging.basicConfig(level=logging.INFO)
+
+    if namespace.clear_cache_joblib:
+        memory.clear()
 
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
                                                               namespace.problem_base_path)
@@ -118,12 +126,21 @@ def call(namespace):
             'saturation_iterations': ScorerMeanScore(problem_to_results_transformer, target_transformer, progress=True)
         }
 
-        param_grid = [{
-            'problem_to_preference__batch_size': [1000]
-        }]
-        cv = StableShuffleSplit(n_splits=1, train_size=10, test_size=10, random_state=0)
-        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=1000,
+        param_grid = [
+            {'problem_to_preference__preference_regressors': [None]},
+            {'problem_to_preference__batch_size': [1000, 10000, 1000000]},
+            {
+                'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__divide_by_success_rate': [
+                    False]},
+            {'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__factor': [1, 2, 10]},
+            {'problem_to_preference__isolated_problem_to_preference__target_transformer__log': ['passthrough']},
+            {'problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': ['passthrough']}
+        ]
+        cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
+                                test_size=namespace.test_size, random_state=0)
+        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                           error_score='raise')
+        # TODO: Parallelize.
         gs.fit(problems)
         df = pd.DataFrame(gs.cv_results_)
         save_df(df, 'fit_cv_results', output_dir=namespace.output, index=False)
