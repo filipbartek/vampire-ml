@@ -144,7 +144,7 @@ def call(namespace):
         save_df(df, 'fit_cv_results', output_dir=namespace.output, index=False)
         with pd.option_context('display.max_seq_items', None, 'display.max_columns', None, 'display.expand_frame_repr',
                                False):
-            print(df)
+            print(df[['params', 'mean_test_success_rate', 'mean_test_saturation_iterations']])
 
 
 def get_y_pipeline(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
