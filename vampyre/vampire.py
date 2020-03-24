@@ -281,7 +281,8 @@ class Workspace:
             result = self.load(configuration, configuration_path)
             self.cache_info['hits'] += 1
             return result, configuration_path
-        except (FileNotFoundError, RuntimeError):
+        except (FileNotFoundError, RuntimeError, KeyError):
+            # KeyError may occur when 'configuration.json' is missing a required configuration property.
             self.cache_info['misses'] += 1
             if self.never_run:
                 raise RuntimeError('Loading failed.')
