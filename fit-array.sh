@@ -33,6 +33,8 @@ echo "TIME_PER_TASK=$TIME_PER_TASK"
 mkdir -p "$OUTPUT_SLURM"
 ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="$OUTPUT:fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
 
+echo Array job ID: "$ARRAY_JOB_ID"
+
 BATCHES_DIR="$OUTPUT/batches/$ARRAY_JOB_ID"
 mkdir -p "$BATCHES_DIR"
 git rev-parse --verify HEAD >"$BATCHES_DIR/git-commit-sha.txt"
