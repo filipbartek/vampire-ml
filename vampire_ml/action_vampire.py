@@ -458,3 +458,4 @@ def plot_mse_path(reg, output_file=None):
         logging.debug(f'Plot saved: {output_file}')
     else:
         plt.show()
+    plt.close()
