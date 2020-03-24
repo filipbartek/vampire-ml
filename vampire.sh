@@ -36,7 +36,8 @@ XARGS_COMMAND=(
   --output "$OUTPUT"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
-  --vampire-options "{include: $TPTP, time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
+  --vampire-options "{time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
+  --include "$TPTP"
   --problem-base-path "$TPTP_PROBLEMS"
   --timeout $((VAMPIRE_TIME_LIMIT + 10))
   "$@"
