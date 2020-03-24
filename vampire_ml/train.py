@@ -29,6 +29,9 @@ class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, problem):
+        return memory.cache(type(self)._transform)(self, problem)
+
+    def _transform(self, problem):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
         executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
                                                            random_predicates=self.random_predicates,
@@ -73,17 +76,18 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
-        process_problem = memory.cache(IsolatedProblemToPreferencesTransformer.get_problem_aggregated_results)
         for problem in problems:
-            yield process_problem(self, problem)
+            yield self.transform_one(problem)
 
-    def get_problem_aggregated_results(self, problem):
-        base_scores, precedences = self.problem_to_results_transformer.transform(problem)
+    def transform_one(self, problem):
+        scores, precedences = self.problem_to_results_transformer.transform(problem)
         # For each problem, we fit an independent copy of target transformer.
-        # TODO: Cache the fitted transformers (?).
         target_transformer = sklearn.base.clone(self.target_transformer)
-        scores_transformed = target_transformer.fit_transform(base_scores.reshape(-1, 1))[:, 0]
-        return {symbol_type: self.get_preference_matrix(precedence_matrix, scores_transformed) for
+        if not np.all(np.isnan(scores)):
+            scores = target_transformer.fit_transform(scores.reshape(-1, 1))[:, 0]
+        else:
+            warnings.warn('All the scores are nans for a problem.')
+        return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
                 symbol_type, precedence_matrix in precedences.items()}
 
     def get_preference_matrix(self, precedences, scores):
