@@ -16,10 +16,14 @@ from vampire_ml.sklearn_extensions import Flattener
 
 
 class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, runs_per_problem, random_predicates, random_functions):
+    def __init__(self, runs_per_problem, random_predicates, random_functions, progress):
         self.runs_per_problem = runs_per_problem
         self.random_predicates = random_predicates
         self.random_functions = random_functions
+        self.progress = progress
+
+    def __getstate__(self):
+        return {key: self.__dict__[key] for key in ['runs_per_problem', 'random_predicates', 'random_functions']}
 
     def fit(self, _):
         return self
@@ -28,7 +32,8 @@ class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
         executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
                                                            random_predicates=self.random_predicates,
-                                                           random_functions=self.random_functions, progress=False)
+                                                           random_functions=self.random_functions,
+                                                           progress=self.progress)
         # We use the type `np.float` to support `np.nan` values.
         base_scores = np.empty(self.runs_per_problem, dtype=np.float)
         precedences = {
