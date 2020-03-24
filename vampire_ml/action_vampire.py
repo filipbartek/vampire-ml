@@ -186,13 +186,9 @@ def learn(executions, problem, output_batch):
             'x_test': x_test,
             'flattener': flattener
         }
-    params = itertools.product([False, True], [True], [1], [1, 2, 10], [False, True], [
+    params = itertools.product([False], [True], [1], [1], [True], [
         (MeanRegression(), None),
-        (LinearRegression(copy_X=False), None),
-        (LassoCV(copy_X=False), None),
-        (Lasso(alpha=0.01, copy_X=False), {'alpha': 0.01}),
-        (RidgeCV(), None),
-        (LinearSVR(C=0.1), {'C': 0.1})
+        (LassoCV(copy_X=False), None)
     ])
     for log_scale, normalize, failure_penalty_quantile, failure_penalty_factor, failure_penalty_divide_by_success_rate, (
             reg, reg_params) in params:
