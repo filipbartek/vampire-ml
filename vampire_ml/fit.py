@@ -64,6 +64,7 @@ def add_arguments(parser):
     parser.add_argument('--n-splits', type=int, default=1)
     parser.add_argument('--train-size', type=int)
     parser.add_argument('--test-size', type=int)
+    parser.add_arg8ment('--precompute', action='store_true')
 
 
 def call(namespace):
@@ -106,6 +107,11 @@ def call(namespace):
         problem_to_results_transformer = ProblemToResultsTransformer(namespace.solve_runs,
                                                                      namespace.random_predicate_precedence,
                                                                      namespace.random_function_precedence)
+        if namespace.precompute:
+            logging.info('Omitting training.')
+            for problem in problems:
+                problem_to_results_transformer.transform(problem)
+            return
         # TODO: Expose the parameters properly.
         target_transformer = get_y_pipeline()
         precedence_transformer = IsolatedProblemToPreferencesTransformer(problem_to_results_transformer,
