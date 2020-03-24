@@ -136,14 +136,15 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
             reg = self.preference_regressors[symbol_type]
             if reg is None:
                 continue
-            logging.info(f'Fitting {symbol_type} precedence regressor...')
             if self.incremental_epochs is not None:
                 # TODO: Implement early stopping.
-                for _ in range(self.incremental_epochs):
+                for _ in tqdm(range(self.incremental_epochs), desc=f'Fitting {symbol_type} precedence regressor',
+                              unit='epoch'):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
                     reg.partial_fit(symbol_pair_embeddings, target_preference_values)
             else:
+                logging.info(f'Fitting {symbol_type} precedence regressor on {self.batch_size} samples...')
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
                 reg.fit(symbol_pair_embeddings, target_preference_values)
