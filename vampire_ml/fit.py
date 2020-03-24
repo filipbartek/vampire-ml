@@ -121,11 +121,6 @@ def call(namespace):
             ('preference_to_precedence', PreferenceToPrecedenceTransformer())
         ])
 
-        scorers = {
-            'success_rate': ScorerSuccessRate(progress=True),
-            'saturation_iterations': ScorerMeanScore(problem_to_results_transformer, target_transformer, progress=True)
-        }
-
         param_grid = [
             {'problem_to_preference__preference_regressors': [None]},
             {'problem_to_preference__batch_size': [1000, 10000, 1000000]},
@@ -136,6 +131,10 @@ def call(namespace):
             {'problem_to_preference__isolated_problem_to_preference__target_transformer__log': ['passthrough']},
             {'problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': ['passthrough']}
         ]
+        scorers = {
+            'success_rate': ScorerSuccessRate(progress=True),
+            'saturation_iterations': ScorerMeanScore(problem_to_results_transformer, target_transformer, progress=True)
+        }
         cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
                                 test_size=namespace.test_size, random_state=0)
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
