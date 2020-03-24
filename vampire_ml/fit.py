@@ -16,6 +16,7 @@ import sklearn.preprocessing
 import yaml
 from sklearn.linear_model import LassoCV
 from sklearn.model_selection import GridSearchCV
+from tqdm import tqdm
 
 import vampyre
 from utils import file_path_list
@@ -109,7 +110,7 @@ def call(namespace):
                                                                      namespace.random_function_precedence)
         if namespace.precompute:
             logging.info('Omitting training.')
-            for problem in problems:
+            for problem in tqdm(problems, unit='problem', desc='Precomputing results of Vampire runs'):
                 problem_to_results_transformer.transform(problem)
             return
         # TODO: Expose the parameters properly.
