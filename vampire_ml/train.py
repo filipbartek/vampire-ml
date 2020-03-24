@@ -213,7 +213,8 @@ class PreferenceToPrecedenceTransformer(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
-    def transform(self, preference_dicts):
+    @staticmethod
+    def transform(preference_dicts):
         for preference_dict in preference_dicts:
             yield {f'{symbol_type}_precedence': vampire_ml.precedence.learn_ltot(preference_matrix, symbol_type) for
                    symbol_type, preference_matrix in preference_dict.items()}
