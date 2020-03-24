@@ -245,6 +245,9 @@ class ScorerTransforming:
         self.target_transformer = target_transformer
         self.progress = progress
 
+    def __repr__(self):
+        return f'{type(self)}({self.problem_to_results_transformer}, {self.target_transformer})'
+
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
         scores = list()
