@@ -6,6 +6,7 @@ import logging
 import numpy as np
 
 from vampire_ml import action_vampire
+from vampire_ml import fit
 
 if __name__ == '__main__':
     np.seterr(all='raise', under='warn')
@@ -15,6 +16,7 @@ if __name__ == '__main__':
     subparsers = parser.add_subparsers(help='action', dest='action', required=True)
 
     action_vampire.add_arguments(subparsers.add_parser('vampire', aliases=['v']))
+    fit.add_arguments(subparsers.add_parser('fit', aliases=['f']))
 
     parser.add_argument('--log', choices=['NOTSET', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO',
                         help='Logging level')
