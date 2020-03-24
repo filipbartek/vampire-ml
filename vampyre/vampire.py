@@ -38,7 +38,7 @@ class Execution:
     # TODO: Add vampire job id.
     fields = {
         'output_dir': Field(lambda job: job.path, 'object'),
-        'problem_path': Field(lambda job: job.configuration.problem, 'object'),
+        'problem_path': Field(lambda job: job.configuration.problem_path, 'object'),
         'status': Field(lambda job: job.result.status, pd.CategoricalDtype()),
         'exit_code': Field(lambda job: job.result.exit_code, pd.CategoricalDtype()),
         'termination_reason': Field(lambda job: extractor.termination_reason(job.result.stdout), pd.CategoricalDtype()),
