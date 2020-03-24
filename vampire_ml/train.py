@@ -1,8 +1,12 @@
+import logging
+import warnings
+
 import numpy as np
 import sklearn.base
 from sklearn import pipeline
 from sklearn import preprocessing
 from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.exceptions import ConvergenceWarning
 from tqdm import tqdm
 
 import vampire_ml.precedence
@@ -86,7 +90,9 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         ])
         preferences_flattened = preference_pipeline.fit_transform(precedences)
         preference_score_regressor = sklearn.base.clone(self.preference_score_regressor)
-        preference_score_regressor.fit(preferences_flattened, scores)
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=ConvergenceWarning)
+            preference_score_regressor.fit(preferences_flattened, scores)
         return preference_pipeline['flattener'].inverse_transform(preference_score_regressor.coef_)[0]
 
     @staticmethod
