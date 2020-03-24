@@ -10,20 +10,15 @@ from sklearn.exceptions import ConvergenceWarning
 from tqdm import tqdm
 
 import vampire_ml.precedence
-import vampyre
 from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 
 
 class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
-    def __init__(self, runs_per_problem, random_predicates, random_functions, progress):
+    def __init__(self, runs_per_problem, random_predicates, random_functions):
         self.runs_per_problem = runs_per_problem
         self.random_predicates = random_predicates
         self.random_functions = random_functions
-        self.progress = progress
-
-    def __getstate__(self):
-        return {key: self.__dict__[key] for key in ['runs_per_problem', 'random_predicates', 'random_functions']}
 
     def fit(self, _):
         return self
@@ -35,8 +30,7 @@ class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
         executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
                                                            random_predicates=self.random_predicates,
-                                                           random_functions=self.random_functions,
-                                                           progress=self.progress)
+                                                           random_functions=self.random_functions)
         # We use the type `np.float` to support `np.nan` values.
         base_scores = np.empty(self.runs_per_problem, dtype=np.float)
         precedences = {
@@ -123,8 +117,7 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
     """Processes a batch of problems jointly."""
 
-    def __init__(self, isolated_problem_to_preference, preference_regressors, batch_size, incremental_epochs=None,
-                 progress=True):
+    def __init__(self, isolated_problem_to_preference, preference_regressors, batch_size, incremental_epochs=None):
         """
         :param preference_regressor: estimates preference of a pair of symbols based on the embeddings of the symbols.
         """
@@ -132,13 +125,11 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         self.preference_regressors = preference_regressors
         self.batch_size = batch_size
         self.incremental_epochs = incremental_epochs
-        self.progress = progress
 
     def fit(self, problems):
         preferences = {symbol_type: list() for symbol_type in self.symbol_types()}
         for problem_preferences in tqdm(self.isolated_problem_to_preference.fit_transform(problems),
-                                        desc='Calculating problem preferences', unit='problem', total=len(problems),
-                                        disable=not self.progress):
+                                        desc='Calculating problem preferences', unit='problem', total=len(problems)):
             for symbol_type in self.symbol_types():
                 preferences[symbol_type].append(problem_preferences[symbol_type])
         for symbol_type in self.symbol_types():
@@ -221,48 +212,47 @@ class PreferenceToPrecedenceTransformer(BaseEstimator, TransformerMixin):
             # TODO: Experiment with hill climbing.
 
 
-class ScorerSuccessRate:
-    def __init__(self, progress=True):
-        self.progress = progress
-
-    def __call__(self, estimator, problems, y=None):
-        precedence_dicts = estimator.transform(problems)
-        n_failures = 0
-        with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Success rate', unit='problem',
-                  disable=not self.progress) as t:
-            for problem, precedence_dict in t:
-                execution = problem.get_execution(precedences=precedence_dict)
-                if execution['exit_code'] != 0:
-                    n_failures += 1
-                t.set_postfix({'problem': problem, 'cache': vampyre.vampire.workspace.cache_info})
-        return 1 - n_failures / len(problems)
-
-
-class ScorerMeanScore:
-    def __init__(self, problem_to_results_transformer, target_transformer, progress=True):
-        self.problem_to_results_transformer = sklearn.clone(problem_to_results_transformer)
-        self.problem_to_results_transformer.progress = False
-        self.target_transformer = target_transformer
-        self.progress = progress
-
-    def __repr__(self):
-        return f'{type(self)}({self.problem_to_results_transformer}, {self.target_transformer})'
+class ScorerMean:
+    def __init__(self, name):
+        self.name = name
 
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
         scores = list()
-        with tqdm(zip(problems, precedence_dicts), total=len(problems), desc='Mean score', unit='problem',
-                  disable=not self.progress) as t:
-            for problem, precedence_dict in t:
-                score_transformed = self.get_score(problem, precedence_dict)
-                assert not np.isnan(score_transformed)
-                scores.append(score_transformed)
-                t.set_postfix({'problem': problem, 'cache': vampyre.vampire.workspace.cache_info})
-        return -np.nanmean(scores)
+        for problem, precedence_dict in tqdm(zip(problems, precedence_dicts), desc=f'Mean score ({self.name})',
+                                             unit='problem', total=len(problems)):
+            score_transformed = self.get_score(problem, precedence_dict)
+            assert not np.isnan(score_transformed)
+            scores.append(score_transformed)
+        return np.nanmean(scores)
 
     def get_score(self, problem, precedence_dict):
         execution = problem.get_execution(precedences=precedence_dict)
-        return self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
+        return self.get_execution_score(problem, execution)
+
+    def get_execution_score(self, problem, execution):
+        raise NotImplementedError
+
+
+class ScorerSuccessRate(ScorerMean):
+    def __init__(self):
+        super().__init__('success rate')
+
+    def get_execution_score(self, problem, execution):
+        return execution['exit_code'] == 0
+
+
+class ScorerSaturationIterations(ScorerMean):
+    def __init__(self, problem_to_results_transformer, target_transformer):
+        super().__init__('saturation iterations')
+        self.problem_to_results_transformer = problem_to_results_transformer
+        self.target_transformer = target_transformer
+
+    def __repr__(self):
+        return f'{type(self)}({self.problem_to_results_transformer}, {self.target_transformer})'
+
+    def get_execution_score(self, problem, execution):
+        return -self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
 
     def get_fitted_target_transformer(self, problem):
         base_scores, _ = self.problem_to_results_transformer.transform(problem)

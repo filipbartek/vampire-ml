@@ -28,7 +28,7 @@ from vampire_ml.train import IsolatedProblemToPreferencesTransformer
 from vampire_ml.train import JointProblemToPreferencesTransformer
 from vampire_ml.train import PreferenceToPrecedenceTransformer
 from vampire_ml.train import ProblemToResultsTransformer
-from vampire_ml.train import ScorerMeanScore
+from vampire_ml.train import ScorerSaturationIterations
 from vampire_ml.train import ScorerSuccessRate
 
 
@@ -105,8 +105,7 @@ def call(namespace):
                                             timeout=namespace.timeout) for problem_path in problem_paths]
         problem_to_results_transformer = ProblemToResultsTransformer(namespace.solve_runs,
                                                                      namespace.random_predicate_precedence,
-                                                                     namespace.random_function_precedence,
-                                                                     progress=True)
+                                                                     namespace.random_function_precedence)
         # TODO: Expose the parameters properly.
         target_transformer = get_y_pipeline()
         precedence_transformer = IsolatedProblemToPreferencesTransformer(problem_to_results_transformer,
@@ -115,7 +114,7 @@ def call(namespace):
         # TODO: Try MLPRegressor.
         preference_regressors = EstimatorDict(predicate=LassoCV(copy_X=False), function=LassoCV(copy_X=False))
         preference_learner = JointProblemToPreferencesTransformer(precedence_transformer, preference_regressors,
-                                                                  batch_size=1000000, progress=True)
+                                                                  batch_size=1000000)
         precedence_estimator = sklearn.pipeline.Pipeline([
             ('problem_to_preference', preference_learner),
             ('preference_to_precedence', PreferenceToPrecedenceTransformer())
@@ -132,8 +131,8 @@ def call(namespace):
             {'problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': ['passthrough']}
         ]
         scorers = {
-            'success_rate': ScorerSuccessRate(progress=True),
-            'saturation_iterations': ScorerMeanScore(problem_to_results_transformer, target_transformer, progress=True)
+            'success_rate': ScorerSuccessRate(),
+            'saturation_iterations': ScorerSaturationIterations(problem_to_results_transformer, target_transformer)
         }
         cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
                                 test_size=namespace.test_size, random_state=0)
