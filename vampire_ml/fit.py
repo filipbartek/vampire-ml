@@ -129,7 +129,7 @@ def call(namespace):
 
 
 def get_y_pipeline(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
-                   log_scale=False, normalize=True):
+                   log_scale=True, normalize=True):
     y_pipeline_steps = list()
     if failure_penalty_quantile is not None:
         y_pipeline_steps.append(
