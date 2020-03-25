@@ -227,8 +227,14 @@ class ScorerMean:
                   total=len(problems)) as t:
             for problem, precedence_dict in t:
                 t.set_postfix_str(problem)
-                score_transformed = self.get_score(problem, precedence_dict)
-                assert not np.isnan(score_transformed)
+                try:
+                    score_transformed = self.get_score(problem, precedence_dict)
+                    assert not np.isnan(score_transformed)
+                except FloatingPointError:
+                    # FloatingPointError occurs when all the random runs on the problem fail
+                    # so we have no baseline to normalize the score.
+                    logging.debug(f'Failed to determine the score on problem {problem}.', exc_info=True)
+                    score_transformed = np.nan
                 scores.append(score_transformed)
         return np.nanmean(scores)
 
