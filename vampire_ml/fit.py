@@ -28,10 +28,10 @@ from vampire_ml.sklearn_extensions import EstimatorDict
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.train import GreedyPrecedenceGenerator
-from vampire_ml.train import IsolatedProblemToPreferencesTransformer
-from vampire_ml.train import JointProblemToPreferencesTransformer
-from vampire_ml.train import ProblemToResultsTransformer
+from vampire_ml.train import PreferenceMatrixPredictor
+from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RandomPrecedenceGenerator
+from vampire_ml.train import RunGenerator
 from vampire_ml.train import ScorerSaturationIterations
 from vampire_ml.train import ScorerSuccessRate
 
@@ -119,65 +119,57 @@ def call(namespace):
         problems = [vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path),
                                             base_options=vampire_options,
                                             timeout=namespace.timeout) for problem_path in problem_paths]
-        problem_to_results_transformer = ProblemToResultsTransformer(namespace.solve_runs,
-                                                                     namespace.random_predicate_precedence,
-                                                                     namespace.random_function_precedence)
+        run_generator = RunGenerator(namespace.solve_runs,
+                                     namespace.random_predicate_precedence,
+                                     namespace.random_function_precedence)
         # TODO: Expose the parameters properly.
-        target_transformer = get_y_pipeline()
-        precedence_transformer = IsolatedProblemToPreferencesTransformer(problem_to_results_transformer,
-                                                                         target_transformer,
-                                                                         LassoCV(copy_X=False))
+        score_scaler = get_score_scaler()
+        problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator, score_scaler,
+                                                                            LassoCV(copy_X=False))
         if namespace.precompute:
             logging.info('Omitting cross-problem training.')
             isolated_param_grid = [
                 {},
-                {'target_transformer__quantile__divide_by_success_rate': [False]},
-                {'target_transformer__quantile__factor': [1, 2, 10, 11, 12]},
-                {'target_transformer__log': ['passthrough']},
-                {'target_transformer__normalize': ['passthrough']}
+                {'score_scaler__quantile__divide_by_success_rate': [False]},
+                {'score_scaler__quantile__factor': [1, 2, 10, 11, 12]},
+                {'score_scaler__log': ['passthrough']},
+                {'score_scaler__normalize': ['passthrough']}
             ]
             for params in tqdm(ParameterGrid(isolated_param_grid), desc='Precomputing', unit='combination'):
-                estimator = sklearn.base.clone(precedence_transformer)
+                estimator = sklearn.base.clone(problem_preference_matrix_transformer)
                 estimator.set_params(**params)
                 list(estimator.transform(problems))
         else:
             param_grid = [
-                {'problem_to_precedence__problem_to_preference__preference_regressors': [
+                {'precedence__preference__pair_value': [
                     None,
                     EstimatorDict(predicate=LinearRegression(copy_X=False), function=LinearRegression(copy_X=False))
                 ]},
-                {'problem_to_precedence__problem_to_preference__batch_size': [5, 1000, 10000, 1000000]},
-                {
-                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__divide_by_success_rate': [
-                        False]},
-                {
-                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__factor': [
-                        1, 2,
-                        10]},
-                {
-                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__log': [
-                        'passthrough']},
-                {
-                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': [
-                        'passthrough']},
-                {'problem_to_precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
-                                                                     namespace.random_function_precedence)]}
+                {'precedence__preference__batch_size': [5, 1000, 10000, 1000000]},
+                {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
+                {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
+                {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
+                {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
+                {'precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
+                                                          namespace.random_function_precedence)]}
             ]
 
             # TODO: Try MLPRegressor.
-            preference_regressors = EstimatorDict(predicate=LassoCV(copy_X=False), function=LassoCV(copy_X=False))
-            preference_learner = JointProblemToPreferencesTransformer(precedence_transformer, preference_regressors,
-                                                                      batch_size=1000000)
+            symbol_pair_preference_value_predictors = EstimatorDict(predicate=LassoCV(copy_X=False),
+                                                                    function=LassoCV(copy_X=False))
+            preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
+                                                             symbol_pair_preference_value_predictors,
+                                                             batch_size=1000000)
             precedence_estimator = sklearn.pipeline.Pipeline([
-                ('problem_to_preference', preference_learner),
-                ('preference_to_precedence', GreedyPrecedenceGenerator())
+                ('preference', preference_predictor),
+                ('precedence', GreedyPrecedenceGenerator())
             ])
             precedence_estimator = sklearn.pipeline.Pipeline([
-                ('problem_to_precedence', precedence_estimator)
+                ('precedence', precedence_estimator)
             ])
             scorers = {
                 'success_rate': ScorerSuccessRate(),
-                'saturation_iterations': ScorerSaturationIterations(problem_to_results_transformer, target_transformer)
+                'iterations': ScorerSaturationIterations(run_generator, score_scaler)
             }
             cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
                                     test_size=namespace.test_size, random_state=0)
@@ -191,11 +183,11 @@ def call(namespace):
             with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
                                    'display.expand_frame_repr',
                                    False):
-                print(df[['params', 'mean_test_success_rate', 'mean_test_saturation_iterations']])
+                print(df[['params', 'mean_test_success_rate', 'mean_test_iterations']])
 
 
-def get_y_pipeline(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
-                   log_scale=True, normalize=True):
+def get_score_scaler(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
+                     log_scale=True, normalize=True):
     y_pipeline_steps = list()
     if failure_penalty_quantile is not None:
         y_pipeline_steps.append(

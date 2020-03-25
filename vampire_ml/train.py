@@ -14,7 +14,7 @@ from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 
 
-class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
+class RunGenerator(BaseEstimator, TransformerMixin):
     def __init__(self, runs_per_problem, random_predicates, random_functions):
         self.runs_per_problem = runs_per_problem
         self.random_predicates = random_predicates
@@ -41,7 +41,7 @@ class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
             base_scores[i] = execution.base_score()
             for symbol_type, precedence_matrix in precedences.items():
                 precedence_matrix[i] = execution.configuration.precedences[self.precedence_option(symbol_type)]
-        return base_scores, precedences
+        return precedences, base_scores
 
     def symbol_types(self):
         res = list()
@@ -56,13 +56,23 @@ class ProblemToResultsTransformer(BaseEstimator, TransformerMixin):
         return {'predicate': 'predicate_precedence', 'function': 'function_precedence'}[symbol_type]
 
 
-class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
-    """Processes each problem independently."""
+class PreferenceMatrixTransformer(BaseEstimator, TransformerMixin):
+    """
+    Predicts a symbol preference matrix dictionary for each problem in isolation.
+    Does not generalize across problems.
+    """
 
-    def __init__(self, problem_to_results_transformer, target_transformer, preference_score_regressor):
-        self.problem_to_results_transformer = problem_to_results_transformer
-        self.target_transformer = target_transformer
-        self.preference_score_regressor = preference_score_regressor
+    def __init__(self, run_generator, score_scaler, score_predictor):
+        """
+        :param run_generator: Run generator. Transforms problem into precedences and scores.
+        :param score_scaler: Score scaler blueprint. Scales a batch of scores.
+        :param score_predictor: Score predictor blueprint. Predicts score from symbol order matrix.
+        Must be a linear model exposing `coef_`. The same predictor is used for all symbol types
+        (predicates and functions).
+        """
+        self.run_generator = run_generator
+        self.score_scaler = score_scaler
+        self.score_predictor = score_predictor
 
     def fit(self, _):
         return self
@@ -79,10 +89,10 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         return memory.cache(type(self)._transform_one)(self, problem)
 
     def _transform_one(self, problem):
-        scores, precedences = self.problem_to_results_transformer.transform(problem)
+        precedences, scores = self.run_generator.transform(problem)
         if not np.all(np.isnan(scores)):
             # For each problem, we fit an independent copy of target transformer.
-            scores = sklearn.base.clone(self.target_transformer).fit_transform(scores.reshape(-1, 1))[:, 0]
+            scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
         else:
             logging.debug(f'All the scores are nans for problem {problem}.')
         return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
@@ -92,51 +102,61 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         if precedences.shape[1] <= 1:
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
         preference_pipeline = pipeline.Pipeline([
-            ('pairs_hit', preprocessing.FunctionTransformer(func=self.pairs_hit)),
+            ('order_matrices', preprocessing.FunctionTransformer(func=self.order_matrices)),
             ('flattener', Flattener())
         ])
         preferences_flattened = preference_pipeline.fit_transform(precedences)
-        preference_score_regressor = sklearn.base.clone(self.preference_score_regressor)
+        preference_score_regressor = sklearn.base.clone(self.score_predictor)
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', category=ConvergenceWarning)
             preference_score_regressor.fit(preferences_flattened, scores)
         return preference_pipeline['flattener'].inverse_transform(preference_score_regressor.coef_)[0]
 
     @staticmethod
-    def pairs_hit(precedences):
-        precedences = np.asarray(precedences)
-        m = precedences.shape[0]
-        n = precedences.shape[1]
-        assert precedences.shape == (m, n)
+    def order_matrices(permutations):
+        permutations = np.asarray(permutations)
+        m = permutations.shape[0]
+        n = permutations.shape[1]
+        assert permutations.shape == (m, n)
         res = np.empty((m, n, n), np.bool)
-        precedence_inverse = np.empty(n, precedences.dtype)
+        precedence_inverse = np.empty(n, permutations.dtype)
         # TODO: Consider optimizing this loop.
-        for i, precedence in enumerate(precedences):
+        for i, precedence in enumerate(permutations):
             # https://stackoverflow.com/a/25535723/4054250
             precedence_inverse[precedence] = np.arange(n)
             res[i] = np.tri(n, k=-1, dtype=np.bool).transpose()[precedence_inverse, :][:, precedence_inverse]
         return res
 
 
-class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
-    """Processes a batch of problems jointly."""
+class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
+    """
+    Predicts a symbol preference matrix dictionary for a problem.
+    Generalizes to new problems by exploiting patterns shared by multiple problems.
+    Learns from a batch of problems jointly.
+    """
 
-    def __init__(self, isolated_problem_to_preference, preference_regressors, batch_size, incremental_epochs=None):
+    def __init__(self, problem_matrix, pair_value, batch_size, incremental_epochs=None):
         """
-        :param preference_regressor: estimates preference of a pair of symbols based on the embeddings of the symbols.
+        :param problem_matrix: Transforms a problem into a preference matrix dictionary.
+        :param pair_value: Dictionary that maps each symbol type to a symbol pair preference value predictor.
+        Each of the predictors predicts preference value from an embedding of a symbol pair.
+        If None, each predicted preference matrix will be None.
+        :param batch_size: How many symbol pairs should we learn from in each training batch?
+        :param incremental_epochs: How many batches should we train on incrementally?
+        If None, the training is performed in one batch.
         """
-        self.isolated_problem_to_preference = isolated_problem_to_preference
-        self.preference_regressors = preference_regressors
+        self.problem_matrix = problem_matrix
+        self.pair_value = pair_value
         self.batch_size = batch_size
         self.incremental_epochs = incremental_epochs
 
     def fit(self, problems):
         preferences = {symbol_type: list() for symbol_type in self.symbol_types()}
-        for problem_preferences in self.isolated_problem_to_preference.fit_transform(problems):
+        for problem_preferences in self.problem_matrix.fit_transform(problems):
             for symbol_type in self.symbol_types():
                 preferences[symbol_type].append(problem_preferences[symbol_type])
         for symbol_type in self.symbol_types():
-            reg = self.preference_regressors[symbol_type]
+            reg = self.pair_value[symbol_type]
             if reg is None:
                 continue
             if self.incremental_epochs is not None:
@@ -160,13 +180,13 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
             yield {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
 
     def symbol_types(self):
-        if self.preference_regressors is None:
+        if self.pair_value is None:
             return frozenset()
-        return frozenset(self.preference_regressors.keys()) & frozenset(
-            self.isolated_problem_to_preference.problem_to_results_transformer.symbol_types())
+        return frozenset(self.pair_value.keys()) & frozenset(
+            self.problem_matrix.run_generator.symbol_types())
 
     def predict_one(self, problem, symbol_type):
-        reg = self.preference_regressors[symbol_type]
+        reg = self.pair_value[symbol_type]
         if reg is None:
             return None
         n = len(problem.get_symbols(symbol_type))
@@ -210,6 +230,7 @@ class GreedyPrecedenceGenerator(BaseEstimator, TransformerMixin):
 
     @staticmethod
     def transform(preference_dicts):
+        """For each preference dictionary yields a precedence dictionary."""
         for preference_dict in preference_dicts:
             yield {f'{symbol_type}_precedence': vampire_ml.precedence.learn_ltot(preference_matrix, symbol_type) for
                    symbol_type, preference_matrix in preference_dict.items()}
@@ -225,6 +246,7 @@ class RandomPrecedenceGenerator(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, problems):
+        """For each problem yields a precedence dictionary."""
         for problem in problems:
             yield problem.random_precedences(self.random_predicates, self.random_functions, seed=0)
 
@@ -272,17 +294,17 @@ class ScorerSuccessRate(ScorerMean):
 
 
 class ScorerSaturationIterations(ScorerMean):
-    def __init__(self, problem_to_results_transformer, target_transformer):
+    def __init__(self, run_generator, score_scaler):
         super().__init__('saturation iterations')
-        self.problem_to_results_transformer = problem_to_results_transformer
-        self.target_transformer = target_transformer
+        self.run_generator = run_generator
+        self.score_scaler = score_scaler
 
     def __repr__(self):
-        return f'{type(self)}({self.problem_to_results_transformer}, {self.target_transformer})'
+        return f'{type(self)}({self.run_generator}, {self.score_scaler})'
 
     def get_execution_score(self, problem, execution):
         return -self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
 
     def get_fitted_target_transformer(self, problem):
-        base_scores, _ = self.problem_to_results_transformer.transform(problem)
-        return sklearn.base.clone(self.target_transformer).fit(base_scores.reshape(-1, 1))
+        _, base_scores = self.run_generator.transform(problem)
+        return sklearn.base.clone(self.score_scaler).fit(base_scores.reshape(-1, 1))
