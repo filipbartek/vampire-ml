@@ -85,7 +85,6 @@ def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
     sys.setrecursionlimit(2000)
-    logging.basicConfig(level=logging.INFO)
 
     if namespace.clear_cache_joblib:
         memory.clear()
@@ -206,6 +205,7 @@ if __name__ == '__main__':
 
     np.random.seed(0)
 
+    logging.basicConfig(level=logging.DEBUG)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
 
     namespace.action(namespace)
