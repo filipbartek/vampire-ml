@@ -48,8 +48,9 @@ def run(args, timeout=None):
         def decode(b):
             if b is None:
                 return ''
-            else:
+            if isinstance(b, bytes):
                 return b.decode('utf-8')
+            return str(b)
 
         stdout = decode(e.output)
         stderr = decode(e.stderr)
