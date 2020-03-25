@@ -75,6 +75,9 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
                 yield self.transform_one(problem)
 
     def transform_one(self, problem):
+        return memory.cache(type(self)._transform_one)(self, problem)
+
+    def _transform_one(self, problem):
         scores, precedences = self.problem_to_results_transformer.transform(problem)
         # For each problem, we fit an independent copy of target transformer.
         target_transformer = sklearn.base.clone(self.target_transformer)
