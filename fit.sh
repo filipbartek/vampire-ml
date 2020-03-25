@@ -44,6 +44,8 @@ XARGS_COMMAND=(
   "$@"
 )
 
+if [ -n "${JOB_ID-}" ]; then XARGS_COMMAND+=(--batch-id "$JOB_ID"); fi
+
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 
 # See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out
