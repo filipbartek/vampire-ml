@@ -224,11 +224,13 @@ class ScorerMean:
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
         scores = list()
-        for problem, precedence_dict in tqdm(zip(problems, precedence_dicts), desc=f'Mean score ({self.name})',
-                                             unit='problem', total=len(problems)):
-            score_transformed = self.get_score(problem, precedence_dict)
-            assert not np.isnan(score_transformed)
-            scores.append(score_transformed)
+        with tqdm(zip(problems, precedence_dicts), desc=f'Mean score ({self.name})', unit='problem',
+                  total=len(problems)) as t:
+            for problem, precedence_dict in t:
+                t.set_postfix_str(problem)
+                score_transformed = self.get_score(problem, precedence_dict)
+                assert not np.isnan(score_transformed)
+                scores.append(score_transformed)
         return np.nanmean(scores)
 
     def get_score(self, problem, precedence_dict):
