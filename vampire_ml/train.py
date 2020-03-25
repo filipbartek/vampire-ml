@@ -80,10 +80,9 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 
     def _transform_one(self, problem):
         scores, precedences = self.problem_to_results_transformer.transform(problem)
-        # For each problem, we fit an independent copy of target transformer.
-        target_transformer = sklearn.base.clone(self.target_transformer)
         if not np.all(np.isnan(scores)):
-            scores = target_transformer.fit_transform(scores.reshape(-1, 1))[:, 0]
+            # For each problem, we fit an independent copy of target transformer.
+            scores = sklearn.base.clone(self.target_transformer).fit_transform(scores.reshape(-1, 1))[:, 0]
         else:
             warnings.warn('All the scores are nans for a problem.')
         return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
