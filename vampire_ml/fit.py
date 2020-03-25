@@ -131,7 +131,7 @@ def call(namespace):
             isolated_param_grid = [
                 {},
                 {'score_scaler__quantile__divide_by_success_rate': [False]},
-                {'score_scaler__quantile__factor': [1, 2, 10, 11, 12]},
+                {'score_scaler__quantile__factor': [1, 2, 10]},
                 {'score_scaler__log': ['passthrough']},
                 {'score_scaler__normalize': ['passthrough']}
             ]
