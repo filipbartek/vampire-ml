@@ -211,11 +211,7 @@ class Problem:
             solve_count = seed_count * 2
         with tqdm(range(seed_count), total=solve_count, desc=self.path, unit='run', disable=not progress) as t:
             for seed in t:
-                precedences = dict()
-                if random_predicates:
-                    precedences['predicate_precedence'] = self.random_predicate_precedence(seed)
-                if random_functions:
-                    precedences['function_precedence'] = self.random_function_precedence(seed)
+                precedences = self.random_precedences(random_predicates, random_functions, seed)
                 execution = self.get_execution(precedences=precedences)
                 assert execution.path == self.get_configuration_path(precedences=precedences)
                 yield execution
@@ -232,6 +228,14 @@ class Problem:
                     assert execution.path == self.get_configuration_path(precedences=reversed_precedences)
                     yield execution
                     t.update()
+
+    def random_precedences(self, predicate, function, seed=None):
+        precedences = dict()
+        if predicate:
+            precedences['predicate_precedence'] = self.random_predicate_precedence(seed)
+        if function:
+            precedences['function_precedence'] = self.random_function_precedence(seed)
+        return precedences
 
     def random_predicate_precedence(self, seed=None):
         # The equality symbol should be placed first in all the predicate precedences.
