@@ -68,9 +68,17 @@ def add_arguments(parser):
                         help='Which Vampire run configurations should be executed?')
     parser.add_argument('--clear-cache-joblib', action='store_true')
     parser.add_argument('--n-splits', type=int, default=1)
-    parser.add_argument('--train-size', type=int)
-    parser.add_argument('--test-size', type=int)
+    parser.add_argument('--train-size', type=split_size)
+    parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute', action='store_true')
+
+
+def split_size(s):
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    return float(s)
 
 
 def call(namespace):
