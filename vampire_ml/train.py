@@ -69,8 +69,10 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
-        for problem in problems:
-            yield self.transform_one(problem)
+        with tqdm(problems, desc='Calculating problem preferences', unit='problem', total=len(problems)) as t:
+            for problem in t:
+                t.set_postfix_str(problem)
+                yield self.transform_one(problem)
 
     def transform_one(self, problem):
         scores, precedences = self.problem_to_results_transformer.transform(problem)
@@ -127,8 +129,7 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 
     def fit(self, problems):
         preferences = {symbol_type: list() for symbol_type in self.symbol_types()}
-        for problem_preferences in tqdm(self.isolated_problem_to_preference.fit_transform(problems),
-                                        desc='Calculating problem preferences', unit='problem', total=len(problems)):
+        for problem_preferences in self.isolated_problem_to_preference.fit_transform(problems):
             for symbol_type in self.symbol_types():
                 preferences[symbol_type].append(problem_preferences[symbol_type])
         for symbol_type in self.symbol_types():
