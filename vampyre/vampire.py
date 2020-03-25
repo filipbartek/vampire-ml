@@ -179,8 +179,7 @@ class Problem:
     def get_successful_clausify_result(self):
         result = self.get_clausify_execution().result
         if result.exit_code != 0:
-            raise RuntimeError('Clausify run failed.',
-                               {'status': result.status, 'exit_code': result.exit_code, 'stdout': result.stdout})
+            raise RuntimeError('Clausify run failed.', {'status': result.status, 'exit_code': result.exit_code})
         return result
 
     @methodtools.lru_cache(maxsize=1)
