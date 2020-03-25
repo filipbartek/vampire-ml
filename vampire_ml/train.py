@@ -28,6 +28,7 @@ class RunGenerator(BaseEstimator, TransformerMixin):
 
     def _transform(self, problem):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
+        # TODO: Exhaust all precedences on small problems.
         executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
                                                            random_predicates=self.random_predicates,
                                                            random_functions=self.random_functions)
