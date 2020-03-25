@@ -275,7 +275,6 @@ class Workspace:
             self.cache_info['misses'] += 1
             return self.run(configuration), None
         configuration_path = self.get_configuration_path(configuration)
-        logging.debug({'problem': configuration.problem_path, 'configuration_path': configuration_path})
         try:
             result = self.load(configuration, configuration_path)
             self.cache_info['hits'] += 1
