@@ -205,7 +205,7 @@ if __name__ == '__main__':
 
     np.random.seed(0)
 
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
 
     namespace.action(namespace)
