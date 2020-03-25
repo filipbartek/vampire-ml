@@ -69,7 +69,8 @@ class IsolatedProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
-        with tqdm(problems, desc='Calculating problem preferences', unit='problem', total=len(problems)) as t:
+        with tqdm(problems, desc='Calculating problem preferences', unit='problem', total=len(problems),
+                  disable=len(problems) <= 1) as t:
             for problem in t:
                 t.set_postfix_str(problem)
                 yield self.transform_one(problem)
