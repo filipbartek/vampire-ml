@@ -16,6 +16,7 @@ import sklearn.preprocessing
 import yaml
 from sklearn.linear_model import LassoCV
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import ParameterGrid
 from tqdm import tqdm
 
 import vampyre
@@ -112,51 +113,63 @@ def call(namespace):
         problem_to_results_transformer = ProblemToResultsTransformer(namespace.solve_runs,
                                                                      namespace.random_predicate_precedence,
                                                                      namespace.random_function_precedence)
-        if namespace.precompute:
-            logging.info('Omitting training.')
-            for problem in tqdm(problems, unit='problem', desc='Precomputing results of Vampire runs'):
-                problem_to_results_transformer.transform(problem)
-            return
         # TODO: Expose the parameters properly.
         target_transformer = get_y_pipeline()
         precedence_transformer = IsolatedProblemToPreferencesTransformer(problem_to_results_transformer,
                                                                          target_transformer,
                                                                          LassoCV(copy_X=False))
-        # TODO: Try MLPRegressor.
-        preference_regressors = EstimatorDict(predicate=LassoCV(copy_X=False), function=LassoCV(copy_X=False))
-        preference_learner = JointProblemToPreferencesTransformer(precedence_transformer, preference_regressors,
-                                                                  batch_size=1000000)
-        precedence_estimator = sklearn.pipeline.Pipeline([
-            ('problem_to_preference', preference_learner),
-            ('preference_to_precedence', PreferenceToPrecedenceTransformer())
-        ])
+        if namespace.precompute:
+            logging.info('Omitting cross-problem training.')
+            isolated_param_grid = [
+                {},
+                {'target_transformer__quantile__divide_by_success_rate': [False]},
+                {'target_transformer__quantile__factor': [1, 2, 10, 11, 12]},
+                {'target_transformer__log': ['passthrough']},
+                {'target_transformer__normalize': ['passthrough']}
+            ]
+            for params in tqdm(ParameterGrid(isolated_param_grid), desc='Precomputing', unit='combination'):
+                estimator = sklearn.base.clone(precedence_transformer)
+                estimator.set_params(**params)
+                list(estimator.transform(problems))
+        else:
+            param_grid = [
+                {'problem_to_preference__preference_regressors': [None]},
+                {'problem_to_preference__batch_size': [1000, 10000, 1000000]},
+                {
+                    'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__divide_by_success_rate': [
+                        False]},
+                {'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__factor': [1, 2,
+                                                                                                                 10]},
+                {'problem_to_preference__isolated_problem_to_preference__target_transformer__log': ['passthrough']},
+                {'problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': [
+                    'passthrough']}
+            ]
 
-        param_grid = [
-            {'problem_to_preference__preference_regressors': [None]},
-            {'problem_to_preference__batch_size': [1000, 10000, 1000000]},
-            {
-                'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__divide_by_success_rate': [
-                    False]},
-            {'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__factor': [1, 2, 10]},
-            {'problem_to_preference__isolated_problem_to_preference__target_transformer__log': ['passthrough']},
-            {'problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': ['passthrough']}
-        ]
-        scorers = {
-            'success_rate': ScorerSuccessRate(),
-            'saturation_iterations': ScorerSaturationIterations(problem_to_results_transformer, target_transformer)
-        }
-        cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
-                                test_size=namespace.test_size, random_state=0)
-        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                          error_score='raise')
-        # TODO: Parallelize.
-        gs.fit(problems)
-        df = pd.DataFrame(gs.cv_results_)
-        output_batch = os.path.join(namespace.output, 'batches', namespace.batch_id)
-        save_df(df, 'fit_cv_results', output_dir=output_batch, index=False)
-        with pd.option_context('display.max_seq_items', None, 'display.max_columns', None, 'display.expand_frame_repr',
-                               False):
-            print(df[['params', 'mean_test_success_rate', 'mean_test_saturation_iterations']])
+            # TODO: Try MLPRegressor.
+            preference_regressors = EstimatorDict(predicate=LassoCV(copy_X=False), function=LassoCV(copy_X=False))
+            preference_learner = JointProblemToPreferencesTransformer(precedence_transformer, preference_regressors,
+                                                                      batch_size=1000000)
+            precedence_estimator = sklearn.pipeline.Pipeline([
+                ('problem_to_preference', preference_learner),
+                ('preference_to_precedence', PreferenceToPrecedenceTransformer())
+            ])
+            scorers = {
+                'success_rate': ScorerSuccessRate(),
+                'saturation_iterations': ScorerSaturationIterations(problem_to_results_transformer, target_transformer)
+            }
+            cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
+                                    test_size=namespace.test_size, random_state=0)
+            gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
+                              error_score='raise')
+            # TODO: Parallelize.
+            gs.fit(problems)
+            df = pd.DataFrame(gs.cv_results_)
+            output_batch = os.path.join(namespace.output, 'batches', namespace.batch_id)
+            save_df(df, 'fit_cv_results', output_dir=output_batch, index=False)
+            with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
+                                   'display.expand_frame_repr',
+                                   False):
+                print(df[['params', 'mean_test_success_rate', 'mean_test_saturation_iterations']])
 
 
 def get_y_pipeline(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
