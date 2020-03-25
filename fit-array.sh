@@ -31,15 +31,21 @@ echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
 echo "TIME_PER_TASK=$TIME_PER_TASK"
 
 mkdir -p "$OUTPUT_SLURM"
-ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="$OUTPUT:fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
 
-echo Array job ID: "$ARRAY_JOB_ID"
+if [ -n "${SKIP_MAP-}" ]; then
+  echo "Skipping map step (array job)."
+  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" fit.sh --problem-list "$PROBLEMS" "$@"
+else
+  ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="$OUTPUT:fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
 
-BATCHES_DIR="$OUTPUT/batches/$ARRAY_JOB_ID"
-mkdir -p "$BATCHES_DIR"
-git rev-parse --verify HEAD >"$BATCHES_DIR/git-commit-sha.txt"
-env | sort >"$BATCHES_DIR/env.txt"
-echo "$@" >"$BATCHES_DIR/parameters.txt"
+  echo Array job ID: "$ARRAY_JOB_ID"
 
-export ARRAY_JOB_ID
-sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
+  BATCHES_DIR="$OUTPUT/batches/$ARRAY_JOB_ID"
+  mkdir -p "$BATCHES_DIR"
+  git rev-parse --verify HEAD >"$BATCHES_DIR/git-commit-sha.txt"
+  env | sort >"$BATCHES_DIR/env.txt"
+  echo "$@" >"$BATCHES_DIR/parameters.txt"
+
+  export ARRAY_JOB_ID
+  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
+fi
