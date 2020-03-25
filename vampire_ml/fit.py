@@ -15,6 +15,7 @@ import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
 from sklearn.linear_model import LassoCV
+from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import ParameterGrid
 from tqdm import tqdm
@@ -26,10 +27,11 @@ from vampire_ml.results import save_df
 from vampire_ml.sklearn_extensions import EstimatorDict
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
+from vampire_ml.train import GreedyPrecedenceGenerator
 from vampire_ml.train import IsolatedProblemToPreferencesTransformer
 from vampire_ml.train import JointProblemToPreferencesTransformer
-from vampire_ml.train import PreferenceToPrecedenceTransformer
 from vampire_ml.train import ProblemToResultsTransformer
+from vampire_ml.train import RandomPrecedenceGenerator
 from vampire_ml.train import ScorerSaturationIterations
 from vampire_ml.train import ScorerSuccessRate
 
@@ -140,16 +142,26 @@ def call(namespace):
                 list(estimator.transform(problems))
         else:
             param_grid = [
-                {'problem_to_preference__preference_regressors': [None]},
-                {'problem_to_preference__batch_size': [1000, 10000, 1000000]},
+                {'problem_to_precedence__problem_to_preference__preference_regressors': [
+                    None,
+                    EstimatorDict(predicate=LinearRegression(copy_X=False), function=LinearRegression(copy_X=False))
+                ]},
+                {'problem_to_precedence__problem_to_preference__batch_size': [5, 1000, 10000, 1000000]},
                 {
-                    'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__divide_by_success_rate': [
+                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__divide_by_success_rate': [
                         False]},
-                {'problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__factor': [1, 2,
-                                                                                                                 10]},
-                {'problem_to_preference__isolated_problem_to_preference__target_transformer__log': ['passthrough']},
-                {'problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': [
-                    'passthrough']}
+                {
+                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__quantile__factor': [
+                        1, 2,
+                        10]},
+                {
+                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__log': [
+                        'passthrough']},
+                {
+                    'problem_to_precedence__problem_to_preference__isolated_problem_to_preference__target_transformer__normalize': [
+                        'passthrough']},
+                {'problem_to_precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
+                                                                     namespace.random_function_precedence)]}
             ]
 
             # TODO: Try MLPRegressor.
@@ -158,7 +170,10 @@ def call(namespace):
                                                                       batch_size=1000000)
             precedence_estimator = sklearn.pipeline.Pipeline([
                 ('problem_to_preference', preference_learner),
-                ('preference_to_precedence', PreferenceToPrecedenceTransformer())
+                ('preference_to_precedence', GreedyPrecedenceGenerator())
+            ])
+            precedence_estimator = sklearn.pipeline.Pipeline([
+                ('problem_to_precedence', precedence_estimator)
             ])
             scorers = {
                 'success_rate': ScorerSuccessRate(),

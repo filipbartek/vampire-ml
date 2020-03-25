@@ -204,7 +204,7 @@ class JointProblemToPreferencesTransformer(BaseEstimator, TransformerMixin):
         return np.concatenate((problem_embeddings, symbol_embeddings[:, 0], symbol_embeddings[:, 1]), axis=1)
 
 
-class PreferenceToPrecedenceTransformer(BaseEstimator, TransformerMixin):
+class GreedyPrecedenceGenerator(BaseEstimator, TransformerMixin):
     def fit(self, x, y=None):
         return self
 
@@ -214,6 +214,19 @@ class PreferenceToPrecedenceTransformer(BaseEstimator, TransformerMixin):
             yield {f'{symbol_type}_precedence': vampire_ml.precedence.learn_ltot(preference_matrix, symbol_type) for
                    symbol_type, preference_matrix in preference_dict.items()}
             # TODO: Experiment with hill climbing.
+
+
+class RandomPrecedenceGenerator(BaseEstimator, TransformerMixin):
+    def __init__(self, random_predicates, random_functions):
+        self.random_predicates = random_predicates
+        self.random_functions = random_functions
+
+    def fit(self, x, y=None):
+        return self
+
+    def transform(self, problems):
+        for problem in problems:
+            yield problem.random_precedences(self.random_predicates, self.random_functions, seed=0)
 
 
 class ScorerMean:
