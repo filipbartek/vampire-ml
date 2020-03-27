@@ -2,6 +2,7 @@ import logging
 import warnings
 
 import numpy as np
+import scipy
 import sklearn.base
 from sklearn import pipeline
 from sklearn import preprocessing
@@ -307,3 +308,23 @@ class ScorerSaturationIterations(ScorerMean):
     def get_fitted_target_transformer(self, problem):
         _, base_scores = self.run_generator.transform(problem)
         return sklearn.base.clone(self.score_scaler).fit(base_scores.reshape(-1, 1))
+
+
+class ScorerPercentile(ScorerMean):
+    def __init__(self, run_generator, kind='rank'):
+        self.run_generator = run_generator
+        self.kind = kind
+
+    def __repr__(self):
+        return f'{type(self).__name__}({self.run_generator}, {self.kind})'
+
+    def __str__(self):
+        return f'{type(self).__name__}({self.kind})'
+
+    def get_execution_score(self, problem, execution):
+        _, base_scores = self.run_generator.transform(problem)
+        base_scores = np.nan_to_num(base_scores, nan=np.inf)
+        execution_score = execution.base_score()
+        if np.isnan(execution_score):
+            execution_score = np.inf
+        return scipy.stats.percentileofscore(base_scores, execution_score, kind=self.kind)
