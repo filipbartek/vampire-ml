@@ -140,7 +140,7 @@ class Problem:
         return f'{type(self).__name__}({self.path})'
 
     def __getstate__(self):
-        return self.__dict__
+        return {key: self.__dict__[key] for key in ['path', 'vampire_options', 'timeout']}
 
     def name(self):
         return str(self).replace('/', '_')
