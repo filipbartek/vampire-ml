@@ -403,7 +403,7 @@ class Configuration:
             res.update({'include': include_dir})
         if scratch_dir is not None:
             os.makedirs(scratch_dir, exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=scratch_dir) as temp_dir:
+        with tempfile.TemporaryDirectory(prefix='vampire_ml_', dir=scratch_dir) as temp_dir:
             if len(self.precedences) >= 1:
                 precedence_dir = os.path.join(temp_dir, 'precedence')
                 os.makedirs(precedence_dir, exist_ok=True)
