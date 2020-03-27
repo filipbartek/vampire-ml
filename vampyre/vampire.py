@@ -203,7 +203,6 @@ class Problem:
                                       reverse=False, progress=True):
         # TODO: Parallelize.
         # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
-        # TODO: Allow solving for reverse precedences automatically.
         if solve_count > 1 and not random_predicates and not random_functions:
             warnings.warn('Multiple solve runs without randomized precedences')
         seed_count = solve_count
