@@ -305,7 +305,17 @@ def call(namespace):
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
                                                               namespace.problem_base_path)
 
-    vampire_options = dict()
+    vampire_options = {
+        'encode': 'on',
+        'statistics': 'full',
+        'time_statistics': 'on',
+        'proof': 'off',
+        'literal_comparison_mode': 'predicate',
+        'symbol_precedence': 'frequency',
+        'saturation_algorithm': 'discount',
+        'age_weight_ratio': '10',
+        'avatar': 'off'
+    }
     for value in chain(*namespace.vampire_options):
         vampire_options.update(value)
 
@@ -359,7 +369,7 @@ def call(namespace):
         try:
             for problem_path in problem_paths:
                 problem = vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path),
-                                                  base_options=vampire_options, timeout=namespace.timeout)
+                                                  vampire_options=vampire_options, timeout=namespace.timeout)
                 try:
                     clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
                         field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))

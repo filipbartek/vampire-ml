@@ -126,12 +126,11 @@ class Result(process.Result):
 class Problem:
     """Configuration of a Vampire run on a problem."""
 
-    def __init__(self, path, base_options=None, timeout=None):
+    def __init__(self, path, vampire_options=None, timeout=None):
         self.path = path
-        if base_options is None:
-            self.base_options = dict()
-        else:
-            self.base_options = base_options
+        if vampire_options is None:
+            vampire_options = dict()
+        self.vampire_options = vampire_options
         self.timeout = timeout
 
     def __str__(self):
@@ -191,10 +190,10 @@ class Problem:
         return workspace.get_execution(self.get_configuration(mode, precedences))
 
     def get_configuration(self, mode='vampire', precedences=None):
-        assert self.base_options is not None
-        base_options = self.base_options.copy()
-        base_options.update({'mode': mode})
-        return Configuration(self.path, base_options=base_options, precedences=precedences, timeout=self.timeout)
+        assert self.vampire_options is not None
+        current_options = self.vampire_options.copy()
+        current_options.update({'mode': mode})
+        return Configuration(self.path, options=current_options, precedences=precedences, timeout=self.timeout)
 
     def get_configuration_path(self, mode='vampire', precedences=None):
         return workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
@@ -337,21 +336,9 @@ def workspace_context(**kwargs):
 
 
 class Configuration:
-    default_options = {
-        'encode': 'on',
-        'statistics': 'full',
-        'time_statistics': 'on',
-        'proof': 'off',
-        'literal_comparison_mode': 'predicate',
-        'symbol_precedence': 'frequency',
-        'saturation_algorithm': 'discount',
-        'age_weight_ratio': '10',
-        'avatar': 'off'
-    }
-
-    def __init__(self, problem_path, base_options=None, precedences=None, timeout=None):
+    def __init__(self, problem_path, options, precedences=None, timeout=None):
         self.problem_path = problem_path
-        self.base_options = base_options
+        self.options = options
         self.precedences = dict()
         if precedences is not None:
             for key, value in precedences.items():
@@ -368,7 +355,7 @@ class Configuration:
             return False
         if self.problem_path != other.problem_path:
             return False
-        if self.base_options != other.base_options:
+        if self.options != other.options:
             return False
         if self.timeout != other.timeout:
             return False
@@ -383,7 +370,7 @@ class Configuration:
         os.makedirs(os.path.dirname(filename), exist_ok=True)
         json.dump({
             'problem': self.problem_path,
-            'base_options': self.base_options,
+            'options': self.options,
             'precedences': self.precedences,
             'timeout': self.timeout
         }, open(filename, 'w'), default=self.default, indent=4)
@@ -391,16 +378,21 @@ class Configuration:
     @staticmethod
     def load(filename):
         data = json.load(open(filename))
-        return Configuration(data['problem'], data['base_options'], data['precedences'], data['timeout'])
+        return Configuration(data['problem'], data['options'], data['precedences'], data['timeout'])
 
     @property
     def is_clausify(self):
-        return 'mode' in self.base_options and self.base_options['mode'] == 'clausify'
+        return self.mode == 'clausify'
+
+    @property
+    def mode(self):
+        if 'mode' in self.options:
+            return self.options['mode']
+        return 'vampire'
 
     @contextlib.contextmanager
-    def options(self, include_dir=None, scratch_dir=None):
-        res = self.default_options.copy()
-        res.update(self.base_options)
+    def instantiate_options(self, include_dir=None, scratch_dir=None):
+        res = self.options.copy()
         if include_dir is not None:
             res.update({'include': include_dir})
         if scratch_dir is not None:
@@ -423,7 +415,7 @@ class Configuration:
             yield res
 
     def run(self, program='vampire', problem_dir='', include_dir=None, scratch_dir=None, configuration_dir=None):
-        with self.options(include_dir=include_dir, scratch_dir=scratch_dir) as options:
+        with self.instantiate_options(include_dir=include_dir, scratch_dir=scratch_dir) as options:
             args = list(itertools.chain([program],
                                         *((f'--{name}', str(value)) for (name, value) in options.items()),
                                         [os.path.join(problem_dir, self.problem_path)]))
