@@ -152,11 +152,12 @@ def call(namespace):
                 list(estimator.transform(problems))
         else:
             param_grid = [
+                {},
                 {'precedence__preference__pair_value': [
                     None,
                     EstimatorDict(predicate=LinearRegression(copy_X=False), function=LinearRegression(copy_X=False))
                 ]},
-                {'precedence__preference__batch_size': [5, 1000, 10000, 1000000]},
+                {'precedence__preference__batch_size': [5, 1000, 10000]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
