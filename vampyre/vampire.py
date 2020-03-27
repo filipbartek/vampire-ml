@@ -253,6 +253,8 @@ class Problem:
 class Workspace:
     def __init__(self, path=None, program='vampire', problem_dir=None, include_dir=None, scratch_dir=None,
                  never_load=False, never_run=False, result_is_ok_to_load=None, check_hash_collisions=True):
+        if path is None:
+            path = os.path.join(appdirs.user_cache_dir('vampire_ml'), 'workspace')
         self.path = path
         self.program = program
         self.problem_dir = problem_dir
