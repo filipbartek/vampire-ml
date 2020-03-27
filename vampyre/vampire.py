@@ -11,6 +11,7 @@ import os
 import tempfile
 import warnings
 
+import appdirs
 import methodtools
 import numpy as np
 import pandas as pd
