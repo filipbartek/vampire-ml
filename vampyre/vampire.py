@@ -304,7 +304,7 @@ class Workspace:
         m = hashlib.md5()
         m.update(configuration.tobytes())
         assert self.path is not None
-        return os.path.join(self.path, 'md5', m.hexdigest())
+        return os.path.join(self.path, 'vampire_runs', configuration.problem_path, configuration.mode, m.hexdigest())
 
     def load(self, configuration, configuration_path):
         if self.path is None:
