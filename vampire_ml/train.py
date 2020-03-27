@@ -253,14 +253,10 @@ class RandomPrecedenceGenerator(BaseEstimator, TransformerMixin):
 
 
 class ScorerMean:
-    def __init__(self, name):
-        self.name = name
-
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
         scores = list()
-        with tqdm(zip(problems, precedence_dicts), desc=f'Mean score ({self.name})', unit='problem',
-                  total=len(problems)) as t:
+        with tqdm(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems)) as t:
             stats = dict()
             for problem, precedence_dict in t:
                 stats['problem'] = problem
@@ -287,8 +283,8 @@ class ScorerMean:
 
 
 class ScorerSuccessRate(ScorerMean):
-    def __init__(self):
-        super().__init__('success rate')
+    def __str__(self):
+        return type(self).__name__
 
     def get_execution_score(self, problem, execution):
         return execution['exit_code'] == 0
@@ -296,12 +292,14 @@ class ScorerSuccessRate(ScorerMean):
 
 class ScorerSaturationIterations(ScorerMean):
     def __init__(self, run_generator, score_scaler):
-        super().__init__('saturation iterations')
         self.run_generator = run_generator
         self.score_scaler = score_scaler
 
     def __repr__(self):
-        return f'{type(self)}({self.run_generator}, {self.score_scaler})'
+        return f'{type(self).__name__}({self.run_generator}, {self.score_scaler})'
+
+    def __str__(self):
+        return type(self).__name__
 
     def get_execution_score(self, problem, execution):
         return -self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
