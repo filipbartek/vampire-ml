@@ -348,7 +348,7 @@ def call(namespace):
         problems_file.write('\n'.join(problem_paths))
         problems_file.write('\n')
 
-    with vampyre.vampire.workspace_context(path=namespace.output, program=namespace.vampire,
+    with vampyre.vampire.workspace_context(program=namespace.vampire,
                                            problem_dir=problem_base_path, include_dir=namespace.include,
                                            scratch_dir=namespace.scratch,
                                            never_load=never_load, never_run=never_run,
