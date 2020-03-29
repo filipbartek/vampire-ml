@@ -18,6 +18,8 @@ from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import ParameterGrid
+from sklearn.neural_network import MLPRegressor
+from sklearn.svm import LinearSVR, SVR
 from tqdm import tqdm
 
 import vampyre
@@ -152,11 +154,15 @@ def call(namespace):
                 estimator.set_params(**params)
                 list(estimator.transform(problems))
         else:
+            reg_linear = LinearRegression(copy_X=False)
+            reg_mlp = MLPRegressor(random_state=0, early_stopping=True, verbose=True)
+            reg_svr_linear = LinearSVR(dual=False, random_state=0, verbose=1000)
+            reg_svr = SVR(verbose=True)
             param_grid = [
                 {},
                 {'precedence__preference__pair_value': [
                     None,
-                    EstimatorDict(predicate=LinearRegression(copy_X=False), function=LinearRegression(copy_X=False))
+                    EstimatorDict(predicate=sklearn.base.clone(reg_linear), function=sklearn.base.clone(reg_linear))
                 ]},
                 {'precedence__preference__batch_size': [5, 1000, 10000]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
@@ -164,10 +170,31 @@ def call(namespace):
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
                 {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
                 {'precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
-                                                          namespace.random_function_precedence)]}
+                                                          namespace.random_function_precedence)]},
+                {
+                    'precedence__preference__pair_value': [
+                        EstimatorDict(predicate=sklearn.base.clone(reg_mlp), function=sklearn.base.clone(reg_mlp))],
+                    'precedence__preference__batch_size': [1000, 10000, 100000, 1000000, 10000000],
+                    'precedence__preference__pair_value__predicate__early_stopping': [False, True]
+                },
+                {
+                    'precedence__preference__pair_value': [
+                        EstimatorDict(predicate=sklearn.base.clone(reg_mlp), function=sklearn.base.clone(reg_mlp))],
+                    'precedence__preference__incremental_epochs': [1, 200, 1000]
+                },
+                {
+                    'precedence__preference__pair_value': [EstimatorDict(predicate=sklearn.base.clone(reg_svr_linear),
+                                                                         function=sklearn.base.clone(reg_svr_linear))],
+                    'precedence__preference__pair_value__predicate__C': [0.1, 0.5, 1.0, 2.0]
+                },
+                {
+                    'precedence__preference__pair_value': [EstimatorDict(predicate=sklearn.base.clone(reg_svr),
+                                                                         function=sklearn.base.clone(reg_svr))],
+                    'precedence__preference__pair_value__predicate__C': [0.1, 0.5, 1.0, 2.0],
+                    'precedence__preference__batch_size': [10000]
+                }
             ]
 
-            # TODO: Try MLPRegressor.
             symbol_pair_preference_value_predictors = EstimatorDict(predicate=LassoCV(copy_X=False),
                                                                     function=LassoCV(copy_X=False))
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
