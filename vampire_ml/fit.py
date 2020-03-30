@@ -26,7 +26,6 @@ import vampyre
 from utils import file_path_list
 from utils import memory
 from vampire_ml.results import save_df
-from vampire_ml.sklearn_extensions import EstimatorDict
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.train import GreedyPrecedenceGenerator
@@ -160,10 +159,7 @@ def call(namespace):
             reg_svr = SVR(verbose=True)
             param_grid = [
                 {},
-                {'precedence__preference__pair_value': [
-                    None,
-                    EstimatorDict(predicate=sklearn.base.clone(reg_linear), function=sklearn.base.clone(reg_linear))
-                ]},
+                {'precedence__preference__pair_value': [None, reg_linear]},
                 {'precedence__preference__batch_size': [5, 1000, 10000]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
@@ -172,33 +168,27 @@ def call(namespace):
                 {'precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
                                                           namespace.random_function_precedence)]},
                 {
-                    'precedence__preference__pair_value': [
-                        EstimatorDict(predicate=sklearn.base.clone(reg_mlp), function=sklearn.base.clone(reg_mlp))],
+                    'precedence__preference__pair_value': [reg_mlp],
                     'precedence__preference__batch_size': [1000, 10000, 100000, 1000000, 10000000],
                     'precedence__preference__pair_value__predicate__early_stopping': [False, True]
                 },
                 {
-                    'precedence__preference__pair_value': [
-                        EstimatorDict(predicate=sklearn.base.clone(reg_mlp), function=sklearn.base.clone(reg_mlp))],
+                    'precedence__preference__pair_value': [reg_mlp],
                     'precedence__preference__incremental_epochs': [1, 200, 1000]
                 },
                 {
-                    'precedence__preference__pair_value': [EstimatorDict(predicate=sklearn.base.clone(reg_svr_linear),
-                                                                         function=sklearn.base.clone(reg_svr_linear))],
+                    'precedence__preference__pair_value': [reg_svr_linear],
                     'precedence__preference__pair_value__predicate__C': [0.1, 0.5, 1.0, 2.0]
                 },
                 {
-                    'precedence__preference__pair_value': [EstimatorDict(predicate=sklearn.base.clone(reg_svr),
-                                                                         function=sklearn.base.clone(reg_svr))],
+                    'precedence__preference__pair_value': [reg_svr],
                     'precedence__preference__pair_value__predicate__C': [0.1, 0.5, 1.0, 2.0],
                     'precedence__preference__batch_size': [10000]
                 }
             ]
 
-            symbol_pair_preference_value_predictors = EstimatorDict(predicate=LassoCV(copy_X=False),
-                                                                    function=LassoCV(copy_X=False))
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
-                                                             symbol_pair_preference_value_predictors,
+                                                             reg_linear,
                                                              batch_size=1000000)
             precedence_estimator = sklearn.pipeline.Pipeline([
                 ('preference', preference_predictor),

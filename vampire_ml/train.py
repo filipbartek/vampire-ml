@@ -156,10 +156,11 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         for problem_preferences in self.problem_matrix.fit_transform(problems):
             for symbol_type in self.symbol_types():
                 preferences[symbol_type].append(problem_preferences[symbol_type])
+        self.pair_value_fitted_ = dict()
         for symbol_type in self.symbol_types():
-            reg = self.pair_value[symbol_type]
-            if reg is None:
-                continue
+            reg = sklearn.base.clone(self.pair_value)
+            self.pair_value_fitted_[symbol_type] = reg
+            assert id(reg) == id(self.pair_value_fitted_[symbol_type])
             if self.incremental_epochs is not None:
                 # TODO: Implement early stopping.
                 for _ in tqdm(range(self.incremental_epochs), desc=f'Fitting {symbol_type} precedence regressor',
@@ -181,15 +182,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             yield {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
 
     def symbol_types(self):
-        if self.pair_value is None:
-            return frozenset()
-        return frozenset(self.pair_value.keys()) & frozenset(
-            self.problem_matrix.run_generator.symbol_types())
+        return self.problem_matrix.run_generator.symbol_types()
 
     def predict_one(self, problem, symbol_type):
-        reg = self.pair_value[symbol_type]
-        if reg is None:
-            return None
+        reg = self.pair_value_fitted_[symbol_type]
         n = len(problem.get_symbols(symbol_type))
         l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
         symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
