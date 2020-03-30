@@ -139,9 +139,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     def __init__(self, problem_matrix, pair_value, batch_size, incremental_epochs=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
-        :param pair_value: Dictionary that maps each symbol type to a symbol pair preference value predictor.
-        Each of the predictors predicts preference value from an embedding of a symbol pair.
-        If None, each predicted preference matrix will be None.
+        :param pair_value: Symbol pair preference value predictor blueprint.
+        Predicts preference value from an embedding of a symbol pair.
         :param batch_size: How many symbol pairs should we learn from in each training batch?
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
