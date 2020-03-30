@@ -225,7 +225,8 @@ def call(namespace):
             with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
                                    'display.expand_frame_repr',
                                    False):
-                print(df[['params', 'mean_test_success_rate', 'mean_test_iterations']])
+                columns = ['params'] + [f'mean_test_{key}' for key in scorers.keys()]
+                print(df[columns])
 
 
 def get_score_scaler(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
