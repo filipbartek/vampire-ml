@@ -225,10 +225,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         return np.concatenate((problem_embeddings, symbol_embeddings[:, 0], symbol_embeddings[:, 1]), axis=1)
 
 
-class GreedyPrecedenceGenerator(BaseEstimator, TransformerMixin):
-    def fit(self, x, y=None):
-        return self
-
+class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
     @staticmethod
     def transform(preference_dicts):
         """For each preference dictionary yields a precedence dictionary."""
