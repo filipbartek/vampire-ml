@@ -136,18 +136,21 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     Learns from a batch of problems jointly.
     """
 
-    def __init__(self, problem_matrix, pair_value, batch_size, incremental_epochs=None):
+    def __init__(self, problem_matrix, pair_value, batch_size, weighted=False, incremental_epochs=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
         :param pair_value: Symbol pair preference value predictor blueprint.
         Predicts preference value from an embedding of a symbol pair.
         :param batch_size: How many symbol pairs should we learn from in each training batch?
+        :param weighted: If True, each of the samples is weighted by the absolute of its target value values when
+        fitting `pair_value`.
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
         """
         self.problem_matrix = problem_matrix
         self.pair_value = pair_value
         self.batch_size = batch_size
+        self.weighted = weighted
         self.incremental_epochs = incremental_epochs
 
     def fit(self, problems):
@@ -166,12 +169,20 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                               unit='epoch'):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
-                    reg.partial_fit(symbol_pair_embeddings, target_preference_values)
+                    if self.weighted:
+                        reg.partial_fit(symbol_pair_embeddings, target_preference_values,
+                                        sample_weight=np.abs(target_preference_values))
+                    else:
+                        reg.partial_fit(symbol_pair_embeddings, target_preference_values)
             else:
                 logging.info(f'Fitting {symbol_type} precedence regressor on {self.batch_size} samples...')
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
-                reg.fit(symbol_pair_embeddings, target_preference_values)
+                if self.weighted:
+                    reg.fit(symbol_pair_embeddings, target_preference_values,
+                            sample_weight=np.abs(target_preference_values))
+                else:
+                    reg.fit(symbol_pair_embeddings, target_preference_values)
         return self
 
     def transform(self, problems):
