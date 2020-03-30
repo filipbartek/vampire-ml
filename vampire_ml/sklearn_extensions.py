@@ -12,18 +12,17 @@ from sklearn.utils.validation import check_random_state
 
 class MeanRegression(RegressorMixin, LinearModel):
     def fit(self, X, y):
-        assert X.dtype == np.bool
+        self.intercept_ = 0.
         self.coef_ = np.zeros(X.shape[1], dtype=np.float)
         for i in range(X.shape[1]):
-            y_selected = y[X[:, i]]
-            if len(y_selected) == 0:
+            if np.count_nonzero(X[:, i]) == 0:
                 continue
-            self.coef_[i] = y_selected.mean()
+            self.coef_[i] = np.average(y, weights=X[:, i])
+        # TODO: Generalize for non-bool features.
         mean_positive_feature_count_per_sample = np.mean(np.sum(X, axis=1))
         assert mean_positive_feature_count_per_sample >= 0
         if mean_positive_feature_count_per_sample != 0:
             self.coef_ /= mean_positive_feature_count_per_sample
-        self.intercept_ = 0.
         return self
 
 
