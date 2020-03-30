@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.7
 
 import argparse
+import itertools
 import logging
 import os
 import sys
@@ -19,6 +20,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import ParameterGrid
 from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
 from tqdm import tqdm
 
@@ -159,14 +161,17 @@ def call(namespace):
             reg_svr = SVR(verbose=True)
             param_grid = [
                 {},
-                {'precedence__preference__pair_value': [None, reg_linear]},
+                {'precedence__preference__pair_value': [reg_linear]},
                 {'precedence__preference__batch_size': [5, 1000, 10000]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
                 {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
-                {'precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
-                                                          namespace.random_function_precedence)]},
+                {'precedence': [
+                    FunctionTransformer(func=transform_problems_to_none),
+                    RandomPrecedenceGenerator(namespace.random_predicate_precedence,
+                                              namespace.random_function_precedence)
+                ]},
                 {
                     'precedence__preference__pair_value': [reg_mlp],
                     'precedence__preference__batch_size': [1000, 10000, 100000, 1000000, 10000000],
@@ -237,6 +242,10 @@ def get_score_scaler(failure_penalty_quantile=1, failure_penalty_factor=1, failu
     if len(y_pipeline_steps) == 0:
         y_pipeline_steps.append(('passthrough', 'passthrough'))
     return sklearn.pipeline.Pipeline(y_pipeline_steps)
+
+
+def transform_problems_to_none(problems):
+    return itertools.repeat(None, len(problems))
 
 
 if __name__ == '__main__':
