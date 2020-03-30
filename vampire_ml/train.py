@@ -15,14 +15,16 @@ from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 
 
-class RunGenerator(BaseEstimator, TransformerMixin):
+class StaticTransformer(TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+
+class RunGenerator(BaseEstimator, StaticTransformer):
     def __init__(self, runs_per_problem, random_predicates, random_functions):
         self.runs_per_problem = runs_per_problem
         self.random_predicates = random_predicates
         self.random_functions = random_functions
-
-    def fit(self, _):
-        return self
 
     def transform(self, problem):
         return memory.cache(type(self)._transform)(self, problem)
@@ -58,7 +60,7 @@ class RunGenerator(BaseEstimator, TransformerMixin):
         return {'predicate': 'predicate_precedence', 'function': 'function_precedence'}[symbol_type]
 
 
-class PreferenceMatrixTransformer(BaseEstimator, TransformerMixin):
+class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
     """
     Predicts a symbol preference matrix dictionary for each problem in isolation.
     Does not generalize across problems.
@@ -75,9 +77,6 @@ class PreferenceMatrixTransformer(BaseEstimator, TransformerMixin):
         self.run_generator = run_generator
         self.score_scaler = score_scaler
         self.score_predictor = score_predictor
-
-    def fit(self, _):
-        return self
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
@@ -239,13 +238,10 @@ class GreedyPrecedenceGenerator(BaseEstimator, TransformerMixin):
             # TODO: Experiment with hill climbing.
 
 
-class RandomPrecedenceGenerator(BaseEstimator, TransformerMixin):
+class RandomPrecedenceGenerator(BaseEstimator, StaticTransformer):
     def __init__(self, random_predicates, random_functions):
         self.random_predicates = random_predicates
         self.random_functions = random_functions
-
-    def fit(self, x, y=None):
-        return self
 
     def transform(self, problems):
         """For each problem yields a precedence dictionary."""
