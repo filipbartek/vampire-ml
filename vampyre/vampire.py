@@ -149,13 +149,17 @@ class Problem:
     def get_embedding(self):
         return np.asarray([len(self.get_clauses())], dtype=np.uint)
 
+    @staticmethod
+    def get_symbol_embedding_column_names(symbol_type):
+        # TODO: Only include 'skolem' in function symbol representations.
+        return ['arity', 'usageCnt', 'unitUsageCnt', 'inGoal', 'inUnit', 'skolem']
+
     @methodtools.lru_cache(maxsize=2)
     def get_all_symbol_embeddings(self, symbol_type):
         assert symbol_type == 'function' or np.all(~self.get_symbols(symbol_type)[['skolem']])
         assert np.all(~self.get_symbols(symbol_type)[['inductionSkolem']])
-        # TODO: Only include 'skolem' in function symbol representations.
-        return self.get_symbols(symbol_type)[
-            ['arity', 'usageCnt', 'unitUsageCnt', 'inGoal', 'inUnit', 'skolem']].to_numpy(dtype=np.uint)
+        return self.get_symbols(symbol_type)[self.get_symbol_embedding_column_names(symbol_type)].to_numpy(
+            dtype=np.uint)
 
     def get_symbols_embedding(self, symbol_type, symbol_indexes):
         return self.get_all_symbol_embeddings(symbol_type)[symbol_indexes]
