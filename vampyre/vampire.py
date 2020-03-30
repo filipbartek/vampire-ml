@@ -164,6 +164,13 @@ class Problem:
     def get_symbols_embedding(self, symbol_type, symbol_indexes):
         return self.get_all_symbol_embeddings(symbol_type)[symbol_indexes]
 
+    def get_symbol_pair_embeddings(self, symbol_type, symbol_indexes):
+        n_samples = len(symbol_indexes)
+        assert symbol_indexes.shape == (n_samples, 2)
+        problem_embeddings = np.asarray(self.get_embedding()).reshape(1, -1).repeat(n_samples, axis=0)
+        symbol_embeddings = self.get_symbols_embedding(symbol_type, symbol_indexes.flatten()).reshape(n_samples, 2, -1)
+        return np.concatenate((problem_embeddings, symbol_embeddings[:, 0], symbol_embeddings[:, 1]), axis=1)
+
     def get_predicates(self):
         return self.get_symbols(symbol_type='predicate')
 

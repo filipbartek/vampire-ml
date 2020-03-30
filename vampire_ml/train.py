@@ -193,7 +193,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         n = len(problem.get_symbols(symbol_type))
         l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
         symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
-        symbol_pair_embeddings = self.get_symbol_pair_embeddings(problem, symbol_type, symbol_indexes)
+        symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
         return reg.predict(symbol_pair_embeddings).reshape(n, n)
 
     def generate_batch(self, problems, symbol_type, preferences):
@@ -211,18 +211,9 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     @classmethod
     def generate_sample_from_preference_matrix(cls, problem, symbol_type, preference_matrix, n_samples):
         symbol_indexes = np.random.choice(len(problem.get_symbols(symbol_type)), size=(n_samples, 2))
-        symbol_pair_embedding = cls.get_symbol_pair_embeddings(problem, symbol_type, symbol_indexes)
+        symbol_pair_embedding = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
         target_preference_value = preference_matrix[symbol_indexes[:, 0], symbol_indexes[:, 1]]
         return symbol_pair_embedding, target_preference_value
-
-    @staticmethod
-    def get_symbol_pair_embeddings(problem, symbol_type, symbol_indexes):
-        n_samples = len(symbol_indexes)
-        assert symbol_indexes.shape == (n_samples, 2)
-        problem_embeddings = np.asarray(problem.get_embedding()).reshape(1, -1).repeat(n_samples, axis=0)
-        symbol_embeddings = problem.get_symbols_embedding(symbol_type, symbol_indexes.flatten()).reshape(n_samples,
-                                                                                                         2, -1)
-        return np.concatenate((problem_embeddings, symbol_embeddings[:, 0], symbol_embeddings[:, 1]), axis=1)
 
 
 class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
