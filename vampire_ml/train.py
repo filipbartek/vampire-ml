@@ -340,4 +340,6 @@ class ScorerPercentile(ScorerMean):
         execution_score = execution.base_score()
         if np.isnan(execution_score):
             execution_score = np.inf
-        return scipy.stats.percentileofscore(base_scores, execution_score, kind=self.kind)
+        percentile = scipy.stats.percentileofscore(base_scores, execution_score, kind=self.kind)
+        assert 0 <= percentile <= 100
+        return 100 - percentile
