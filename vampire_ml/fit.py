@@ -49,10 +49,6 @@ def add_arguments(parser):
     parser.add_argument('--include', help='path prefix for the include TPTP directive')
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
-    parser.add_argument('--batch-id', default='default',
-                        help='Identifier of this batch of Vampire runs. '
-                             'Disambiguates name of the output directory with the batch configuration. '
-                             'Useful if multiple batches share the output directory.')
     parser.add_argument('--scratch', help='temporary output directory')
     parser.add_argument('--solve-runs', type=int, default=1000,
                         help='Number of Vampire executions per problem. '
@@ -218,8 +214,7 @@ def call(namespace):
             # TODO: Parallelize.
             gs.fit(problems)
             df = pd.DataFrame(gs.cv_results_)
-            output_batch = os.path.join(namespace.output, 'batches', namespace.batch_id)
-            save_df(df, 'fit_cv_results', output_dir=output_batch, index=False)
+            save_df(df, 'fit_cv_results', output_dir=namespace.output, index=False)
             with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
                                    'display.expand_frame_repr',
                                    False):

@@ -6,7 +6,7 @@
 
 set -euo pipefail
 
-export OUTPUT=${OUTPUT:-out/default}
+export OUTPUT=${OUTPUT:-out}
 export VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-8192}
 export VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
 export SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1000}
@@ -23,7 +23,7 @@ PROBLEMS=${PROBLEMS:-problems_selected_aggregated.txt}
 
 if [ -n "${SKIP_MAP-}" ]; then
   echo "Skipping map step (array job)."
-  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" fit.sh --problem-list "$PROBLEMS" "$@"
+  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j/slurm.out" fit.sh --problem-list "$PROBLEMS" "$@"
 else
   PROBLEMS_COUNT=$(wc -l <"$PROBLEMS")
   CPUS_PER_TASK=${CPUS_PER_TASK:-1}
@@ -36,7 +36,7 @@ else
   echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
   echo "TIME_PER_TASK=$TIME_PER_TASK"
 
-  ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="$OUTPUT:fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
+  ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="fit:map" --output="$OUTPUT_SLURM/%A/%a/slurm.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
 
   echo Array job ID: "$ARRAY_JOB_ID"
 
@@ -47,5 +47,5 @@ else
   echo "$@" >"$BATCHES_DIR/parameters.txt"
 
   export ARRAY_JOB_ID
-  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$OUTPUT:fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
+  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j/slurm.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
 fi

@@ -15,15 +15,17 @@ env | sort
 
 source env.sh
 
-if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then
-  OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID}
-  if [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then JOB_ID=${JOB_ID:-$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}; fi
+OUTPUT=${OUTPUT:-out}
+if [ -n "${SLURM_ARRAY_JOB_ID-}" ] && [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then
+  JOB_ID=${JOB_ID-$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}
 fi
 if [ -n "${SLURM_JOB_ID-}" ]; then
-  OUTPUT=${OUTPUT:-out/slurm/$SLURM_JOB_ID}
-  JOB_ID=${JOB_ID:-$SLURM_JOB_ID}
+  JOB_ID=${JOB_ID-$SLURM_JOB_ID}
 fi
-OUTPUT=${OUTPUT:-out/default}
+if [ -n "${JOB_ID-}" ]; then
+  OUTPUT_LOCAL=$OUTPUT/slurm/$JOB_ID
+fi
+OUTPUT_LOCAL=${OUTPUT_LOCAL:-$OUTPUT/default}
 
 VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
 VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-8192}
@@ -34,7 +36,7 @@ XARGS_COMMAND=(
   xargs --verbose
   python -O
   -m vampire_ml fit
-  --output "$OUTPUT"
+  --output "$OUTPUT_LOCAL"
   --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
   --vampire-options "{time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
@@ -43,8 +45,6 @@ XARGS_COMMAND=(
   --timeout $((VAMPIRE_TIME_LIMIT + 10))
   "$@"
 )
-
-if [ -n "${JOB_ID-}" ]; then XARGS_COMMAND+=(--batch-id "$JOB_ID"); fi
 
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 
