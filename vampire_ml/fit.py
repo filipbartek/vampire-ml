@@ -32,6 +32,7 @@ from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableStandardScaler
 from vampire_ml.sklearn_extensions import StableShuffleSplit
+from vampire_ml.train import BestPrecedenceGenerator
 from vampire_ml.train import GreedyPrecedenceGenerator
 from vampire_ml.train import PreferenceMatrixPredictor
 from vampire_ml.train import PreferenceMatrixTransformer
@@ -192,7 +193,8 @@ def call(namespace):
                 {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
                 {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
-                {'precedence': [FunctionTransformer(func=transform_problems_to_none)]},
+                {'precedence': [FunctionTransformer(func=transform_problems_to_none),
+                                BestPrecedenceGenerator(scoring_run_generator)]},
                 {
                     'precedence__preference__pair_value': [reg_svr_linear],
                     'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]

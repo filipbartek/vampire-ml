@@ -267,6 +267,20 @@ class RandomPrecedenceGenerator(BaseEstimator, StaticTransformer):
             yield problem.random_precedences(self.random_predicates, self.random_functions, seed=self.seed)
 
 
+class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
+    def __init__(self, run_generator):
+        self.run_generator = run_generator
+
+    def transform(self, problems):
+        """For each problem yields a precedence dictionary."""
+        for problem in problems:
+            precedences, base_scores = self.run_generator.transform(problem)
+            base_scores = np.nan_to_num(base_scores, nan=np.inf)
+            best_i = np.argmin(base_scores)
+            yield {f'{symbol_type}_precedence': precedence_matrix[best_i] for symbol_type, precedence_matrix in
+                   precedences.items()}
+
+
 class ScorerMean:
     def __call__(self, estimator, problems, y=None):
         precedence_dicts = estimator.transform(problems)
