@@ -12,7 +12,6 @@ export VAMPIRE_TIME_LIMIT=${VAMPIRE_TIME_LIMIT:-10}
 export SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1000}
 
 COMMON_SBATCH_OPTIONS=(
-  "--mail-type=FAIL,REQUEUE,STAGE_OUT"
   "--comment=$(git rev-parse --verify HEAD)"
 )
 
