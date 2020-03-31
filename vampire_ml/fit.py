@@ -157,7 +157,7 @@ def call(namespace):
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_mlp = MLPRegressor(random_state=0, early_stopping=True, verbose=True)
-            reg_svr_linear = LinearSVR(dual=False, random_state=0, verbose=1000)
+            reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0, verbose=1000)
             reg_svr = SVR(verbose=True)
             param_grid = [
                 {},
