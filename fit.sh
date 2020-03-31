@@ -23,7 +23,7 @@ if [ -n "${SLURM_JOB_ID-}" ]; then
   JOB_ID=${JOB_ID-$SLURM_JOB_ID}
 fi
 if [ -n "${JOB_ID-}" ]; then
-  OUTPUT_LOCAL=$OUTPUT/slurm/$JOB_ID
+  OUTPUT_LOCAL=$OUTPUT/batches/$JOB_ID
 fi
 OUTPUT_LOCAL=${OUTPUT_LOCAL:-$OUTPUT/default}
 
