@@ -1,3 +1,4 @@
+import collections
 import logging
 import warnings
 
@@ -142,8 +143,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         :param pair_value: Symbol pair preference value predictor blueprint.
         Predicts preference value from an embedding of a symbol pair.
         :param batch_size: How many symbol pairs should we learn from in each training batch?
-        :param weighted: If True, each of the samples is weighted by the absolute of its target value values when
-        fitting `pair_value`.
+        :param weighted: If True, each of the samples is weighted by absolute target value when fitting  `pair_value`.
+        Moreover, each of the problems is weighted by mean absolute preference value.
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
         """
@@ -154,10 +155,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         self.incremental_epochs = incremental_epochs
 
     def fit(self, problems):
-        preferences = {symbol_type: list() for symbol_type in self.symbol_types()}
-        for problem_preferences in self.problem_matrix.fit_transform(problems):
-            for symbol_type in self.symbol_types():
-                preferences[symbol_type].append(problem_preferences[symbol_type])
+        preferences = self.get_preferences(problems)
         self.pair_value_fitted_ = dict()
         for symbol_type in self.symbol_types():
             reg = sklearn.base.clone(self.pair_value)
@@ -169,20 +167,12 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                               unit='epoch'):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
-                    if self.weighted:
-                        reg.partial_fit(symbol_pair_embeddings, target_preference_values,
-                                        sample_weight=np.abs(target_preference_values))
-                    else:
-                        reg.partial_fit(symbol_pair_embeddings, target_preference_values)
+                    reg.partial_fit(symbol_pair_embeddings, target_preference_values)
             else:
                 logging.info(f'Fitting {symbol_type} precedence regressor on {self.batch_size} samples...')
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
-                if self.weighted:
-                    reg.fit(symbol_pair_embeddings, target_preference_values,
-                            sample_weight=np.abs(target_preference_values))
-                else:
-                    reg.fit(symbol_pair_embeddings, target_preference_values)
+                reg.fit(symbol_pair_embeddings, target_preference_values)
         return self
 
     def transform(self, problems):
@@ -202,24 +192,56 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
         return reg.predict(symbol_pair_embeddings).reshape(n, n)
 
-    def generate_batch(self, problems, symbol_type, preferences):
-        assert len(problems) == len(preferences)
+    PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
+
+    def get_preferences(self, problems):
+        preferences = {symbol_type: self.PreferenceRecord(list(), np.empty(len(problems), dtype=np.float)) for
+                       symbol_type in self.symbol_types()}
+        for i, problem_preferences in enumerate(self.problem_matrix.fit_transform(problems)):
+            for symbol_type in self.symbol_types():
+                matrix = problem_preferences[symbol_type]
+                preferences[symbol_type].matrices.append(matrix)
+                preferences[symbol_type].weights[i] = np.mean(np.abs(matrix))
+        return preferences
+
+    def generate_batch(self, problems, symbol_type, preference_record):
+        assert len(problems) == len(preference_record.matrices) == len(preference_record.weights)
         symbol_pair_embeddings = list()
         target_preference_values = list()
-        problem_indexes = np.random.choice(len(problems), size=self.batch_size)
+        p = None
+        if self.weighted:
+            assert np.all(preference_record.weights >= 0)
+            if np.count_nonzero(preference_record.weights) == 0:
+                warnings.warn('All of the problems have all-zero preference matrices. No data to learn from.')
+                return list(), list()
+            p = preference_record.weights / np.sum(preference_record.weights)
+        problem_indexes = np.random.choice(len(problems), size=self.batch_size, p=p)
         for problem_i, n_samples in zip(*np.unique(problem_indexes, return_counts=True)):
-            symbol_pair_embedding, target_preference_value = self.generate_sample_from_preference_matrix(
-                problems[problem_i], symbol_type, preferences[problem_i], n_samples)
-            symbol_pair_embeddings.append(symbol_pair_embedding)
-            target_preference_values.append(target_preference_value)
+            problem = problems[problem_i]
+            try:
+                symbol_pair_embedding, target_preference_value = self.generate_sample_from_preference_matrix(
+                    problem, symbol_type, preference_record.matrices[problem_i], n_samples)
+                symbol_pair_embeddings.append(symbol_pair_embedding)
+                target_preference_values.append(target_preference_value)
+            except RuntimeError:
+                warnings.warn(f'Failed to generate samples from problem {problem}.', exc_info=True)
         return np.concatenate(symbol_pair_embeddings), np.concatenate(target_preference_values)
 
-    @classmethod
-    def generate_sample_from_preference_matrix(cls, problem, symbol_type, preference_matrix, n_samples):
-        symbol_indexes = np.random.choice(len(problem.get_symbols(symbol_type)), size=(n_samples, 2))
-        symbol_pair_embedding = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
-        target_preference_value = preference_matrix[symbol_indexes[:, 0], symbol_indexes[:, 1]]
-        return symbol_pair_embedding, target_preference_value
+    def generate_sample_from_preference_matrix(self, problem, symbol_type, preference_matrix, n_samples):
+        n = len(problem.get_symbols(symbol_type))
+        l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
+        all_pairs_index_pairs = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
+        all_pairs_values = preference_matrix.flatten()
+        p = None
+        if self.weighted:
+            if np.allclose(0, all_pairs_values):
+                raise RuntimeError('Cannot learn from an all-zero preference matrix.')
+            p = np.abs(all_pairs_values) / np.sum(np.abs(all_pairs_values))
+        chosen_pairs_indexes = np.random.choice(len(all_pairs_index_pairs), size=n_samples, p=p)
+        chosen_pairs_index_pairs = all_pairs_index_pairs[chosen_pairs_indexes]
+        chosen_pairs_embeddings = problem.get_symbol_pair_embeddings(symbol_type, chosen_pairs_index_pairs)
+        chosen_pairs_values = all_pairs_values[chosen_pairs_indexes]
+        return chosen_pairs_embeddings, chosen_pairs_values
 
 
 class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
