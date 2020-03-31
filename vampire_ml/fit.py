@@ -169,11 +169,12 @@ def call(namespace):
                 {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
                 {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
-                {'precedence': [
-                    FunctionTransformer(func=transform_problems_to_none),
-                    RandomPrecedenceGenerator(namespace.random_predicate_precedence,
-                                              namespace.random_function_precedence)
-                ]},
+                {'precedence': [FunctionTransformer(func=transform_problems_to_none)]},
+                {
+                    'precedence': [RandomPrecedenceGenerator(namespace.random_predicate_precedence,
+                                                             namespace.random_function_precedence)],
+                    'precedence__seed': range(10)
+                },
                 {
                     'precedence__preference__pair_value': [reg_svr_linear],
                     'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
