@@ -163,9 +163,10 @@ def call(namespace):
             reg_svr = SVR()
             param_grid = [
                 {},
-                {'precedence__preference__batch_size': [1000],
-                 'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr, reg_mlp],
-                 'precedence__preference__weighted': [False, True]},
+                {
+                    'precedence__preference__batch_size': [1000],
+                    'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr, reg_mlp],
+                    'precedence__preference__weighted': [False, True]},
                 {
                     'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear],
                     'precedence__preference__weighted': [False, True]
