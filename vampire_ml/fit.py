@@ -163,11 +163,10 @@ def call(namespace):
             reg_svr = SVR(verbose=True)
             param_grid = [
                 {},
-                {'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr, reg_mlp],
+                {'precedence__preference__batch_size': [1000],
+                 'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr, reg_mlp],
                  'precedence__preference__weighted': [False, True]},
-                {'precedence__preference__batch_size': [5, 1000000]},
                 {
-                    'precedence__preference__batch_size': [1000000],
                     'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear],
                     'precedence__preference__weighted': [False, True]
                 },
@@ -185,6 +184,7 @@ def call(namespace):
                     'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
                 },
                 {
+                    'precedence__preference__batch_size': [1000],
                     'precedence__preference__pair_value': [reg_svr],
                     'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
                 },
@@ -192,8 +192,8 @@ def call(namespace):
             ]
 
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
-                                                             reg_linear,
-                                                             batch_size=1000)
+                                                             reg_svr_linear,
+                                                             batch_size=1000000)
             precedence_estimator = sklearn.pipeline.Pipeline([
                 ('preference', preference_predictor),
                 ('precedence', GreedyPrecedenceGenerator())
