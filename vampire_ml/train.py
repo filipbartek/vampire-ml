@@ -256,14 +256,15 @@ class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
 
 
 class RandomPrecedenceGenerator(BaseEstimator, StaticTransformer):
-    def __init__(self, random_predicates, random_functions):
+    def __init__(self, random_predicates, random_functions, seed=0):
         self.random_predicates = random_predicates
         self.random_functions = random_functions
+        self.seed = seed
 
     def transform(self, problems):
         """For each problem yields a precedence dictionary."""
         for problem in problems:
-            yield problem.random_precedences(self.random_predicates, self.random_functions, seed=0)
+            yield problem.random_precedences(self.random_predicates, self.random_functions, seed=self.seed)
 
 
 class ScorerMean:
