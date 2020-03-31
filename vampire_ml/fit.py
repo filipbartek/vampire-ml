@@ -189,6 +189,10 @@ def call(namespace):
                     'precedence__preference__pair_value': [reg_svr],
                     'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
                 },
+                {
+                    'precedence__preference__batch_size': [100000],
+                    'precedence__preference__pair_value': [reg_mlp]
+                },
                 {'precedence__preference__problem_matrix__score_predictor': [MeanRegression()]}
             ]
 
