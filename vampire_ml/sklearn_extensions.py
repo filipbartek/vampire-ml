@@ -6,6 +6,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model._base import LinearModel
 from sklearn.model_selection import ShuffleSplit
 from sklearn.model_selection._split import _validate_shuffle_split
+from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import _num_samples
 from sklearn.utils.validation import check_random_state
 
@@ -63,6 +64,22 @@ class Flattener(TransformerMixin, BaseEstimator):
         assert len(X.shape) == 2
         assert X.shape[1] == np.prod(self.shape_)
         return X.reshape((X.shape[0],) + self.shape_, order=self.order)
+
+
+class StableStandardScaler(StandardScaler):
+    def fit(self, X, y=None):
+        res = super().fit(X, y=y)
+        self.scale_[np.isclose(0, self.scale_)] = 1
+        assert not self.with_mean or self.mean_ == np.nanmean(X)
+        assert not self.with_std or self.scale_ == np.nanstd(X) or self.scale_ == 1
+        assert not np.isclose(0, self.scale_)
+        return res
+
+    def transform(self, X, copy=None):
+        assert not np.isclose(0, self.scale_)
+        res = super().transform(X, copy=copy)
+        res[np.isclose(0, res)] = 0
+        return res
 
 
 class StableShuffleSplit(ShuffleSplit):

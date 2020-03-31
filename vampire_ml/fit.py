@@ -30,6 +30,7 @@ from utils import memory
 from vampire_ml.results import save_df
 from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
+from vampire_ml.sklearn_extensions import StableStandardScaler
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.train import GreedyPrecedenceGenerator
 from vampire_ml.train import PreferenceMatrixPredictor
@@ -232,7 +233,7 @@ def get_score_scaler(failure_penalty_quantile=1, failure_penalty_factor=1, failu
     if log_scale:
         y_pipeline_steps.append(('log', sklearn.preprocessing.FunctionTransformer(func=np.log)))
     if normalize:
-        y_pipeline_steps.append(('normalize', sklearn.preprocessing.StandardScaler(copy=False)))
+        y_pipeline_steps.append(('normalize', StableStandardScaler(copy=False)))
     if len(y_pipeline_steps) == 0:
         y_pipeline_steps.append(('passthrough', 'passthrough'))
     return sklearn.pipeline.Pipeline(y_pipeline_steps)
