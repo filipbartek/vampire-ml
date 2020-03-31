@@ -157,6 +157,29 @@ def call(namespace):
             #reg_mlp = MLPRegressor(random_state=0, early_stopping=True)
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
+            preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
+                                                             reg_lasso,
+                                                             batch_size=1000000)
+            precedence_estimator = sklearn.pipeline.Pipeline([
+                ('preference', preference_predictor),
+                ('precedence', GreedyPrecedenceGenerator())
+            ])
+            precedence_estimator = sklearn.pipeline.Pipeline([
+                ('precedence', precedence_estimator)
+            ])
+            # TODO: Use a run generator with fewer runs per problem.
+            scoring_run_generator = run_generator
+            scorers = {
+                'success_rate': ScorerSuccessRate(),
+                'iterations': ScorerSaturationIterations(scoring_run_generator,
+                                                         get_score_scaler(failure_penalty_factor=2,
+                                                                          failure_penalty_divide_by_success_rate=False)),
+                'percentile.strict': ScorerPercentile(scoring_run_generator, kind='strict'),
+                'percentile.rank': ScorerPercentile(scoring_run_generator, kind='rank'),
+                'percentile.weak': ScorerPercentile(scoring_run_generator, kind='weak')
+            }
+            cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
+                                    test_size=namespace.test_size, random_state=0)
             param_grid = [
                 {},
                 {
@@ -186,30 +209,6 @@ def call(namespace):
                 },
                 {'precedence__preference__problem_matrix__score_predictor': [MeanRegression()]}
             ]
-
-            preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
-                                                             reg_lasso,
-                                                             batch_size=1000000)
-            precedence_estimator = sklearn.pipeline.Pipeline([
-                ('preference', preference_predictor),
-                ('precedence', GreedyPrecedenceGenerator())
-            ])
-            precedence_estimator = sklearn.pipeline.Pipeline([
-                ('precedence', precedence_estimator)
-            ])
-            # TODO: Use a run generator with fewer runs per problem.
-            scoring_run_generator = run_generator
-            scorers = {
-                'success_rate': ScorerSuccessRate(),
-                'iterations': ScorerSaturationIterations(scoring_run_generator,
-                                                         get_score_scaler(failure_penalty_factor=2,
-                                                                          failure_penalty_divide_by_success_rate=False)),
-                'percentile.strict': ScorerPercentile(scoring_run_generator, kind='strict'),
-                'percentile.rank': ScorerPercentile(scoring_run_generator, kind='rank'),
-                'percentile.weak': ScorerPercentile(scoring_run_generator, kind='weak')
-            }
-            cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
-                                    test_size=namespace.test_size, random_state=0)
             gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                               error_score='raise')
             # TODO: Parallelize.
