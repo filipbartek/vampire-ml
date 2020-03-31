@@ -194,7 +194,7 @@ def call(namespace):
 
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
                                                              reg_linear,
-                                                             batch_size=1000000)
+                                                             batch_size=1000)
             precedence_estimator = sklearn.pipeline.Pipeline([
                 ('preference', preference_predictor),
                 ('precedence', GreedyPrecedenceGenerator())
