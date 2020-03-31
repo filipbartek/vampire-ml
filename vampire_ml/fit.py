@@ -28,6 +28,7 @@ import vampyre
 from utils import file_path_list
 from utils import memory
 from vampire_ml.results import save_df
+from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.train import GreedyPrecedenceGenerator
@@ -156,13 +157,20 @@ def call(namespace):
                 list(estimator.transform(problems))
         else:
             reg_linear = LinearRegression(copy_X=False)
+            reg_lasso = LassoCV(copy_X=False)
             reg_mlp = MLPRegressor(random_state=0, early_stopping=True, verbose=True)
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0, verbose=1000)
             reg_svr = SVR(verbose=True)
             param_grid = [
                 {},
-                {'precedence__preference__pair_value': [reg_linear]},
-                {'precedence__preference__batch_size': [5, 1000, 10000]},
+                {'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr, reg_mlp],
+                 'precedence__preference__weighted': [False, True]},
+                {'precedence__preference__batch_size': [5, 1000000]},
+                {
+                    'precedence__preference__batch_size': [1000000],
+                    'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear],
+                    'precedence__preference__weighted': [False, True]
+                },
                 {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
                 {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
@@ -173,23 +181,14 @@ def call(namespace):
                                               namespace.random_function_precedence)
                 ]},
                 {
-                    'precedence__preference__pair_value': [reg_mlp],
-                    'precedence__preference__batch_size': [1000, 10000, 100000, 1000000, 10000000],
-                    'precedence__preference__pair_value__predicate__early_stopping': [False, True]
-                },
-                {
-                    'precedence__preference__pair_value': [reg_mlp],
-                    'precedence__preference__incremental_epochs': [1, 200, 1000]
-                },
-                {
                     'precedence__preference__pair_value': [reg_svr_linear],
-                    'precedence__preference__pair_value__predicate__C': [0.1, 0.5, 1.0, 2.0]
+                    'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
                 },
                 {
                     'precedence__preference__pair_value': [reg_svr],
-                    'precedence__preference__pair_value__predicate__C': [0.1, 0.5, 1.0, 2.0],
-                    'precedence__preference__batch_size': [10000]
-                }
+                    'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
+                },
+                {'precedence__preference__problem_matrix__score_predictor': [MeanRegression()]}
             ]
 
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
