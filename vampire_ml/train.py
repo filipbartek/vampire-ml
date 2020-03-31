@@ -137,7 +137,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     Learns from a batch of problems jointly.
     """
 
-    def __init__(self, problem_matrix, pair_value, batch_size, weighted=False, incremental_epochs=None):
+    def __init__(self, problem_matrix, pair_value, batch_size, weighted=True, incremental_epochs=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
         :param pair_value: Symbol pair preference value predictor blueprint.
