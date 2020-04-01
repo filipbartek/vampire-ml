@@ -18,10 +18,8 @@ import yaml
 from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import ParameterGrid
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
-from tqdm import tqdm
 
 import vampyre
 from utils import file_path_list
@@ -92,6 +90,22 @@ def instantiate_problems(problem_paths, problem_base_path, vampire_options, time
                                       timeout=timeout)
 
 
+def decorate_param_grid(param_grid, prefix):
+    res = list()
+    for d in param_grid:
+        d2 = dict()
+        for k, v in d.items():
+            d2[prefix + k] = v
+        res.append(d2)
+    return res
+
+
+def augment_param_grid(param_grid, new_param):
+    for d in param_grid:
+        d.update(new_param)
+    return param_grid
+
+
 def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
@@ -103,6 +117,9 @@ def call(namespace):
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
                                                               namespace.problem_base_path)
     problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
+    if len(problem_paths_train) == 0:
+        logging.info('Falling back: training on all problems.')
+        problem_paths_train = problem_paths
 
     # Default Vampire options:
     vampire_options = {
@@ -153,22 +170,25 @@ def call(namespace):
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
                                                                             sklearn.base.clone(score_scaler),
                                                                             LassoCV(copy_X=False))
+        param_grid = [{}]
+        score_scaler_param_grid = [
+            {
+                'standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
+                'log': [score_scaler_steps['log'], 'passthrough'],
+                'imputer__divide_by_success_rate': [False, True],
+                'imputer__factor': [1, 2, 10]
+            },
+            {
+                'imputer': ['passthrough'],
+                'log': [score_scaler_steps['log'], 'passthrough'],
+                'standardizer': [score_scaler_steps['standardizer'], 'passthrough']
+            }
+        ]
+        param_grid.extend([{'precedence': [FunctionTransformer(func=transform_problems_to_none),
+                                           BestPrecedenceGenerator(run_generator_test)]}])
         if namespace.precompute:
-            logging.info('Omitting cross-problem training.')
-            problems_train = list(
-                instantiate_problems(problem_paths_train, problem_base_path, vampire_options, namespace.timeout))
-            isolated_param_grid = [
-                {},
-                {'score_scaler__imputer__divide_by_success_rate': [False]},
-                {'score_scaler__imputer__factor': [1, 2, 10]},
-                {'score_scaler__log': ['passthrough']},
-                {'score_scaler__standardizer': ['passthrough']}
-            ]
-            all(run_generator_test.transform(problems))
-            for params in tqdm(ParameterGrid(isolated_param_grid), desc='Precomputing', unit='combination'):
-                estimator = sklearn.base.clone(problem_preference_matrix_transformer)
-                estimator.set_params(**params)
-                all(estimator.transform(problems_train))
+            preference_predictor = problem_preference_matrix_transformer
+            param_grid.extend(decorate_param_grid(score_scaler_param_grid, 'precedence__preference__score_scaler__'))
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
@@ -177,48 +197,46 @@ def call(namespace):
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
                                                              reg_lasso,
                                                              batch_size=1000000)
-            precedence_estimator = sklearn.pipeline.Pipeline([
-                ('preference', preference_predictor),
-                ('precedence', GreedyPrecedenceGenerator())
-            ])
-            precedence_estimator = sklearn.pipeline.Pipeline([
-                ('precedence', precedence_estimator)
-            ])
-            # TODO: Use a run generator with fewer runs per problem.
-            scorers = {
-                'success_rate': ScorerSuccessRate(),
-                'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
-                'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
-                'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
-                'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
-            }
+            param_grid.extend(
+                decorate_param_grid(score_scaler_param_grid, 'precedence__preference__problem_matrix__score_scaler__'))
+            param_grid.extend(decorate_param_grid([
+                {'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]},
+                {'pair_value': [reg_linear, reg_lasso, reg_svr_linear]},
+                {'weighted': [False]},
+                {'pair_value': [reg_svr_linear], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
+                {'batch_size': [1000], 'pair_value': [reg_svr], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
+                {'problem_matrix__score_predictor': [MeanRegression()]}
+            ], 'precedence__preference__'))
+        precedence_estimator = sklearn.pipeline.Pipeline([
+            ('preference', preference_predictor),
+            ('precedence', GreedyPrecedenceGenerator())
+        ])
+        precedence_estimator = sklearn.pipeline.Pipeline([
+            ('precedence', precedence_estimator)
+        ])
+        scorers = {
+            'success_rate': ScorerSuccessRate(),
+            'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
+            'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
+            'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
+            'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
+        }
+        if namespace.precompute:
+            cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
+            gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
+                              error_score='raise')
+
+            # Precompute data for train set
+            problems_train = list(
+                instantiate_problems(problem_paths_train, problem_base_path, vampire_options, namespace.timeout))
+            fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
+
+            # Precompute data for test set
+            problem_preference_matrix_transformer.run_generator = run_generator_test
+            fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
+        else:
             cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
                                     test_size=namespace.test_size, random_state=0)
-            param_grid = [
-                {},
-                {
-                    'precedence__preference__batch_size': [1000],
-                    'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]
-                },
-                {'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear]},
-                {'precedence__preference__weighted': [False]},
-                {'precedence__preference__problem_matrix__score_scaler__imputer__divide_by_success_rate': [False]},
-                {'precedence__preference__problem_matrix__score_scaler__imputer__factor': [1, 2, 10]},
-                {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
-                {'precedence__preference__problem_matrix__score_scaler__standardizer': ['passthrough']},
-                {'precedence': [FunctionTransformer(func=transform_problems_to_none),
-                                BestPrecedenceGenerator(run_generator_test)]},
-                {
-                    'precedence__preference__pair_value': [reg_svr_linear],
-                    'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
-                },
-                {
-                    'precedence__preference__batch_size': [1000],
-                    'precedence__preference__pair_value': [reg_svr],
-                    'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
-                },
-                {'precedence__preference__problem_matrix__score_predictor': [MeanRegression()]}
-            ]
             gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                               error_score='raise')
             problem_paths_train = set(problem_paths_train)
@@ -226,15 +244,20 @@ def call(namespace):
             if len(problem_paths_train) > 0:
                 groups = np.fromiter((p in problem_paths_train for p in problem_paths), dtype=np.bool,
                                      count=len(problem_paths))
-            # TODO: Parallelize.
-            gs.fit(problems, groups=groups)
-            df = pd.DataFrame(gs.cv_results_)
-            save_df(df, 'fit_cv_results', output_dir=namespace.output, index=False)
-            with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
-                                   'display.expand_frame_repr',
-                                   False):
-                columns = ['params'] + [f'mean_test_{key}' for key in scorers.keys()]
-                print(df[columns])
+            fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
+
+
+def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
+    # TODO: Parallelize.
+    gs.fit(problems, groups=groups)
+    df = pd.DataFrame(gs.cv_results_)
+    if name is not None:
+        save_df(df, name, output_dir=output, index=False)
+    with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
+                           'display.expand_frame_repr',
+                           False):
+        columns = ['params'] + [f'mean_test_{key}' for key in scorers.keys()]
+        print(df[columns])
 
 
 def transform_problems_to_none(problems):
