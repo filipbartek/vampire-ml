@@ -23,6 +23,15 @@ PROBLEMS=${PROBLEMS:-problems_selected_aggregated.txt}
 if [ -n "${SKIP_MAP-}" ]; then
   echo "Skipping map step (array job)."
   sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" fit.sh --problem-list "$PROBLEMS" "$@"
+  JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --parsable fit.sh --problem-list "$PROBLEMS" "$@")
+
+  echo Job ID: "$JOB_ID"
+
+  BATCHES_DIR="$OUTPUT/batches/$JOB_ID"
+  mkdir -p "$BATCHES_DIR"
+  git rev-parse --verify HEAD >"$BATCHES_DIR/git-commit-sha.txt"
+  env | sort >"$BATCHES_DIR/env.txt"
+  echo "$@" >"$BATCHES_DIR/parameters.txt"
 else
   PROBLEMS_COUNT=$(wc -l <"$PROBLEMS")
   CPUS_PER_TASK=${CPUS_PER_TASK:-1}
