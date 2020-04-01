@@ -301,8 +301,9 @@ class Workspace:
             result = self.load(configuration, configuration_path)
             self.cache_info['hits'] += 1
             return result, configuration_path
-        except (FileNotFoundError, RuntimeError, KeyError) as e:
+        except (FileNotFoundError, RuntimeError, KeyError, json.JSONDecodeError) as e:
             # KeyError may occur when 'configuration.json' is missing a required configuration property.
+            # JSONDecodeError occurs if a Vampire run produced malformed clauses.json.
             self.cache_info['misses'] += 1
             if self.never_run:
                 raise RuntimeError('Loading failed.') from e
