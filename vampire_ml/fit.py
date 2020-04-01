@@ -134,9 +134,14 @@ def call(namespace):
         run_generator = RunGenerator(namespace.solve_runs,
                                      namespace.random_predicate_precedence,
                                      namespace.random_function_precedence)
-        # TODO: Expose the parameters properly.
-        score_scaler = get_score_scaler()
-        problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator, score_scaler,
+        score_scaler_steps = {
+            'quantile': QuantileImputer(copy=False, quantile=1),
+            'log': FunctionTransformer(func=np.log),
+            'normalize': StableStandardScaler(copy=False)
+        }
+        score_scaler = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
+        problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator,
+                                                                            sklearn.base.clone(score_scaler),
                                                                             LassoCV(copy_X=False))
         if namespace.precompute:
             logging.info('Omitting cross-problem training.')
@@ -170,9 +175,7 @@ def call(namespace):
             scoring_run_generator = run_generator
             scorers = {
                 'success_rate': ScorerSuccessRate(),
-                'iterations': ScorerSaturationIterations(scoring_run_generator,
-                                                         get_score_scaler(failure_penalty_factor=2,
-                                                                          failure_penalty_divide_by_success_rate=False)),
+                'iterations': ScorerSaturationIterations(scoring_run_generator, sklearn.base.clone(score_scaler)),
                 'percentile.strict': ScorerPercentile(scoring_run_generator, kind='strict'),
                 'percentile.rank': ScorerPercentile(scoring_run_generator, kind='rank'),
                 'percentile.weak': ScorerPercentile(scoring_run_generator, kind='weak')
@@ -215,22 +218,6 @@ def call(namespace):
                                    False):
                 columns = ['params'] + [f'mean_test_{key}' for key in scorers.keys()]
                 print(df[columns])
-
-
-def get_score_scaler(failure_penalty_quantile=1, failure_penalty_factor=1, failure_penalty_divide_by_success_rate=True,
-                     log_scale=True, normalize=True):
-    y_pipeline_steps = list()
-    if failure_penalty_quantile is not None:
-        y_pipeline_steps.append(
-            ('quantile', QuantileImputer(copy=False, quantile=failure_penalty_quantile, factor=failure_penalty_factor,
-                                         divide_by_success_rate=failure_penalty_divide_by_success_rate)))
-    if log_scale:
-        y_pipeline_steps.append(('log', sklearn.preprocessing.FunctionTransformer(func=np.log)))
-    if normalize:
-        y_pipeline_steps.append(('normalize', StableStandardScaler(copy=False)))
-    if len(y_pipeline_steps) == 0:
-        y_pipeline_steps.append(('passthrough', 'passthrough'))
-    return sklearn.pipeline.Pipeline(y_pipeline_steps)
 
 
 def transform_problems_to_none(problems):
