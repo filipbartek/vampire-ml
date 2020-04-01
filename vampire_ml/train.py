@@ -81,7 +81,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
-        with tqdm(problems, desc='Calculating problem preferences', unit='problem', total=len(problems),
+        with tqdm(problems, desc='Estimating problem preference matrices', unit='problem', total=len(problems),
                   disable=len(problems) <= 1) as t:
             for problem in t:
                 t.set_postfix_str(problem)
@@ -164,13 +164,14 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             if self.incremental_epochs is not None:
                 # TODO: Implement early stopping.
                 for _ in tqdm(range(self.incremental_epochs),
-                              desc=f'Fitting {symbol_type} precedence regressor {type(reg).__name__}', unit='epoch'):
+                              desc=f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__}',
+                              unit='epoch'):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
                     reg.partial_fit(symbol_pair_embeddings, target_preference_values)
             else:
                 logging.info(
-                    f'Fitting {symbol_type} precedence regressor {type(reg).__name__} on {self.batch_size} samples...')
+                    f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__} on {self.batch_size} samples...')
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
                 reg.fit(symbol_pair_embeddings, target_preference_values)
