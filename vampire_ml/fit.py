@@ -74,6 +74,8 @@ def add_arguments(parser):
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute', action='store_true')
     parser.add_argument('--problems-train', action='append')
+    parser.add_argument('--array-id', type=int)
+    parser.add_argument('--array-modulus', type=int)
 
 
 def split_size(s):
@@ -84,7 +86,13 @@ def split_size(s):
     return float(s)
 
 
-def instantiate_problems(problem_paths, problem_base_path, vampire_options, timeout):
+def instantiate_problems(problem_paths, problem_base_path, vampire_options, timeout, ind=None, modulus=None):
+    if ind is not None:
+        if modulus is not None:
+            ind = ind % modulus
+            problem_paths = itertools.islice(problem_paths, ind, None, modulus)
+        else:
+            problem_paths = itertools.islice(problem_paths, ind, ind + 1)
     for problem_path in problem_paths:
         yield vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path), vampire_options=vampire_options,
                                       timeout=timeout)
@@ -154,7 +162,8 @@ def call(namespace):
                                            scratch_dir=namespace.scratch,
                                            never_load=never_load, never_run=never_run,
                                            result_is_ok_to_load=result_is_ok_to_load):
-        problems = list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout))
+        problems = list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout,
+                                             ind=namespace.array_id, modulus=namespace.array_modulus))
         run_generator_train = RunGenerator(namespace.train_solve_runs,
                                            namespace.random_predicate_precedence,
                                            namespace.random_function_precedence)
@@ -228,7 +237,8 @@ def call(namespace):
 
             # Precompute data for train set
             problems_train = list(
-                instantiate_problems(problem_paths_train, problem_base_path, vampire_options, namespace.timeout))
+                instantiate_problems(problem_paths_train, problem_base_path, vampire_options, namespace.timeout,
+                                     ind=namespace.array_id - len(problem_paths), modulus=namespace.array_modulus))
             fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
 
             # Precompute data for test set
