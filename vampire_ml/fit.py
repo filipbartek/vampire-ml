@@ -135,9 +135,9 @@ def call(namespace):
                                      namespace.random_predicate_precedence,
                                      namespace.random_function_precedence)
         score_scaler_steps = {
-            'quantile': QuantileImputer(copy=False, quantile=1),
+            'imputer': QuantileImputer(copy=False, quantile=1),
             'log': FunctionTransformer(func=np.log),
-            'normalize': StableStandardScaler(copy=False)
+            'standardizer': StableStandardScaler(copy=False)
         }
         score_scaler = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator,
@@ -147,10 +147,10 @@ def call(namespace):
             logging.info('Omitting cross-problem training.')
             isolated_param_grid = [
                 {},
-                {'score_scaler__quantile__divide_by_success_rate': [False]},
-                {'score_scaler__quantile__factor': [1, 2, 10]},
+                {'score_scaler__imputer__divide_by_success_rate': [False]},
+                {'score_scaler__imputer__factor': [1, 2, 10]},
                 {'score_scaler__log': ['passthrough']},
-                {'score_scaler__normalize': ['passthrough']}
+                {'score_scaler__standardizer': ['passthrough']}
             ]
             for params in tqdm(ParameterGrid(isolated_param_grid), desc='Precomputing', unit='combination'):
                 estimator = sklearn.base.clone(problem_preference_matrix_transformer)
