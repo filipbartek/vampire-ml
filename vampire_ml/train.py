@@ -61,6 +61,11 @@ class RunGenerator(BaseEstimator, StaticTransformer):
         return {'predicate': 'predicate_precedence', 'function': 'function_precedence'}[symbol_type]
 
 
+@memory.cache
+def preference_matrix_transformer_transform_one(self, problem):
+    return self._transform_one(problem)
+
+
 class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
     """
     Predicts a symbol preference matrix dictionary for each problem in isolation.
@@ -88,7 +93,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
                 yield self.transform_one(problem)
 
     def transform_one(self, problem):
-        return memory.cache(type(self)._transform_one)(self, problem)
+        return preference_matrix_transformer_transform_one(self, problem)
 
     def _transform_one(self, problem):
         precedences, scores = self.run_generator.transform(problem)
