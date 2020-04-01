@@ -86,19 +86,34 @@ class StableStandardScaler(StandardScaler):
 class StableShuffleSplit(ShuffleSplit):
     def _iter_indices(self, X, y=None, groups=None):
         n_samples = _num_samples(X)
-        n_train, n_test = _validate_shuffle_split(
-            n_samples, self.test_size, self.train_size,
-            default_test_size=self._default_test_size)
-
+        if groups is None:
+            groups = np.ones(n_samples, dtype=np.bool)
+        assert groups.dtype == np.bool
+        assert groups.shape == (n_samples,)
+        n_samples_train = np.count_nonzero(groups)
+        n_train = self._subset_size_to_n(self.train_size, n_samples_train)
+        n_test = self._subset_size_to_n(self.test_size, n_samples)
         rng = check_random_state(self.random_state)
         for i in range(self.n_splits):
-            # random partition
             permutation = rng.permutation(n_samples)
             assert n_train + n_test <= len(permutation)
-            ind_train = permutation[:n_train]
-            ind_test = permutation[:-n_test - 1:-1]
+            permutation_train = [p for p in permutation if groups[p]]
+            ind_train = permutation_train[:n_train]
+            ind_train_set = set(ind_train)
+            permutation_test = [p for p in permutation if p not in ind_train_set]
+            ind_test = permutation_test[:-n_test - 1:-1]
             assert len(ind_test) == n_test
             yield ind_train, ind_test
+
+    def _subset_size_to_n(self, subset_size, total_samples):
+        if subset_size is None:
+            subset_size = 0.5
+        if isinstance(subset_size, float):
+            assert 0 <= subset_size <= 1
+            return int(subset_size * total_samples)
+        if isinstance(subset_size, int):
+            return subset_size
+        assert False
 
 
 class EstimatorDict(BaseEstimator):

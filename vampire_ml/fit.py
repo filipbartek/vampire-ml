@@ -29,8 +29,8 @@ from utils import memory
 from vampire_ml.results import save_df
 from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
-from vampire_ml.sklearn_extensions import StableStandardScaler
 from vampire_ml.sklearn_extensions import StableShuffleSplit
+from vampire_ml.sklearn_extensions import StableStandardScaler
 from vampire_ml.train import BestPrecedenceGenerator
 from vampire_ml.train import GreedyPrecedenceGenerator
 from vampire_ml.train import PreferenceMatrixPredictor
@@ -71,9 +71,10 @@ def add_arguments(parser):
                         help='Which Vampire run configurations should be executed?')
     parser.add_argument('--clear-cache-joblib', action='store_true')
     parser.add_argument('--n-splits', type=int, default=1)
-    parser.add_argument('--train-size', type=split_size, default=0.5)
+    parser.add_argument('--train-size', type=split_size)
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute', action='store_true')
+    parser.add_argument('--problems-train', action='append')
 
 
 def split_size(s):
@@ -94,6 +95,7 @@ def call(namespace):
 
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
                                                               namespace.problem_base_path)
+    problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
 
     # Default Vampire options:
     vampire_options = {
@@ -209,8 +211,13 @@ def call(namespace):
             ]
             gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                               error_score='raise')
+            problem_paths_train = set(problem_paths_train)
+            groups = None
+            if len(problem_paths_train) > 0:
+                groups = np.fromiter((p in problem_paths_train for p in problem_paths), dtype=np.bool,
+                                     count=len(problem_paths))
             # TODO: Parallelize.
-            gs.fit(problems)
+            gs.fit(problems, groups=groups)
             df = pd.DataFrame(gs.cv_results_)
             save_df(df, 'fit_cv_results', output_dir=namespace.output, index=False)
             with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
