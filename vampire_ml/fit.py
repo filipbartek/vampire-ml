@@ -202,10 +202,10 @@ def call(namespace):
                 },
                 {'precedence__preference__pair_value': [reg_linear, reg_lasso, reg_svr_linear]},
                 {'precedence__preference__weighted': [False]},
-                {'precedence__preference__problem_matrix__score_scaler__quantile__divide_by_success_rate': [False]},
-                {'precedence__preference__problem_matrix__score_scaler__quantile__factor': [1, 2, 10]},
+                {'precedence__preference__problem_matrix__score_scaler__imputer__divide_by_success_rate': [False]},
+                {'precedence__preference__problem_matrix__score_scaler__imputer__factor': [1, 2, 10]},
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
-                {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
+                {'precedence__preference__problem_matrix__score_scaler__standardizer': ['passthrough']},
                 {'precedence': [FunctionTransformer(func=transform_problems_to_none),
                                 BestPrecedenceGenerator(run_generator_test)]},
                 {
