@@ -50,9 +50,10 @@ def add_arguments(parser):
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
     parser.add_argument('--scratch', help='temporary output directory')
-    parser.add_argument('--solve-runs', type=int, default=1000,
+    parser.add_argument('--train-solve-runs', type=int, default=1000,
                         help='Number of Vampire executions per problem. '
                              'Each of the executions uses random predicate and function precedence.')
+    parser.add_argument('--test-solve-runs', type=int, default=10)
     parser.add_argument('--vampire', type=str, default='vampire', help='Vampire command')
     # https://stackoverflow.com/a/20493276/4054250
     parser.add_argument('--vampire-options', type=yaml.safe_load, action='append', nargs='+',
@@ -83,6 +84,12 @@ def split_size(s):
     except ValueError:
         pass
     return float(s)
+
+
+def instantiate_problems(problem_paths, problem_base_path, vampire_options, timeout):
+    for problem_path in problem_paths:
+        yield vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path), vampire_options=vampire_options,
+                                      timeout=timeout)
 
 
 def call(namespace):
@@ -130,23 +137,26 @@ def call(namespace):
                                            scratch_dir=namespace.scratch,
                                            never_load=never_load, never_run=never_run,
                                            result_is_ok_to_load=result_is_ok_to_load):
-        problems = [vampyre.vampire.Problem(os.path.relpath(problem_path, problem_base_path),
-                                            vampire_options=vampire_options,
-                                            timeout=namespace.timeout) for problem_path in problem_paths]
-        run_generator = RunGenerator(namespace.solve_runs,
-                                     namespace.random_predicate_precedence,
-                                     namespace.random_function_precedence)
+        problems = list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout))
+        run_generator_train = RunGenerator(namespace.train_solve_runs,
+                                           namespace.random_predicate_precedence,
+                                           namespace.random_function_precedence)
+        run_generator_test = RunGenerator(namespace.test_solve_runs,
+                                          namespace.random_predicate_precedence,
+                                          namespace.random_function_precedence)
         score_scaler_steps = {
             'imputer': QuantileImputer(copy=False, quantile=1),
             'log': FunctionTransformer(func=np.log),
             'standardizer': StableStandardScaler(copy=False)
         }
         score_scaler = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
-        problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator,
+        problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
                                                                             sklearn.base.clone(score_scaler),
                                                                             LassoCV(copy_X=False))
         if namespace.precompute:
             logging.info('Omitting cross-problem training.')
+            problems_train = list(
+                instantiate_problems(problem_paths_train, problem_base_path, vampire_options, namespace.timeout))
             isolated_param_grid = [
                 {},
                 {'score_scaler__imputer__divide_by_success_rate': [False]},
@@ -154,10 +164,11 @@ def call(namespace):
                 {'score_scaler__log': ['passthrough']},
                 {'score_scaler__standardizer': ['passthrough']}
             ]
+            all(run_generator_test.transform(problems))
             for params in tqdm(ParameterGrid(isolated_param_grid), desc='Precomputing', unit='combination'):
                 estimator = sklearn.base.clone(problem_preference_matrix_transformer)
                 estimator.set_params(**params)
-                list(estimator.transform(problems))
+                all(estimator.transform(problems_train))
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
@@ -174,13 +185,12 @@ def call(namespace):
                 ('precedence', precedence_estimator)
             ])
             # TODO: Use a run generator with fewer runs per problem.
-            scoring_run_generator = run_generator
             scorers = {
                 'success_rate': ScorerSuccessRate(),
-                'iterations': ScorerSaturationIterations(scoring_run_generator, sklearn.base.clone(score_scaler)),
-                'percentile.strict': ScorerPercentile(scoring_run_generator, kind='strict'),
-                'percentile.rank': ScorerPercentile(scoring_run_generator, kind='rank'),
-                'percentile.weak': ScorerPercentile(scoring_run_generator, kind='weak')
+                'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
+                'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
+                'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
+                'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
             }
             cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
                                     test_size=namespace.test_size, random_state=0)
@@ -197,7 +207,7 @@ def call(namespace):
                 {'precedence__preference__problem_matrix__score_scaler__log': ['passthrough']},
                 {'precedence__preference__problem_matrix__score_scaler__normalize': ['passthrough']},
                 {'precedence': [FunctionTransformer(func=transform_problems_to_none),
-                                BestPrecedenceGenerator(scoring_run_generator)]},
+                                BestPrecedenceGenerator(run_generator_test)]},
                 {
                     'precedence__preference__pair_value': [reg_svr_linear],
                     'precedence__preference__pair_value__C': [0.1, 0.5, 1.0, 2.0]
