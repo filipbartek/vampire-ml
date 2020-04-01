@@ -66,6 +66,8 @@ class Flattener(TransformerMixin, BaseEstimator):
 
 
 class StableStandardScaler(StandardScaler):
+    """Handles constant features in a robust manner."""
+
     def fit(self, X, y=None):
         res = super().fit(X, y=y)
         self.scale_[np.isclose(0, self.scale_)] = 1
