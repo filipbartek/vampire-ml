@@ -19,7 +19,6 @@ from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import ParameterGrid
-from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
 from tqdm import tqdm
@@ -155,7 +154,6 @@ def call(namespace):
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
-            #reg_mlp = MLPRegressor(random_state=0, early_stopping=True)
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
