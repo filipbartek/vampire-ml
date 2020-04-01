@@ -21,16 +21,25 @@ class StaticTransformer(TransformerMixin):
         return self
 
 
+@memory.cache
+def run_generator_transform_one(self, problem):
+    return self._transform_one(problem)
+
+
 class RunGenerator(BaseEstimator, StaticTransformer):
     def __init__(self, runs_per_problem, random_predicates, random_functions):
         self.runs_per_problem = runs_per_problem
         self.random_predicates = random_predicates
         self.random_functions = random_functions
 
-    def transform(self, problem):
-        return memory.cache(type(self)._transform)(self, problem)
+    def transform(self, problems):
+        for problem in tqdm(problems, desc='Solving with Vampire', unit='problem'):
+            yield self.transform_one(problem)
 
-    def _transform(self, problem):
+    def transform_one(self, problem):
+        return run_generator_transform_one(self, problem)
+
+    def _transform_one(self, problem):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
         # TODO: Exhaust all precedences on small problems.
         executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
@@ -96,7 +105,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         return preference_matrix_transformer_transform_one(self, problem)
 
     def _transform_one(self, problem):
-        precedences, scores = self.run_generator.transform(problem)
+        precedences, scores = self.run_generator.transform_one(problem)
         if not np.all(np.isnan(scores)):
             # For each problem, we fit an independent copy of target transformer.
             scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
@@ -279,8 +288,7 @@ class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
 
     def transform(self, problems):
         """For each problem yields a precedence dictionary."""
-        for problem in problems:
-            precedences, base_scores = self.run_generator.transform(problem)
+        for precedences, base_scores in self.run_generator.transform(problems):
             base_scores = np.nan_to_num(base_scores, nan=np.inf)
             best_i = np.argmin(base_scores)
             yield {f'{symbol_type}_precedence': precedence_matrix[best_i] for symbol_type, precedence_matrix in
@@ -340,7 +348,7 @@ class ScorerSaturationIterations(ScorerMean):
         return -self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
 
     def get_fitted_target_transformer(self, problem):
-        _, base_scores = self.run_generator.transform(problem)
+        _, base_scores = self.run_generator.transform_one(problem)
         return sklearn.base.clone(self.score_scaler).fit(base_scores.reshape(-1, 1))
 
 
@@ -356,7 +364,7 @@ class ScorerPercentile(ScorerMean):
         return f'{type(self).__name__}({self.kind})'
 
     def get_execution_score(self, problem, execution):
-        _, base_scores = self.run_generator.transform(problem)
+        _, base_scores = self.run_generator.transform_one(problem)
         base_scores = np.nan_to_num(base_scores, nan=np.inf)
         execution_score = execution.base_score()
         if np.isnan(execution_score):
