@@ -252,12 +252,18 @@ class Problem:
         # We assume that the equality symbol has the index 0, which is a convention in Vampire.
         head = np.asarray([0], dtype=np.uint)
         length = len(self.get_predicates())
-        tail = np.random.RandomState((0, seed)).permutation(np.arange(1, length, dtype=np.uint))
+        if seed is not None:
+            # Salt the seed specifically for predicates.
+            seed = (0, seed)
+        tail = np.random.RandomState(seed).permutation(np.arange(1, length, dtype=np.uint))
         return np.concatenate((head, tail))
 
     def random_function_precedence(self, seed=None):
         length = len(self.get_functions())
-        return np.random.RandomState((1, seed)).permutation(np.arange(length, dtype=np.uint))
+        if seed is not None:
+            # Salt the seed specifically for functions.
+            seed = (1, seed)
+        return np.random.RandomState(seed).permutation(np.arange(length, dtype=np.uint))
 
 
 class Workspace:
