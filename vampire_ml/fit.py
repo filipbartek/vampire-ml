@@ -74,8 +74,6 @@ def add_arguments(parser):
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute', action='store_true')
     parser.add_argument('--problems-train', action='append')
-    parser.add_argument('--array-id', type=int)
-    parser.add_argument('--array-modulus', type=int)
 
 
 def split_size(s):
@@ -162,8 +160,8 @@ def call(namespace):
                                            scratch_dir=namespace.scratch,
                                            never_load=never_load, never_run=never_run,
                                            result_is_ok_to_load=result_is_ok_to_load):
-        problems = list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout,
-                                             ind=namespace.array_id, modulus=namespace.array_modulus))
+        problems = np.asarray(
+            list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout)))
         run_generator_train = RunGenerator(namespace.train_solve_runs,
                                            namespace.random_predicate_precedence,
                                            namespace.random_function_precedence)
@@ -230,15 +228,18 @@ def call(namespace):
             'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
             'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
         }
+        groups = None
+        if len(problem_paths_train) > 0:
+            problem_paths_train_set = set(problem_paths_train)
+            groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
+                                 count=len(problem_paths))
         if namespace.precompute:
             cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
             gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                               error_score='raise')
 
             # Precompute data for train set
-            problems_train = list(
-                instantiate_problems(problem_paths_train, problem_base_path, vampire_options, namespace.timeout,
-                                     ind=namespace.array_id - len(problem_paths), modulus=namespace.array_modulus))
+            problems_train = problems[groups]
             fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
 
             # Precompute data for test set
@@ -249,11 +250,6 @@ def call(namespace):
                                     test_size=namespace.test_size, random_state=0)
             gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                               error_score='raise')
-            problem_paths_train = set(problem_paths_train)
-            groups = None
-            if len(problem_paths_train) > 0:
-                groups = np.fromiter((p in problem_paths_train for p in problem_paths), dtype=np.bool,
-                                     count=len(problem_paths))
             fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
 
 
