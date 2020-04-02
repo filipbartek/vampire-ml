@@ -37,7 +37,7 @@ XARGS_COMMAND=(
   python -O
   -m vampire_ml fit
   --output "$OUTPUT_LOCAL"
-  --solve-runs "$SOLVE_RUNS_PER_PROBLEM"
+  --train-solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
   --vampire-options "{time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
   --include "$TPTP"
