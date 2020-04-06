@@ -320,9 +320,9 @@ class ScorerMean:
                     logging.debug(f'Failed to determine the score on problem {problem}.', exc_info=True)
                     score_transformed = np.nan
                 scores.append(score_transformed)
-                stats['score'] = np.nanmean(scores)
+                stats['score'] = self.nanmean(scores)
                 t.set_postfix(stats)
-        return np.nanmean(scores)
+        return self.nanmean(scores)
 
     def get_score(self, problem, precedence_dict):
         execution = problem.get_execution(precedences=precedence_dict)
@@ -330,6 +330,12 @@ class ScorerMean:
 
     def get_execution_score(self, problem, execution):
         raise NotImplementedError
+
+    @staticmethod
+    def nanmean(a):
+        if np.isnan(a).all():
+            return np.nan
+        return np.nanmean(a)
 
 
 class ScorerSuccessRate(ScorerMean):
