@@ -115,7 +115,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
                 symbol_type, precedence_matrix in precedences.items()}
 
     def get_preference_matrix(self, precedences, scores):
-        if precedences.shape[1] <= 1:
+        if (precedences == precedences[0]).all():
+            logging.debug('Skipping fitting the score predictor because all the precedences are identical. Assuming preference 0 for all symbol pairs.')
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
         preference_pipeline = pipeline.Pipeline([
             ('order_matrices', preprocessing.FunctionTransformer(func=self.order_matrices)),
