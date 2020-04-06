@@ -124,9 +124,15 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         ])
         preferences_flattened = preference_pipeline.fit_transform(precedences)
         preference_score_regressor = sklearn.base.clone(self.score_predictor)
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', category=ConvergenceWarning)
-            preference_score_regressor.fit(preferences_flattened, scores)
+        valid_samples = ~np.isnan(scores)
+        if not valid_samples.all():
+            warnings.warn(
+                f'Omitting {np.count_nonzero(~valid_samples)}/{len(scores)} samples because they are nan-scored when learning problem-specific preference matrix.')
+        preferences_flattened = preferences_flattened[valid_samples]
+        scores = scores[valid_samples]
+        assert not (preferences_flattened == preferences_flattened[0]).all()
+        assert (~np.isnan(scores)).all()
+        preference_score_regressor.fit(preferences_flattened, scores)
         return preference_pipeline['flattener'].inverse_transform(preference_score_regressor.coef_)[0]
 
     @staticmethod
