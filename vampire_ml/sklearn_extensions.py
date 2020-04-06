@@ -99,10 +99,10 @@ class StableShuffleSplit(ShuffleSplit):
         for i in range(self.n_splits):
             permutation = rng.permutation(n_samples)
             assert n_train + n_test <= len(permutation)
-            permutation_train = [p for p in permutation if groups[p]]
+            permutation_train = np.fromiter((p for p in permutation if groups[p]), dtype=permutation.dtype)
             ind_train = permutation_train[:n_train]
             ind_train_set = set(ind_train)
-            permutation_test = [p for p in permutation if p not in ind_train_set]
+            permutation_test = np.fromiter((p for p in permutation if p not in ind_train_set), dtype=permutation.dtype)
             ind_test = permutation_test[:-n_test - 1:-1]
             assert len(ind_test) == n_test
             yield ind_train, ind_test
