@@ -176,7 +176,7 @@ def call(namespace):
         score_scaler = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
                                                                             sklearn.base.clone(score_scaler),
-                                                                            LassoCV(copy_X=False))
+                                                                            LassoCV(copy_X=False, max_iter=2000))
         param_grid = [{}]
         score_scaler_param_grid = [
             {
@@ -198,7 +198,7 @@ def call(namespace):
             param_grid.extend(decorate_param_grid(score_scaler_param_grid, 'precedence__preference__score_scaler__'))
         else:
             reg_linear = LinearRegression(copy_X=False)
-            reg_lasso = LassoCV(copy_X=False)
+            reg_lasso = LassoCV(copy_X=False, max_iter=2000)
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
