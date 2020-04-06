@@ -29,13 +29,15 @@ class MeanRegression(RegressorMixin, LinearModel):
 
 class QuantileImputer(SimpleImputer):
     def __init__(self, missing_values=np.nan, copy=True, quantile=0.5, factor=1, divide_by_success_rate=False):
-        super().__init__(missing_values=missing_values, strategy='constant', copy=copy)
+        super().__init__(missing_values=missing_values, strategy='constant', fill_value=np.nan, copy=copy)
         self.quantile = quantile
         self.factor = factor
         self.divide_by_success_rate = divide_by_success_rate
 
     def fit(self, X, y=None):
-        self.fill_value = np.nanquantile(X, self.quantile) * self.factor
+        self.fill_value = np.nan
+        if not np.isnan(X).all():
+            self.fill_value = np.nanquantile(X, self.quantile) * self.factor
         if self.divide_by_success_rate:
             self.success_rate_ = np.count_nonzero(~np.isnan(X)) / X.size
             assert 0 <= self.success_rate_ <= 1
