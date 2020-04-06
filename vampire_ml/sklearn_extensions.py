@@ -97,7 +97,12 @@ class StableShuffleSplit(ShuffleSplit):
         n_test = self._subset_size_to_n(self.test_size, n_samples)
         rng = check_random_state(self.random_state)
         for i in range(self.n_splits):
-            permutation = rng.permutation(n_samples)
+            if self.n_splits == 1 and n_samples == n_train:
+                permutation = np.arange(n_samples, dtype=np.uint)
+            elif self.n_splits == 1 and n_samples == n_test:
+                permutation = np.arange(n_samples - 1, -1, -1, dtype=np.uint)
+            else:
+                permutation = rng.permutation(n_samples).astype(np.uint)
             assert n_train + n_test <= len(permutation)
             permutation_train = np.fromiter((p for p in permutation if groups[p]), dtype=permutation.dtype)
             ind_train = permutation_train[:n_train]
