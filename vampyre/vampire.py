@@ -247,6 +247,8 @@ class Problem:
             precedences['function_precedence'] = self.random_function_precedence(seed)
         return precedences
 
+    dtype_precedence = np.uint32
+
     def random_predicate_precedence(self, seed=None):
         # The equality symbol should be placed first in all the predicate precedences.
         # We assume that the equality symbol has the index 0, which is a convention in Vampire.
@@ -255,7 +257,7 @@ class Problem:
         if seed is not None:
             # Salt the seed specifically for predicates.
             seed = (0, seed)
-        tail = np.random.RandomState(seed).permutation(np.arange(1, length, dtype=np.uint))
+        tail = np.random.RandomState(seed).permutation(np.arange(1, length, dtype=self.dtype_precedence))
         return np.concatenate((head, tail))
 
     def random_function_precedence(self, seed=None):
@@ -263,7 +265,7 @@ class Problem:
         if seed is not None:
             # Salt the seed specifically for functions.
             seed = (1, seed)
-        return np.random.RandomState(seed).permutation(np.arange(length, dtype=np.uint))
+        return np.random.RandomState(seed).permutation(np.arange(length, dtype=self.dtype_precedence))
 
 
 class Workspace:

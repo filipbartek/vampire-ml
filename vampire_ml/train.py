@@ -11,6 +11,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from tqdm import tqdm
 
 import vampire_ml.precedence
+import vampyre
 from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 
@@ -31,6 +32,9 @@ class RunGenerator(BaseEstimator, StaticTransformer):
         self.random_predicates = random_predicates
         self.random_functions = random_functions
 
+    dtype_execution_score = np.float
+    dtype_precedence = vampyre.vampire.Problem.dtype_precedence
+
     def transform(self, problems):
         for problem in tqdm(problems, desc='Solving with Vampire', unit='problem'):
             yield self.transform_one(problem)
@@ -45,9 +49,10 @@ class RunGenerator(BaseEstimator, StaticTransformer):
                                                            random_predicates=self.random_predicates,
                                                            random_functions=self.random_functions)
         # We use the type `np.float` to support `np.nan` values.
-        base_scores = np.empty(self.runs_per_problem, dtype=np.float)
+        base_scores = np.empty(self.runs_per_problem, dtype=self.dtype_execution_score)
         precedences = {
-            symbol_type: np.empty((self.runs_per_problem, len(problem.get_symbols(symbol_type))), dtype=np.uint) for
+            symbol_type: np.empty((self.runs_per_problem, len(problem.get_symbols(symbol_type))),
+                                  dtype=self.dtype_precedence) for
             symbol_type in self.symbol_types()}
         for i, execution in enumerate(executions):
             assert i < self.runs_per_problem
@@ -114,13 +119,15 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
                 symbol_type, precedence_matrix in precedences.items()}
 
+    dtype_preference = np.float
+
     def get_preference_matrix(self, precedences, scores):
         try:
             return self.get_preference_matrix_or_raise(precedences, scores)
         except RuntimeError:
             logging.debug('Preference matrix fitting failed. Assuming preference 0 for all symbol pairs.',
                           exc_info=True)
-            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
+            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
 
     def get_preference_matrix_or_raise(self, precedences, scores):
         if (precedences == precedences[0]).all():
@@ -185,6 +192,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         self.weighted = weighted
         self.incremental_epochs = incremental_epochs
 
+    weight_dtype = np.float
+
     def fit(self, problems):
         preferences = self.get_preferences(problems)
         self.pair_value_fitted_ = dict()
@@ -228,8 +237,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
 
     def get_preferences(self, problems):
-        preferences = {symbol_type: self.PreferenceRecord(list(), np.empty(len(problems), dtype=np.float)) for
-                       symbol_type in self.symbol_types()}
+        preferences = {symbol_type: self.PreferenceRecord(list(), np.empty(len(problems), dtype=self.weight_dtype))
+                       for symbol_type in self.symbol_types()}
         for i, problem_preferences in enumerate(self.problem_matrix.fit_transform(problems)):
             for symbol_type in self.symbol_types():
                 matrix = problem_preferences[symbol_type]

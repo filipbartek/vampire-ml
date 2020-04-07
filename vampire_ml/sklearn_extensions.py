@@ -13,8 +13,8 @@ from sklearn.utils.validation import check_random_state
 
 class MeanRegression(RegressorMixin, LinearModel):
     def fit(self, X, y):
-        self.intercept_ = 0.
-        self.coef_ = np.zeros(X.shape[1], dtype=np.float)
+        self.intercept_ = 0
+        self.coef_ = np.zeros(X.shape[1], dtype=y.dtype)
         for i in range(X.shape[1]):
             if np.count_nonzero(X[:, i]) == 0:
                 continue
@@ -86,6 +86,8 @@ class StableStandardScaler(StandardScaler):
 
 
 class StableShuffleSplit(ShuffleSplit):
+    dtype = np.uint32
+
     def _iter_indices(self, X, y=None, groups=None):
         n_samples = _num_samples(X)
         if groups is None:
@@ -98,11 +100,11 @@ class StableShuffleSplit(ShuffleSplit):
         rng = check_random_state(self.random_state)
         for i in range(self.n_splits):
             if self.n_splits == 1 and n_samples == n_train:
-                permutation = np.arange(n_samples, dtype=np.uint)
+                permutation = np.arange(n_samples, dtype=self.dtype)
             elif self.n_splits == 1 and n_samples == n_test:
-                permutation = np.arange(n_samples - 1, -1, -1, dtype=np.uint)
+                permutation = np.arange(n_samples - 1, -1, -1, dtype=self.dtype)
             else:
-                permutation = rng.permutation(n_samples).astype(np.uint)
+                permutation = rng.permutation(n_samples).astype(self.dtype)
             assert n_train + n_test <= len(permutation)
             permutation_train = np.fromiter((p for p in permutation if groups[p]), dtype=permutation.dtype)
             ind_train = permutation_train[:n_train]
