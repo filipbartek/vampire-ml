@@ -5,7 +5,6 @@ from sklearn.base import TransformerMixin
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model._base import LinearModel
 from sklearn.model_selection import ShuffleSplit
-from sklearn.model_selection._split import _validate_shuffle_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import _num_samples
 from sklearn.utils.validation import check_random_state
