@@ -278,7 +278,6 @@ class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
         for preference_dict in preference_dicts:
             yield {f'{symbol_type}_precedence': vampire_ml.precedence.learn_ltot(preference_matrix, symbol_type) for
                    symbol_type, preference_matrix in preference_dict.items()}
-            # TODO: Experiment with hill climbing.
 
 
 class RandomPrecedenceGenerator(BaseEstimator, StaticTransformer):
