@@ -116,7 +116,13 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
 
     def get_preference_matrix(self, precedences, scores):
         if (precedences == precedences[0]).all():
-            logging.debug('Skipping fitting the score predictor because all the precedences are identical. Assuming preference 0 for all symbol pairs.')
+            logging.debug(
+                'Skipping fitting the score predictor because all the precedences are identical. Assuming preference 0 for all symbol pairs.')
+            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
+        valid_samples = ~np.isnan(scores)
+        if not valid_samples.any():
+            logging.debug(
+                'Skipping fitting the score predictor because all the scores are nan. Assuming preference 0 for all symbol pairs.')
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
         preference_pipeline = pipeline.Pipeline([
             ('order_matrices', preprocessing.FunctionTransformer(func=self.order_matrices)),
@@ -124,7 +130,6 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         ])
         preferences_flattened = preference_pipeline.fit_transform(precedences)
         preference_score_regressor = sklearn.base.clone(self.score_predictor)
-        valid_samples = ~np.isnan(scores)
         if not valid_samples.all():
             warnings.warn(
                 f'Omitting {np.count_nonzero(~valid_samples)}/{len(scores)} samples because they are nan-scored when learning problem-specific preference matrix.')
