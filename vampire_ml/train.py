@@ -8,7 +8,6 @@ import sklearn.base
 from sklearn import pipeline
 from sklearn import preprocessing
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.exceptions import ConvergenceWarning
 from tqdm import tqdm
 
 import vampire_ml.precedence
