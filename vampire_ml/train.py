@@ -80,7 +80,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
     Does not generalize across problems.
     """
 
-    def __init__(self, run_generator, score_scaler, score_predictor):
+    def __init__(self, run_generator, score_scaler, score_predictor, max_elements=None):
         """
         :param run_generator: Run generator. Transforms problem into precedences and scores.
         :param score_scaler: Score scaler blueprint. Scales a batch of scores.
@@ -91,6 +91,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         self.run_generator = run_generator
         self.score_scaler = score_scaler
         self.score_predictor = score_predictor
+        self.max_elements = max_elements
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
@@ -143,12 +144,13 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         preference_score_regressor.fit(preferences_flattened, scores)
         return preference_pipeline['flattener'].inverse_transform(preference_score_regressor.coef_)[0]
 
-    @staticmethod
-    def order_matrices(permutations):
+    def order_matrices(self, permutations):
         permutations = np.asarray(permutations)
         m = permutations.shape[0]
         n = permutations.shape[1]
         assert permutations.shape == (m, n)
+        if self.max_elements is not None and m * n * n > self.max_elements:
+            raise RuntimeError('Too many elements to learn from.')
         res = np.empty((m, n, n), np.bool)
         precedence_inverse = np.empty(n, permutations.dtype)
         # TODO: Consider optimizing this loop.
