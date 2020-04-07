@@ -114,15 +114,19 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
                 symbol_type, precedence_matrix in precedences.items()}
 
     def get_preference_matrix(self, precedences, scores):
-        if (precedences == precedences[0]).all():
-            logging.debug(
-                'Skipping fitting the score predictor because all the precedences are identical. Assuming preference 0 for all symbol pairs.')
+        try:
+            return self.get_preference_matrix_or_raise(precedences, scores)
+        except RuntimeError:
+            logging.debug('Preference matrix fitting failed. Assuming preference 0 for all symbol pairs.',
+                          exc_info=True)
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
+
+    def get_preference_matrix_or_raise(self, precedences, scores):
+        if (precedences == precedences[0]).all():
+            raise RuntimeError('All the precedences are identical.')
         valid_samples = ~np.isnan(scores)
         if not valid_samples.any():
-            logging.debug(
-                'Skipping fitting the score predictor because all the scores are nan. Assuming preference 0 for all symbol pairs.')
-            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=np.float)
+            raise RuntimeError('All the scores are nan.')
         preference_pipeline = pipeline.Pipeline([
             ('order_matrices', preprocessing.FunctionTransformer(func=self.order_matrices)),
             ('flattener', Flattener())
