@@ -193,7 +193,7 @@ def call(namespace):
                 'standardizer': [score_scaler_steps['standardizer'], 'passthrough']
             }
         ]
-        param_grid.extend([{'precedence': [FunctionTransformer(func=transform_problems_to_none),
+        param_grid.extend([{'precedence': [FunctionTransformer(func=transform_problems_to_empty_dicts),
                                            BestPrecedenceGenerator(run_generator_test)]}])
         if namespace.precompute:
             preference_predictor = problem_preference_matrix_transformer
@@ -271,8 +271,8 @@ def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
         print(df[columns])
 
 
-def transform_problems_to_none(problems):
-    return itertools.repeat(None, len(problems))
+def transform_problems_to_empty_dicts(problems):
+    return itertools.repeat(dict(), len(problems))
 
 
 if __name__ == '__main__':

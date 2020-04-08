@@ -44,22 +44,26 @@ class RunGenerator(BaseEstimator, StaticTransformer):
 
     def _transform_one(self, problem):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
-        # TODO: Exhaust all precedences on small problems.
-        executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
-                                                           random_predicates=self.random_predicates,
-                                                           random_functions=self.random_functions)
-        # We use the type `np.float` to support `np.nan` values.
-        base_scores = np.empty(self.runs_per_problem, dtype=self.dtype_execution_score)
-        precedences = {
-            symbol_type: np.empty((self.runs_per_problem, len(problem.get_symbols(symbol_type))),
-                                  dtype=self.dtype_precedence) for
-            symbol_type in self.symbol_types()}
-        for i, execution in enumerate(executions):
-            assert i < self.runs_per_problem
-            base_scores[i] = execution.base_score()
-            for symbol_type, precedence_matrix in precedences.items():
-                precedence_matrix[i] = execution.configuration.precedences[self.precedence_option(symbol_type)]
-        return precedences, base_scores
+        try:
+            # We use the type `np.float` to support `np.nan` values.
+            base_scores = np.empty(self.runs_per_problem, dtype=self.dtype_execution_score)
+            precedences = {
+                symbol_type: np.empty((self.runs_per_problem, len(problem.get_symbols(symbol_type))),
+                                      dtype=self.dtype_precedence) for
+                symbol_type in self.symbol_types()}
+            # TODO: Exhaust all precedences on small problems.
+            executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
+                                                               random_predicates=self.random_predicates,
+                                                               random_functions=self.random_functions)
+            for i, execution in enumerate(executions):
+                assert i < self.runs_per_problem
+                base_scores[i] = execution.base_score()
+                for symbol_type, precedence_matrix in precedences.items():
+                    precedence_matrix[i] = execution.configuration.precedences[self.precedence_option(symbol_type)]
+            return precedences, base_scores
+        except RuntimeError:
+            logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
+            return None, None
 
     def symbol_types(self):
         res = list()
@@ -111,6 +115,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
 
     def _transform_one(self, problem):
         precedences, scores = self.run_generator.transform_one(problem)
+        if precedences is None or scores is None:
+            return None
         if not np.all(np.isnan(scores)):
             # For each problem, we fit an independent copy of target transformer.
             scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
@@ -291,6 +297,9 @@ class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
     def transform(preference_dicts):
         """For each preference dictionary yields a precedence dictionary."""
         for preference_dict in preference_dicts:
+            if preference_dict is None:
+                yield None
+                continue
             yield {f'{symbol_type}_precedence': vampire_ml.precedence.learn_ltot(preference_matrix, symbol_type) for
                    symbol_type, preference_matrix in preference_dict.items()}
 
@@ -314,6 +323,9 @@ class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
     def transform(self, problems):
         """For each problem yields a precedence dictionary."""
         for precedences, base_scores in self.run_generator.transform(problems):
+            if base_scores is None:
+                yield None
+                continue
             base_scores = np.nan_to_num(base_scores, nan=np.inf)
             best_i = np.argmin(base_scores)
             yield {f'{symbol_type}_precedence': precedence_matrix[best_i] for symbol_type, precedence_matrix in
@@ -329,39 +341,31 @@ class ScorerMean:
             for problem, precedence_dict in t:
                 stats['problem'] = problem
                 t.set_postfix(stats)
-                try:
-                    score_transformed = self.get_score(problem, precedence_dict)
-                    assert not np.isnan(score_transformed)
-                except FloatingPointError:
-                    # FloatingPointError occurs when all the random runs on the problem fail
-                    # so we have no baseline to normalize the score.
-                    logging.debug(f'Failed to determine the score on problem {problem}.', exc_info=True)
-                    score_transformed = np.nan
+                score_transformed = self.get_score(problem, precedence_dict)
+                assert not np.isnan(score_transformed)
                 scores.append(score_transformed)
-                stats['score'] = self.nanmean(scores)
+                stats['score'] = np.mean(scores)
                 t.set_postfix(stats)
-        return self.nanmean(scores)
+        assert not np.isnan(scores).any()
+        return np.mean(scores)
 
     def get_score(self, problem, precedence_dict):
-        execution = problem.get_execution(precedences=precedence_dict)
-        return self.get_execution_score(problem, execution)
-
-    def get_execution_score(self, problem, execution):
         raise NotImplementedError
 
     @staticmethod
-    def nanmean(a):
-        if np.isnan(a).all():
+    def get_base_score(problem, precedence_dict):
+        if precedence_dict is None:
             return np.nan
-        return np.nanmean(a)
+        else:
+            return problem.get_execution(precedences=precedence_dict).base_score()
 
 
 class ScorerSuccessRate(ScorerMean):
     def __str__(self):
         return type(self).__name__
 
-    def get_execution_score(self, problem, execution):
-        return execution['exit_code'] == 0
+    def get_score(self, problem, precedence_dict):
+        return not np.isnan(self.get_base_score(problem, precedence_dict))
 
 
 class ScorerSaturationIterations(ScorerMean):
@@ -375,12 +379,14 @@ class ScorerSaturationIterations(ScorerMean):
     def __str__(self):
         return type(self).__name__
 
-    def get_execution_score(self, problem, execution):
-        return -self.get_fitted_target_transformer(problem).transform([[execution.base_score()]])[0, 0]
-
-    def get_fitted_target_transformer(self, problem):
+    def get_score(self, problem, precedence_dict):
         _, base_scores = self.run_generator.transform_one(problem)
-        return sklearn.base.clone(self.score_scaler).fit(base_scores.reshape(-1, 1))
+        if base_scores is None or np.isnan(base_scores).all():
+            # The problem is too difficult to scale the scores. All predictions score 0.
+            return 0
+        transformer = sklearn.base.clone(self.score_scaler).fit(base_scores.reshape(-1, 1))
+        base_score = self.get_base_score(problem, precedence_dict)
+        return -transformer.transform([[base_score]])[0, 0]
 
 
 class ScorerPercentile(ScorerMean):
@@ -394,10 +400,13 @@ class ScorerPercentile(ScorerMean):
     def __str__(self):
         return f'{type(self).__name__}({self.kind})'
 
-    def get_execution_score(self, problem, execution):
+    def get_score(self, problem, precedence_dict):
         _, base_scores = self.run_generator.transform_one(problem)
+        if base_scores is None:
+            # We assume that all the runs would fail.
+            base_scores = np.repeat(np.inf, self.run_generator.runs_per_problem)
         base_scores = np.nan_to_num(base_scores, nan=np.inf)
-        execution_score = execution.base_score()
+        execution_score = self.get_base_score(problem, precedence_dict)
         if np.isnan(execution_score):
             execution_score = np.inf
         percentile = scipy.stats.percentileofscore(base_scores, execution_score, kind=self.kind)
