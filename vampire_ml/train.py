@@ -89,7 +89,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
     Does not generalize across problems.
     """
 
-    def __init__(self, run_generator, score_scaler, score_predictor, max_elements=None):
+    def __init__(self, run_generator, score_scaler, score_predictor, max_symbols=None):
         """
         :param run_generator: Run generator. Transforms problem into precedences and scores.
         :param score_scaler: Score scaler blueprint. Scales a batch of scores.
@@ -100,7 +100,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         self.run_generator = run_generator
         self.score_scaler = score_scaler
         self.score_predictor = score_predictor
-        self.max_elements = max_elements
+        self.max_symbols = max_symbols
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
@@ -128,6 +128,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
     dtype_preference = np.float
 
     def get_preference_matrix(self, precedences, scores):
+        if precedences.shape[1] > self.max_symbols:
+            return None
         try:
             return self.get_preference_matrix_or_raise(precedences, scores)
         except RuntimeError:
@@ -162,8 +164,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         m = permutations.shape[0]
         n = permutations.shape[1]
         assert permutations.shape == (m, n)
-        if self.max_elements is not None and m * n * n > self.max_elements:
-            raise RuntimeError('Too many elements to learn from.')
+        assert n <= self.max_symbols
         res = np.empty((m, n, n), np.bool)
         precedence_inverse = np.empty(n, permutations.dtype)
         # TODO: Consider optimizing this loop.
@@ -243,13 +244,14 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
 
     def get_preferences(self, problems):
-        preferences = {symbol_type: self.PreferenceRecord(list(), np.empty(len(problems), dtype=self.weight_dtype))
+        preferences = {symbol_type: self.PreferenceRecord(list(), np.zeros(len(problems), dtype=self.weight_dtype))
                        for symbol_type in self.symbol_types()}
         for i, problem_preferences in enumerate(self.problem_matrix.fit_transform(problems)):
             for symbol_type in self.symbol_types():
                 matrix = problem_preferences[symbol_type]
                 preferences[symbol_type].matrices.append(matrix)
-                preferences[symbol_type].weights[i] = np.mean(np.abs(matrix))
+                if matrix is not None:
+                    preferences[symbol_type].weights[i] = np.mean(np.abs(matrix))
         return preferences
 
     def generate_batch(self, problems, symbol_type, preference_record):
@@ -276,6 +278,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         return np.concatenate(symbol_pair_embeddings), np.concatenate(target_preference_values)
 
     def generate_sample_from_preference_matrix(self, problem, symbol_type, preference_matrix, n_samples):
+        if preference_matrix is None:
+            raise RuntimeError('Cannot learn without a preference matrix.')
         n = len(problem.get_symbols(symbol_type))
         l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
         all_pairs_index_pairs = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
@@ -297,7 +301,7 @@ class GreedyPrecedenceGenerator(BaseEstimator, StaticTransformer):
     def transform(preference_dicts):
         """For each preference dictionary yields a precedence dictionary."""
         for preference_dict in preference_dicts:
-            if preference_dict is None:
+            if preference_dict is None or any(v is None for v in preference_dict.values()):
                 yield None
                 continue
             yield {f'{symbol_type}_precedence': vampire_ml.precedence.learn_ltot(preference_matrix, symbol_type) for

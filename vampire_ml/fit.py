@@ -74,7 +74,7 @@ def add_arguments(parser):
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute', action='store_true')
     parser.add_argument('--problems-train', action='append')
-    parser.add_argument('--learn-max-pair-values', type=int, default=1000000000)
+    parser.add_argument('--learn-max-symbols', type=int, default=1000)
 
 
 def split_size(s):
@@ -178,7 +178,7 @@ def call(namespace):
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
                                                                             sklearn.base.clone(score_scaler),
                                                                             LassoCV(copy_X=False, max_iter=2000),
-                                                                            max_elements=namespace.learn_max_pair_values)
+                                                                            max_symbols=namespace.learn_max_symbols)
         param_grid = [{}]
         score_scaler_param_grid = [
             {
