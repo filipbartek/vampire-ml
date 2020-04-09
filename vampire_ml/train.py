@@ -273,8 +273,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     problem, symbol_type, preference_record.matrices[problem_i], n_samples)
                 symbol_pair_embeddings.append(symbol_pair_embedding)
                 target_preference_values.append(target_preference_value)
-            except RuntimeError:
-                warnings.warn(f'Failed to generate samples from problem {problem}.', exc_info=True)
+            except RuntimeError as e:
+                warnings.warn(f'Failed to generate samples from problem {problem}. Cause: {e}')
         return np.concatenate(symbol_pair_embeddings), np.concatenate(target_preference_values)
 
     def generate_sample_from_preference_matrix(self, problem, symbol_type, preference_matrix, n_samples):
