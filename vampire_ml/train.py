@@ -44,6 +44,7 @@ class RunGenerator(BaseEstimator, StaticTransformer):
 
     def _transform_one(self, problem):
         """Runs Vampire on the problem repeatedly and collects the results into arrays."""
+        # TODO: Consider: Skip running if the signature is too large to learn from.
         try:
             # We use the type `np.float` to support `np.nan` values.
             base_scores = np.empty(self.runs_per_problem, dtype=self.dtype_execution_score)
@@ -158,6 +159,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         assert not (preferences_flattened == preferences_flattened[0]).all()
         assert (~np.isnan(scores)).all()
         preference_score_regressor.fit(preferences_flattened, scores)
+        # TODO: Consider using a sparse representation of the output.
         return preference_pipeline['flattener'].inverse_transform(preference_score_regressor.coef_)[0]
 
     def order_matrices(self, permutations):
