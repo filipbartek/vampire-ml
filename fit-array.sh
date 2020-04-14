@@ -21,11 +21,12 @@ OUTPUT_SLURM=${OUTPUT_SLURM:-$OUTPUT/slurm}
 mkdir -p "$OUTPUT_SLURM"
 
 PROBLEMS=${PROBLEMS:-problems_selected_aggregated.txt}
+REDUCE_CPUS_PER_TASK=${REDUCE_CPUS_PER_TASK:-1}
 
 if [ -n "${SKIP_MAP-}" ]; then
   echo "Skipping map step (array job)."
   sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" fit.sh --problem-list "$PROBLEMS" "$@"
-  JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --parsable fit.sh --problem-list "$PROBLEMS" "$@")
+  JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$REDUCE_CPUS_PER_TASK" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --parsable fit.sh --problem-list "$PROBLEMS" "$@")
 
   echo Job ID: "$JOB_ID"
 
@@ -36,7 +37,7 @@ if [ -n "${SKIP_MAP-}" ]; then
   echo "$@" >"$BATCHES_DIR/parameters.txt"
 else
   PROBLEMS_COUNT=$(wc -l <"$PROBLEMS")
-  CPUS_PER_TASK=${CPUS_PER_TASK:-1}
+  MAP_CPUS_PER_TASK=${MAP_CPUS_PER_TASK:-1}
   MAX_ARRAY_SIZE=$(scontrol show config | grep MaxArraySize | awk '{split($0, a, "="); print a[2]}' | sed 's/^ *//g')
   # https://stackoverflow.com/a/10415158/4054250
   ARRAY_TASK_COUNT=${ARRAY_TASK_COUNT:-$((PROBLEMS_COUNT > MAX_ARRAY_SIZE ? MAX_ARRAY_SIZE : PROBLEMS_COUNT))}
@@ -47,7 +48,7 @@ else
   echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
   echo "TIME_PER_TASK=$TIME_PER_TASK"
 
-  ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$CPUS_PER_TASK" --job-name="fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
+  ARRAY_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$MAP_CPUS_PER_TASK" --job-name="fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --parsable --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
 
   echo Array job ID: "$ARRAY_JOB_ID"
 
@@ -58,5 +59,5 @@ else
   echo "$@" >"$BATCHES_DIR/parameters.txt"
 
   export ARRAY_JOB_ID
-  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
+  sbatch "${COMMON_SBATCH_OPTIONS[@]}" --cpus-per-task="$REDUCE_CPUS_PER_TASK" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --dependency=afterok:"$ARRAY_JOB_ID" fit.sh --problem-list "$PROBLEMS" "$@"
 fi
