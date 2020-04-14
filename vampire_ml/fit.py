@@ -76,6 +76,7 @@ def add_arguments(parser):
     parser.add_argument('--precompute', action='store_true')
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--learn-max-symbols', type=int, default=1000)
+    parser.add_argument('--jobs', '-j', type=int, default=-1)
 
 
 def split_size(s):
@@ -257,32 +258,32 @@ def call(namespace):
             problem_paths_train_set = set(problem_paths_train)
             groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
                                  count=len(problem_paths))
-        if namespace.precompute:
-            cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
-            gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                              error_score='raise')
+        with joblib.parallel_backend('threading', n_jobs=namespace.jobs):
+            if namespace.precompute:
+                cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
+                gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
+                                  error_score='raise')
 
-            # Precompute data for train set
-            problems_train = problems[groups]
-            fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
+                # Precompute data for train set
+                problems_train = problems[groups]
+                fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
 
-            # Precompute data for test set
-            problem_preference_matrix_transformer.run_generator = run_generator_test
-            fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
-        else:
-            cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
-                                    test_size=namespace.test_size, random_state=0)
-            gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                              error_score='raise')
-            fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
+                # Precompute data for test set
+                problem_preference_matrix_transformer.run_generator = run_generator_test
+                fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
+            else:
+                cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
+                                        test_size=namespace.test_size, random_state=0)
+                gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
+                                  error_score='raise')
+                fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
 
 
 def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
     if len(problems) == 0:
         logging.info('Skipping learning from an empty set of problems.')
         return
-    with joblib.parallel_backend('threading'):
-        gs.fit(problems, groups=groups)
+    gs.fit(problems, groups=groups)
     df = pd.DataFrame(gs.cv_results_)
     if name is not None:
         save_df(df, name, output_dir=output, index=False)
