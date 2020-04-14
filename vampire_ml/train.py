@@ -118,11 +118,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         precedences, scores = self.run_generator.transform_one(problem)
         if precedences is None or scores is None:
             return None
-        if not np.all(np.isnan(scores)):
-            # For each problem, we fit an independent copy of target transformer.
-            scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
-        else:
-            logging.debug(f'All the scores are nans for problem {problem}.')
+        # For each problem, we fit an independent copy of target transformer.
+        scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
         return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
                 symbol_type, precedence_matrix in precedences.items()}
 
