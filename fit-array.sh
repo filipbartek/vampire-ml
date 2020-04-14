@@ -2,7 +2,9 @@
 
 # This script is intended to be run in cluster.ciirc.cvut.cz.
 
-# Usage example: PROBLEMS=problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate sbatch fit-array.sh --random-predicate-precedence
+# Usage examples:
+# PROBLEMS=problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate fit-array.sh --random-predicate-precedence
+# PROBLEMS=problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate ARRAY=493,3406 fit-array.sh --random-predicate-precedence
 
 set -euo pipefail
 
@@ -38,6 +40,7 @@ else
   MAX_ARRAY_SIZE=$(scontrol show config | grep MaxArraySize | awk '{split($0, a, "="); print a[2]}' | sed 's/^ *//g')
   # https://stackoverflow.com/a/10415158/4054250
   ARRAY_TASK_COUNT=${ARRAY_TASK_COUNT:-$((PROBLEMS_COUNT > MAX_ARRAY_SIZE ? MAX_ARRAY_SIZE : PROBLEMS_COUNT))}
+  export PROBLEM_MODULUS=${PROBLEM_MODULUS:-$ARRAY_TASK_COUNT}
   ARRAY=${ARRAY:-0-$((ARRAY_TASK_COUNT - 1))}
   TIME_PER_TASK=${TIME_PER_TASK:-$((PROBLEMS_COUNT * (SOLVE_RUNS_PER_PROBLEM + 1) * (VAMPIRE_TIME_LIMIT + 10) / (ARRAY_TASK_COUNT * 60)))}
 
