@@ -60,8 +60,8 @@ def add_arguments(parser):
                              'supported by Vampire. '
                              'Format: YAML dictionary. '
                              'For example, "{time_limit: 10}" translates into '
-                             '"--include $TPTP --time_limit 10".'
-                             'Recommended options: include, time_limit.')
+                             '"--time_limit 10".'
+                             'Recommended options: time_limit.')
     parser.add_argument('--timeout', type=float, default=20,
                         help='Time in seconds after which each Vampire call is terminated.')
     parser.add_argument('--random-predicate-precedence', action='store_true')
