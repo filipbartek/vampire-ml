@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import json
+import logging
 import os
 import subprocess
 import time
@@ -34,6 +35,7 @@ class Result:
 def run(args, timeout=None):
     time_start = time.time()
     try:
+        logging.debug(' '.join(args))
         cp = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, text=True)
         time_elapsed = time.time() - time_start
         status = 'completed'
