@@ -43,6 +43,7 @@ XARGS_COMMAND=(
   --include "$TPTP"
   --problem-base-path "$TPTP_PROBLEMS"
   --timeout $((VAMPIRE_TIME_LIMIT + 10))
+  --jobs "$CPUS"
   "$@"
 )
 
