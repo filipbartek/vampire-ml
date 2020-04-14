@@ -54,7 +54,7 @@ def add_arguments(parser):
     parser.add_argument('--test-solve-runs', type=int, default=10)
     parser.add_argument('--vampire', type=str, default='vampire', help='Vampire command')
     # https://stackoverflow.com/a/20493276/4054250
-    parser.add_argument('--vampire-options', type=yaml.safe_load, action='append', nargs='+',
+    parser.add_argument('--vampire-options', type=yaml.safe_load, action='append', nargs='+', default=list(),
                         help='Options passed to Vampire. '
                              'Run `vampire --show_options on --show_experimental_options on` to print the options '
                              'supported by Vampire. '
