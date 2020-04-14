@@ -18,6 +18,10 @@ import sklearn.preprocessing
 import yaml
 from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import RidgeClassifier
+from sklearn.linear_model import RidgeClassifierCV
 from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
@@ -192,6 +196,8 @@ def call(namespace):
         run_generator_test = RunGenerator(namespace.test_solve_runs,
                                           namespace.random_predicate_precedence,
                                           namespace.random_function_precedence)
+        cases = {'score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
+                 'pair_value_svr', 'default_heuristic', 'best_encountered', 'default'}
         score_scaler_steps = {
             'imputer': QuantileImputer(copy=False, quantile=1),
             'log': FunctionTransformer(func=np.log),
@@ -202,24 +208,33 @@ def call(namespace):
                                                                             sklearn.base.clone(score_scaler),
                                                                             LassoCV(copy_X=False, max_iter=2000),
                                                                             max_symbols=namespace.learn_max_symbols)
-        param_grid = [{'precedence': [FunctionTransformer(func=transform_problems_to_empty_dicts),
-                                      BestPrecedenceGenerator(run_generator_test)]}]
-        score_scaler_param_grid = [
-            {
-                'standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
-                'log': [score_scaler_steps['log'], 'passthrough'],
-                'imputer__divide_by_success_rate': [False, True],
-                'imputer__factor': [1, 2, 10]
-            },
-            {
-                'imputer': ['passthrough'],
-                'log': [score_scaler_steps['log'], 'passthrough'],
-                'standardizer': [score_scaler_steps['standardizer'], 'passthrough']
-            }
-        ]
+        problem_preference_matrix_transformer_param_grid = list()
+        if 'score_scaling' in cases:
+            score_scaler_param_grid = [
+                {
+                    'standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
+                    'log': [score_scaler_steps['log'], 'passthrough'],
+                    'imputer__divide_by_success_rate': [False, True],
+                    'imputer__factor': [1, 2, 10]
+                },
+                {
+                    'imputer': ['passthrough'],
+                    'log': [score_scaler_steps['log'], 'passthrough'],
+                    'standardizer': [score_scaler_steps['standardizer'], 'passthrough']
+                }
+            ]
+            problem_preference_matrix_transformer_param_grid.extend(
+                decorate_param_grid(score_scaler_param_grid, 'score_scaler__'))
+        if 'binary_score' in cases:
+            problem_preference_matrix_transformer_param_grid.extend(
+                [{'score_scaler': [FunctionTransformer(func=np.isnan)],
+                  'score_predictor': [LogisticRegression(), RidgeClassifier(), LogisticRegressionCV(),
+                                      RidgeClassifierCV()]}])
+        if 'mean_regression' in cases:
+            problem_preference_matrix_transformer_param_grid.extend([{'score_predictor': [MeanRegression()]}])
         if namespace.precompute:
             preference_predictor = problem_preference_matrix_transformer
-            param_grid.extend(decorate_param_grid(score_scaler_param_grid, 'precedence__preference__score_scaler__'))
+            preference_predictor_param_grid = problem_preference_matrix_transformer_param_grid
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False, max_iter=2000)
@@ -228,16 +243,19 @@ def call(namespace):
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
                                                              reg_lasso,
                                                              batch_size=1000000)
-            param_grid.extend(
-                decorate_param_grid(score_scaler_param_grid, 'precedence__preference__problem_matrix__score_scaler__'))
-            param_grid.extend(decorate_param_grid([
-                {'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]},
-                {'pair_value': [reg_linear, reg_lasso, reg_svr_linear]},
-                {'weighted': [False]},
-                {'pair_value': [reg_svr_linear], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
-                {'batch_size': [1000], 'pair_value': [reg_svr], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
-                {'problem_matrix__score_predictor': [MeanRegression()]}
-            ], 'precedence__preference__'))
+            preference_predictor_param_grid = decorate_param_grid(problem_preference_matrix_transformer_param_grid,
+                                                                  'problem_matrix__')
+            if 'pair_value_regressors' in cases:
+                preference_predictor_param_grid.extend(
+                    [{'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]},
+                     {'pair_value': [reg_linear, reg_lasso, reg_svr_linear]}])
+            if 'unweighted' in cases:
+                preference_predictor_param_grid.extend([{'weighted': [False]}])
+            if 'pair_value_svr' in cases:
+                preference_predictor_param_grid.extend([
+                    {'pair_value': [reg_svr_linear], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
+                    {'batch_size': [1000], 'pair_value': [reg_svr], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]}
+                ])
         precedence_estimator = sklearn.pipeline.Pipeline([
             ('preference', preference_predictor),
             ('precedence', GreedyPrecedenceGenerator())
@@ -245,6 +263,14 @@ def call(namespace):
         precedence_estimator = sklearn.pipeline.Pipeline([
             ('precedence', precedence_estimator)
         ])
+        param_grid = list()
+        if 'default_heuristic' in cases:
+            param_grid.extend([{'precedence': [FunctionTransformer(func=transform_problems_to_empty_dicts)]}])
+        if 'best_encountered' in cases:
+            param_grid.extend([{'precedence': [BestPrecedenceGenerator(run_generator_test)]}])
+        if 'default' in cases:
+            param_grid.extend([{}])
+        param_grid.extend(decorate_param_grid(preference_predictor_param_grid, 'precedence__preference__'))
         scorers = {
             'success_rate': ScorerSuccessRate(),
             'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
