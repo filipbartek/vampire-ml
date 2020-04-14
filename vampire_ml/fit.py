@@ -121,8 +121,30 @@ def call(namespace):
     if namespace.clear_cache_joblib:
         memory.clear()
 
+    problem_base_path = namespace.problem_base_path
+    if problem_base_path is None:
+        try:
+            problem_base_path = os.environ['TPTP_PROBLEMS']
+            logging.info(f'Problem base path set to $TPTP_PROBLEMS: {problem_base_path}')
+        except KeyError:
+            pass
+    if problem_base_path is None:
+        try:
+            problem_base_path = os.path.join(os.environ['TPTP'], 'Problems')
+            logging.info(f'Problem base path set to $TPTP/Problems: {problem_base_path}')
+        except KeyError:
+            pass
+
+    include_path = namespace.include
+    if include_path is None:
+        try:
+            include_path = os.environ['TPTP']
+            logging.info(f'Include path set to $TPTP: {include_path}')
+        except KeyError:
+            pass
+
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
-                                                              namespace.problem_base_path)
+                                                              problem_base_path)
     problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
     if len(problem_paths_train) == 0:
         logging.info('Falling back: training on all problems.')
@@ -157,7 +179,7 @@ def call(namespace):
         never_load = True
 
     with vampyre.vampire.workspace_context(program=namespace.vampire,
-                                           problem_dir=problem_base_path, include_dir=namespace.include,
+                                           problem_dir=problem_base_path, include_dir=include_path,
                                            scratch_dir=namespace.scratch,
                                            never_load=never_load, never_run=never_run,
                                            result_is_ok_to_load=result_is_ok_to_load):
