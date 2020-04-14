@@ -7,6 +7,7 @@ import os
 import sys
 from itertools import chain
 
+import joblib
 import numpy as np
 import pandas as pd
 import sklearn
@@ -280,8 +281,8 @@ def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
     if len(problems) == 0:
         logging.info('Skipping learning from an empty set of problems.')
         return
-    # TODO: Parallelize.
-    gs.fit(problems, groups=groups)
+    with joblib.parallel_backend('threading'):
+        gs.fit(problems, groups=groups)
     df = pd.DataFrame(gs.cv_results_)
     if name is not None:
         save_df(df, name, output_dir=output, index=False)
