@@ -70,15 +70,21 @@ class StableStandardScaler(StandardScaler):
     """Handles constant features in a robust manner."""
 
     def fit(self, X, y=None):
-        res = super().fit(X, y=y)
-        self.scale_[np.isclose(0, self.scale_)] = 1
-        assert not self.with_mean or self.mean_ == np.nanmean(X)
-        assert not self.with_std or self.scale_ == np.nanstd(X) or self.scale_ == 1
-        assert not np.isclose(0, self.scale_)
-        return res
+        self.mean_ = None
+        if self.with_mean:
+            self.mean_ = np.nan_to_num(np.nanmean(X, axis=0), copy=False, nan=0)
+        self.var_ = None
+        self.scale_ = None
+        if self.with_std:
+            self.var_ = np.nan_to_num(np.nanvar(X, axis=0), copy=False, nan=1)
+            self.var_[np.isclose(0, self.var_)] = 1
+            self.scale_ = np.sqrt(self.var_)
+            assert not np.isclose(0, self.scale_).any()
+        self.n_samples_seen_ = X.shape[0]
+        return self
 
     def transform(self, X, copy=None):
-        assert not np.isclose(0, self.scale_)
+        assert not np.isclose(0, self.scale_).any()
         res = super().transform(X, copy=copy)
         res[np.isclose(0, res)] = 0
         return res
