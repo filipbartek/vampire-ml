@@ -220,10 +220,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                                                                                            preferences[symbol_type])
                     reg.partial_fit(symbol_pair_embeddings, target_preference_values)
             else:
-                logging.info(
-                    f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__} on {self.batch_size} samples...')
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
+                logging.info(
+                    f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__} on {len(symbol_pair_embeddings)} samples...')
                 reg.fit(symbol_pair_embeddings, target_preference_values)
         return self
 
