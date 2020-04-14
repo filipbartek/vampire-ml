@@ -341,6 +341,8 @@ class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
 
 class ScorerMean:
     def __call__(self, estimator, problems, y=None):
+        if len(problems) == 0:
+            return np.nan
         precedence_dicts = estimator.transform(problems)
         scores = list()
         with tqdm(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems)) as t:
