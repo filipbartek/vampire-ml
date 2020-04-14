@@ -165,7 +165,6 @@ def call(namespace):
     for value in chain(*namespace.vampire_options):
         vampire_options.update(value)
 
-    # TODO: Refine the conditions under which we skip execution. Shall we retry runs that terminated with code -11?
     never_load = False
     never_run = False
     result_is_ok_to_load = None
