@@ -202,7 +202,8 @@ def call(namespace):
                                                                             sklearn.base.clone(score_scaler),
                                                                             LassoCV(copy_X=False, max_iter=2000),
                                                                             max_symbols=namespace.learn_max_symbols)
-        param_grid = [{}]
+        param_grid = [{'precedence': [FunctionTransformer(func=transform_problems_to_empty_dicts),
+                                      BestPrecedenceGenerator(run_generator_test)]}]
         score_scaler_param_grid = [
             {
                 'standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
@@ -216,8 +217,6 @@ def call(namespace):
                 'standardizer': [score_scaler_steps['standardizer'], 'passthrough']
             }
         ]
-        param_grid.extend([{'precedence': [FunctionTransformer(func=transform_problems_to_empty_dicts),
-                                           BestPrecedenceGenerator(run_generator_test)]}])
         if namespace.precompute:
             preference_predictor = problem_preference_matrix_transformer
             param_grid.extend(decorate_param_grid(score_scaler_param_grid, 'precedence__preference__score_scaler__'))
