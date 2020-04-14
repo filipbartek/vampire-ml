@@ -138,32 +138,32 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
             return None
 
     def get_preference_matrix_or_raise(self, precedences, scores):
-        if (precedences == precedences[0]).all():
-            logging.debug('All the precedences are identical. Assuming preference 0 for all symbol pairs.')
-            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
         valid_samples = ~np.isnan(scores)
         if not valid_samples.any():
             logging.debug('All the scores are nan. Assuming preference 0 for all symbol pairs.')
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
+        if not valid_samples.all():
+            warnings.warn(
+                f'Omitting {np.count_nonzero(~valid_samples)}/{len(scores)} samples because they are nan-scored when learning problem-specific preference matrix.')
+        precedences = precedences[valid_samples]
+        scores = scores[valid_samples]
+        if (precedences == precedences[0]).all():
+            logging.debug('All the valid precedences are identical. Assuming preference 0 for all symbol pairs.')
+            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
         if (scores == scores[0]).all():
-            logging.debug('All the scores are identical. Assuming preference 0 for all symbol pairs.')
+            logging.debug('All the valid scores are identical. Assuming preference 0 for all symbol pairs.')
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
         preference_pipeline = pipeline.Pipeline([
             ('order_matrices', preprocessing.FunctionTransformer(func=self.order_matrices)),
             ('flattener', Flattener())
         ])
         preferences_flattened = preference_pipeline.fit_transform(precedences)
-        preference_score_regressor = sklearn.base.clone(self.score_predictor)
-        if not valid_samples.all():
-            warnings.warn(
-                f'Omitting {np.count_nonzero(~valid_samples)}/{len(scores)} samples because they are nan-scored when learning problem-specific preference matrix.')
-        preferences_flattened = preferences_flattened[valid_samples]
-        scores = scores[valid_samples]
+        score_predictor = sklearn.base.clone(self.score_predictor)
         assert not (preferences_flattened == preferences_flattened[0]).all()
         assert (~np.isnan(scores)).all()
-        preference_score_regressor.fit(preferences_flattened, scores)
+        score_predictor.fit(preferences_flattened, scores)
         # TODO: Consider using a sparse representation of the output.
-        return preference_pipeline['flattener'].inverse_transform(preference_score_regressor.coef_)[0]
+        return preference_pipeline['flattener'].inverse_transform(score_predictor.coef_)[0]
 
     def order_matrices(self, permutations):
         permutations = np.asarray(permutations)
