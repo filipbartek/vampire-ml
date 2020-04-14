@@ -5,9 +5,3 @@
 
 # Python
 __pycache__/
-
-# Slurm
-slurm-*.out
-
-# Temporary output files
-/out/
