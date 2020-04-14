@@ -145,6 +145,9 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         if not valid_samples.any():
             logging.debug('All the scores are nan. Assuming preference 0 for all symbol pairs.')
             return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
+        if (scores == scores[0]).all():
+            logging.debug('All the scores are identical. Assuming preference 0 for all symbol pairs.')
+            return np.zeros((precedences.shape[1], precedences.shape[1]), dtype=self.dtype_preference)
         preference_pipeline = pipeline.Pipeline([
             ('order_matrices', preprocessing.FunctionTransformer(func=self.order_matrices)),
             ('flattener', Flattener())
