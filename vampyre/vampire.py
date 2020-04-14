@@ -436,6 +436,7 @@ class Configuration:
 
     def run(self, program='vampire', problem_dir='', include_dir=None, scratch_dir=None, configuration_dir=None):
         with self.instantiate_options(include_dir=include_dir, scratch_dir=scratch_dir) as options:
+            assert problem_dir is not None
             args = list(itertools.chain([program],
                                         *((f'--{name}', str(value)) for (name, value) in options.items()),
                                         [os.path.join(problem_dir, self.problem_path)]))
