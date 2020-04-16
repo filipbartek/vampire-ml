@@ -7,11 +7,6 @@
 
 set -euo pipefail
 
-# https://stackoverflow.com/a/949391/4054250
-echo Git commit: "$(git rev-parse --verify HEAD)"
-
-env | sort
-
 source env.sh
 
 OUTPUT=${OUTPUT:-out}
@@ -81,6 +76,12 @@ if [ -n "${SLURM_JOB_ID-}" ]; then
   scontrol update job "$SLURM_JOB_ID" Comment="$problem_count $problem_first"
 fi
 
-echo "${XARGS_COMMAND[@]}"
+echo "Storing configuration into $OUTPUT_LOCAL"
+mkdir -p "$OUTPUT_LOCAL"
+git rev-parse --verify HEAD >"$OUTPUT_LOCAL/git-commit-sha.txt"
+env | sort >"$OUTPUT_LOCAL/env.txt"
+echo "$@" >"$OUTPUT_LOCAL/parameters.txt"
+echo "$problems" >"$OUTPUT_LOCAL/problems.txt"
+echo "${XARGS_COMMAND[@]}" >"$OUTPUT_LOCAL/xargs-command.sh"
 
 echo "$problems" | "${XARGS_COMMAND[@]}"
