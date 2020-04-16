@@ -79,7 +79,7 @@ def add_arguments(parser):
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute', action='store_true')
     parser.add_argument('--problems-train', action='append')
-    parser.add_argument('--learn-max-symbols', type=int, default=1000)
+    parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--jobs', '-j', type=int, default=1)
 
 
