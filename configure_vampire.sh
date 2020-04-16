@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-source env.sh
+. env.sh
 
 git submodule update --init --recursive
 cd "$VAMPIRE_DIR"

@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-source env.sh
+. env.sh
 
 TPTP_TGZ="$TPTP_VERSION.tgz"
 

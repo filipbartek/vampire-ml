@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-source env.sh
+. env.sh
 
 OUTPUT=${OUTPUT:-out/default}
 

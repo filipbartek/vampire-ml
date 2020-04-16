@@ -11,7 +11,7 @@ echo Git commit: "$(git rev-parse --verify HEAD)"
 
 env | sort
 
-source env.sh
+. env.sh
 
 if [ -n "${SLURM_ARRAY_JOB_ID-}" ]; then
   OUTPUT=${OUTPUT:-out/slurm/$SLURM_ARRAY_JOB_ID}

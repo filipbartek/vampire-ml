@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-source env.sh
+. env.sh
 
 OUTPUT=${OUTPUT:-out}
 if [ -n "${SLURM_ARRAY_JOB_ID-}" ] && [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then
