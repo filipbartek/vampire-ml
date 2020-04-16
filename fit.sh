@@ -77,7 +77,9 @@ fi
 if [ -n "${SLURM_JOB_ID-}" ]; then
   problem_count=$(echo "$problems" | wc -l)
   problem_first=$(echo "$problems" | head -1)
-  scontrol update job "$SLURM_JOB_ID" Comment="$problem_count $problem_first"
+  echo "problem_count=$problem_count"
+  echo "problem_first=$problem_first"
+  scontrol update job "$SLURM_JOB_ID" Comment="$problem_count $problem_first" || true
 fi
 
 echo "Storing configuration into $OUTPUT_LOCAL"
