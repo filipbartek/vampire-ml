@@ -3,7 +3,9 @@
 #SBATCH --mem-per-cpu=3128
 #SBATCH --time=600
 
-# Usage example: OUTPUT=out/sp-random-predicate sbatch --input=problems_selected_aggregated.txt --job-name=fit-predicate fit.sh --random-predicate-precedence
+# Usage examples:
+# fit.sh < problems.txt
+# OUTPUT=out/sp-random-predicate sbatch --input=problems_selected_aggregated.txt --job-name=fit-predicate fit.sh --random-predicate-precedence
 
 set -euo pipefail
 
