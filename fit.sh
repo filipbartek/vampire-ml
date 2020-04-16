@@ -29,7 +29,7 @@ SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1000}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
 XARGS_COMMAND=(
-  xargs --verbose
+  xargs
   python -O
   -m vampire_ml fit
   --output "$OUTPUT_LOCAL"
