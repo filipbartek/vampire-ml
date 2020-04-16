@@ -65,12 +65,22 @@ PROBLEM_MODULUS=${PROBLEM_MODULUS:--1}
 if [ -n "${PROBLEM_ID:-}" ]; then
   if [ -n "${PROBLEM_MODULUS:-}" ] && [ -1 -ne "${PROBLEM_MODULUS:-}" ]; then
     echo "Processing problems with id $PROBLEM_ID modulo $PROBLEM_MODULUS."
-    sed -n "$((PROBLEM_ID + 1))~${PROBLEM_MODULUS}p" | "${XARGS_COMMAND[@]}"
+    problems=$(sed -n "$((PROBLEM_ID + 1))~${PROBLEM_MODULUS}p")
   else
     echo "Processing problem with id $PROBLEM_ID."
-    sed -n "$((PROBLEM_ID + 1))p" | "${XARGS_COMMAND[@]}"
+    problems=$(sed -n "$((PROBLEM_ID + 1))p")
   fi
 else
   echo "Processing all problems."
-  "${XARGS_COMMAND[@]}"
+  problems=$(cat)
 fi
+
+if [ -n "${SLURM_JOB_ID-}" ]; then
+  problem_count=$(echo "$problems" | wc -l)
+  problem_first=$(echo "$problems" | head -1)
+  scontrol update job "$SLURM_JOB_ID" Comment="$problem_count $problem_first"
+fi
+
+echo "${XARGS_COMMAND[@]}"
+
+echo "$problems" | "${XARGS_COMMAND[@]}"
