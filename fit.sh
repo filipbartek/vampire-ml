@@ -82,7 +82,6 @@ fi
 
 echo "Storing configuration into $OUTPUT_LOCAL"
 mkdir -p "$OUTPUT_LOCAL"
-git rev-parse --verify HEAD >"$OUTPUT_LOCAL/git-commit-sha.txt"
 env | sort >"$OUTPUT_LOCAL/env.txt"
 echo "$@" >"$OUTPUT_LOCAL/parameters.txt"
 echo "$problems" >"$OUTPUT_LOCAL/problems.txt"
