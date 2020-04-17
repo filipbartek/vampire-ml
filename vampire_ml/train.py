@@ -36,7 +36,8 @@ class RunGenerator(BaseEstimator, StaticTransformer):
     dtype_precedence = vampyre.vampire.Problem.dtype_precedence
 
     def transform(self, problems):
-        for problem in tqdm(problems, desc='Solving with Vampire', unit='problem', mininterval=1):
+        for problem in tqdm(problems, desc=f'Solving each problem {self.runs_per_problem} times', unit='problem',
+                            mininterval=1):
             yield self.transform_one(problem)
 
     def transform_one(self, problem):
