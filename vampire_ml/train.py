@@ -36,7 +36,7 @@ class RunGenerator(BaseEstimator, StaticTransformer):
     dtype_precedence = vampyre.vampire.Problem.dtype_precedence
 
     def transform(self, problems):
-        for problem in tqdm(problems, desc='Solving with Vampire', unit='problem'):
+        for problem in tqdm(problems, desc='Solving with Vampire', unit='problem', mininterval=1):
             yield self.transform_one(problem)
 
     def transform_one(self, problem):
@@ -106,7 +106,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
         with tqdm(problems, desc='Estimating problem preference matrices', unit='problem', total=len(problems),
-                  disable=len(problems) <= 1) as t:
+                  disable=len(problems) <= 1, mininterval=1) as t:
             for problem in t:
                 t.set_postfix_str(problem)
                 yield self.transform_one(problem)
@@ -215,7 +215,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                 # TODO: Implement early stopping.
                 for _ in tqdm(range(self.incremental_epochs),
                               desc=f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__}',
-                              unit='epoch'):
+                              unit='epoch', mininterval=1):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
                     reg.partial_fit(symbol_pair_embeddings, target_preference_values)
@@ -345,7 +345,8 @@ class ScorerMean:
             return np.nan
         precedence_dicts = estimator.transform(problems)
         scores = list()
-        with tqdm(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems)) as t:
+        with tqdm(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems),
+                  mininterval=1) as t:
             stats = dict()
             for problem, precedence_dict in t:
                 stats['problem'] = problem

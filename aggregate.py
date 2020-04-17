@@ -36,7 +36,7 @@ def call(namespace):
 
 
 def symlink_plots(result_dirs, output_dir):
-    for dir in tqdm(result_dirs, desc='Symlinking plots', unit='dir'):
+    for dir in tqdm(result_dirs, desc='Symlinking plots', unit='dir', mininterval=1):
         for target in plot_paths(dir):
             link_name = os.path.join(output_dir, os.path.relpath(target, dir))
             logging.debug(f'{link_name} -> {target}')
