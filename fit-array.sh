@@ -56,7 +56,7 @@ else
   REDUCE_CPUS_PER_TASK=${REDUCE_CPUS_PER_TASK:-1}
   echo "REDUCE_CPUS_PER_TASK=$REDUCE_CPUS_PER_TASK"
 
-  if [ -n "${MAP_JOB_ID}" ]; then
+  if [ -n "${MAP_JOB_ID-}" ]; then
     DEPENDENCY_OPTION="--dependency=afterok:$MAP_JOB_ID"
   fi
 
