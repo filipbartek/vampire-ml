@@ -55,6 +55,9 @@ function finish {
     echo Finish: Removing directory "$OUTPUT_SCRATCH"
     rm -rf "$OUTPUT_SCRATCH"
   fi
+  if [ -n "${DO_MPROF-}" ]; then
+    mprof plot --output "$OUTPUT_LOCAL/mprofile.png" "$OUTPUT_LOCAL/mprofile.dat"
+  fi
 }
 trap finish EXIT INT TERM
 
