@@ -2,6 +2,7 @@ import collections
 import logging
 import warnings
 
+import guppy
 import numpy as np
 import scipy
 import sklearn.base
@@ -14,6 +15,8 @@ import vampire_ml.precedence
 import vampyre
 from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
+
+hp = guppy.hpy()
 
 
 class StaticTransformer(TransformerMixin):
@@ -342,6 +345,7 @@ class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
 
 class ScorerMean:
     def __call__(self, estimator, problems, y=None):
+        print(hp.heap())
         if len(problems) == 0:
             return np.nan
         precedence_dicts = estimator.transform(problems)
