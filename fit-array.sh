@@ -40,7 +40,7 @@ else
   TIME_PER_TASK=${TIME_PER_TASK:-$((PROBLEMS_COUNT * (SOLVE_RUNS_PER_PROBLEM + 1) * (VAMPIRE_TIME_LIMIT + 10) / (ARRAY_TASK_COUNT * 60)))}
   echo "TIME_PER_TASK=$TIME_PER_TASK"
 
-  MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
+  MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:map" --output="$OUTPUT_SLURM/%A_%a.out" --error="$OUTPUT_SLURM/%A_%a.err" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS" --time="$TIME_PER_TASK" --mem-per-cpu=$((VAMPIRE_MEMORY_LIMIT + 128)) --array="$ARRAY" fit.sh "$@" --precompute)
   echo "MAP_JOB_ID=$MAP_JOB_ID"
 
   MAP_BATCHES_DIR="$OUTPUT/batches/$MAP_JOB_ID"
@@ -60,7 +60,7 @@ else
     DEPENDENCY_OPTION="--dependency=afterok:$MAP_JOB_ID"
   fi
 
-  REDUCE_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --cpus-per-task="$REDUCE_CPUS_PER_TASK" ${DEPENDENCY_OPTION-} fit.sh --problem-list "$PROBLEMS" "$@")
+  REDUCE_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="fit:reduce" --output="$OUTPUT_SLURM/%j.out" --error="$OUTPUT_SLURM/%j.err" --cpus-per-task="$REDUCE_CPUS_PER_TASK" ${DEPENDENCY_OPTION-} fit.sh --problem-list "$PROBLEMS" "$@")
   echo "REDUCE_JOB_ID=$REDUCE_JOB_ID"
 
   REDUCE_BATCHES_DIR="$OUTPUT/batches/$REDUCE_JOB_ID"
