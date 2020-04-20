@@ -1,5 +1,6 @@
 appdirs
 flatten-dict
+guppy3
 joblib
 matplotlib
 methodtools
