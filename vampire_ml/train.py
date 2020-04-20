@@ -191,7 +191,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     Learns from a batch of problems jointly.
     """
 
-    def __init__(self, problem_matrix, pair_value, batch_size, weighted=True, incremental_epochs=None):
+    def __init__(self, problem_matrix, pair_value, batch_size, weighted=True, incremental_epochs=None,
+                 max_symbols=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
         :param pair_value: Symbol pair preference value predictor blueprint.
@@ -201,12 +202,14 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         Moreover, each of the problems is weighted by mean absolute preference value.
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
+        :param max_symbols: Maximum signature size to predict preference matrix for.
         """
         self.problem_matrix = problem_matrix
         self.pair_value = pair_value
         self.batch_size = batch_size
         self.weighted = weighted
         self.incremental_epochs = incremental_epochs
+        self.max_symbols = max_symbols
 
     weight_dtype = np.float
 
@@ -246,6 +249,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         reg = self.pair_value_fitted_[symbol_type]
         try:
             n = len(problem.get_symbols(symbol_type))
+            if self.max_symbols is not None and n > self.max_symbols:
+                logging.debug(
+                    f'{problem} has {n}>{self.max_symbols} {symbol_type} symbols. This is too many to predict a preference matrix.')
+                return None
             l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
             symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
             symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)

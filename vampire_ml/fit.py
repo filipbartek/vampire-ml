@@ -81,6 +81,7 @@ def add_arguments(parser):
     parser.add_argument('--precompute', action='store_true')
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--learn-max-symbols', type=int, default=200)
+    parser.add_argument('--predict-max-symbols', type=int, default=1024)
     parser.add_argument('--jobs', '-j', type=int, default=1)
     parser.add_argument('--progress', type=int, default=1)
     parser.add_argument('--progress-mininterval', type=float, default=1)
@@ -252,7 +253,8 @@ def call(namespace):
             reg_svr = SVR()
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
                                                              reg_lasso,
-                                                             batch_size=1000000)
+                                                             batch_size=1000000,
+                                                             max_symbols=namespace.predict_max_symbols)
             preference_predictor_param_grid = decorate_param_grid(problem_preference_matrix_transformer_param_grid,
                                                                   'problem_matrix__')
             if 'pair_value_regressors' in cases:
