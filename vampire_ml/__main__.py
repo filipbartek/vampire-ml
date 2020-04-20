@@ -28,6 +28,7 @@ if __name__ == '__main__':
     assert namespace.log is not None
     logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=namespace.log)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
+    logging.info('Beginning.')
 
     np.random.seed(0)
 
