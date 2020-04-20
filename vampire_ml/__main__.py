@@ -26,7 +26,7 @@ if __name__ == '__main__':
     namespace = parser.parse_args()
 
     assert namespace.log is not None
-    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=namespace.log)
+    logging.basicConfig(format='%(relativeCreated)s - %(levelname)s - %(message)s', level=namespace.log)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
     logging.info('Beginning.')
 
