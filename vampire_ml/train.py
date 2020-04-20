@@ -68,6 +68,8 @@ class RunGenerator(BaseEstimator, StaticTransformer):
         except RuntimeError:
             logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
             return None, None
+        finally:
+            problem.cache_clear()
 
     def symbol_types(self):
         res = list()
@@ -260,6 +262,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         except RuntimeError:
             logging.debug(f'Failed to predict preference on problem {problem}.', exc_info=True)
             return None
+        finally:
+            problem.cache_clear()
 
     PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
 
@@ -338,6 +342,7 @@ class RandomPrecedenceGenerator(BaseEstimator, StaticTransformer):
         """For each problem yields a precedence dictionary."""
         for problem in problems:
             yield problem.random_precedences(self.random_predicates, self.random_functions, seed=self.seed)
+            problem.cache_clear()
 
 
 class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
@@ -380,6 +385,7 @@ class ScorerMean:
                 stats['problem'] = problem
                 t.set_postfix(stats)
                 score_transformed = self.get_score(problem, precedence_dict)
+                problem.cache_clear()
                 assert not np.isnan(score_transformed)
                 scores.append(score_transformed)
                 stats['score'] = np.mean(scores)

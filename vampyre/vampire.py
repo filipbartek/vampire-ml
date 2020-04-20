@@ -145,6 +145,13 @@ class Problem:
 
     dtype_embedding = np.uint
 
+    def cache_clear(self):
+        logging.debug(f'Problem {str(self)}: Clearing in-memory cache.')
+        # We do not clear get_embedding because the cache is expected to be very small.
+        self.get_all_symbol_embeddings.cache_clear()
+        self.get_symbols.cache_clear()
+        self.get_clausify_execution.cache_clear()
+
     @methodtools.lru_cache(maxsize=1)
     def get_embedding(self):
         try:
