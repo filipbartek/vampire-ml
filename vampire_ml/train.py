@@ -369,6 +369,7 @@ class ScorerMean:
         with ProgressBar(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems)) as t:
             stats = dict()
             for problem, precedence_dict in t:
+                logging.debug(f'Computing score on problem {problem}.')
                 stats['problem'] = problem
                 t.set_postfix(stats)
                 score_transformed = self.get_score(problem, precedence_dict)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import os
 
 import matplotlib.pyplot as plt
@@ -24,6 +25,7 @@ def learn_ltot(pair_scores, symbol_type=None):
 def ltot_construct_permutation(pair_scores, nan=None):
     """Find good permutation greedily."""
     n = pair_scores.shape[0]
+    logging.debug(f'Greedily constructing good permutation of {n} symbols.')
     assert (n, n) == pair_scores.shape
     perm = np.empty(n, dtype=np.uint)
     if n == 0:
