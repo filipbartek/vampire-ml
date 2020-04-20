@@ -493,9 +493,6 @@ def save_symbols(symbols, file):
 def load_clauses(file):
     file_size = os.path.getsize(file)
     logging.debug(f'Loading {file} of size {file_size}.')
-    if file_size > 1024 * 1024:
-        logging.debug('Loading skipped because the file is too large.')
-        return None
     return json.load(open(file))
 
 
