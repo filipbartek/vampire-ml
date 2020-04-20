@@ -44,6 +44,9 @@ from vampire_ml.train import ScorerPercentile
 from vampire_ml.train import ScorerSaturationIterations
 from vampire_ml.train import ScorerSuccessRate
 
+cases_all = ['score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
+             'pair_value_svr', 'default_heuristic', 'best_encountered', 'default']
+
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
@@ -87,6 +90,7 @@ def add_arguments(parser):
     parser.add_argument('--progress-mininterval', type=float, default=1)
     parser.add_argument('--progress-postfix', type=int, default=1)
     parser.add_argument('--progress-postfix-refresh', type=int, default=0)
+    parser.add_argument('--cases', nargs='+', choices=cases_all)
 
 
 def split_size(s):
@@ -207,8 +211,10 @@ def call(namespace):
         run_generator_test = RunGenerator(namespace.test_solve_runs,
                                           namespace.random_predicate_precedence,
                                           namespace.random_function_precedence)
-        cases = {'score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
-                 'pair_value_svr', 'default_heuristic', 'best_encountered', 'default'}
+        if namespace.cases is not None:
+            cases = set(namespace.cases)
+        else:
+            cases = set(cases_all)
         score_scaler_steps = {
             'imputer': QuantileImputer(copy=False, quantile=1),
             'log': FunctionTransformer(func=np.log),
