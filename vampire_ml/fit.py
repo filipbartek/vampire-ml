@@ -130,7 +130,7 @@ def call(namespace):
     sys.setrecursionlimit(2000)
 
     if namespace.clear_cache_joblib:
-        memory.clear()
+        memory.recompute = True
 
     utils.progress_bar.enabled = namespace.progress
     utils.progress_bar.mininterval = namespace.progress_mininterval

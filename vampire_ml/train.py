@@ -41,6 +41,8 @@ class RunGenerator(BaseEstimator, StaticTransformer):
             yield self.transform_one(problem)
 
     def transform_one(self, problem):
+        if memory.recompute:
+            run_generator_transform_one.call_and_shelve(self, problem).clear()
         return run_generator_transform_one(self, problem)
 
     def _transform_one(self, problem):
@@ -113,6 +115,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
                 yield self.transform_one(problem)
 
     def transform_one(self, problem):
+        if memory.recompute:
+            preference_matrix_transformer_transform_one.call_and_shelve(self, problem).clear()
         return preference_matrix_transformer_transform_one(self, problem)
 
     def _transform_one(self, problem):
@@ -344,8 +348,18 @@ class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):
                    precedences.items()}
 
 
+@memory.cache
+def scorer_mean_call(self, estimator, problems):
+    return self._call(estimator, problems)
+
+
 class ScorerMean:
     def __call__(self, estimator, problems, y=None):
+        if memory.recompute:
+            scorer_mean_call.call_and_shelve(self, estimator, problems).clear()
+        return scorer_mean_call(self, estimator, problems)
+
+    def _call(self, estimator, problems):
         if len(problems) == 0:
             return np.nan
         precedence_dicts = estimator.transform(problems)
