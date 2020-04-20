@@ -143,9 +143,16 @@ class Problem:
     def name(self):
         return str(self).replace('/', '_')
 
+    dtype_embedding = np.uint
+
     @methodtools.lru_cache(maxsize=1)
     def get_embedding(self):
-        return np.asarray([len(self.get_clauses())], dtype=np.uint)
+        try:
+            clauses_count = len(self.get_clauses())
+        except TypeError:
+            clauses_count = 1024 * 1024
+            logging.warning(f'Failed to determine number of clauses. Defaulting to {clauses_count}.')
+        return np.asarray([clauses_count], dtype=self.dtype_embedding)
 
     @staticmethod
     def get_symbol_embedding_column_names(symbol_type):
@@ -157,7 +164,7 @@ class Problem:
         assert symbol_type == 'function' or np.all(~self.get_symbols(symbol_type)[['skolem']])
         assert np.all(~self.get_symbols(symbol_type)[['inductionSkolem']])
         return self.get_symbols(symbol_type)[self.get_symbol_embedding_column_names(symbol_type)].to_numpy(
-            dtype=np.uint)
+            dtype=self.dtype_embedding)
 
     def get_symbols_embedding(self, symbol_type, symbol_indexes):
         return self.get_all_symbol_embeddings(symbol_type)[symbol_indexes]
@@ -484,7 +491,11 @@ def save_symbols(symbols, file):
 
 
 def load_clauses(file):
-    logging.debug(f'Loading {file} of size {os.path.getsize(file)}.')
+    file_size = os.path.getsize(file)
+    logging.debug(f'Loading {file} of size {file_size}.')
+    if file_size > 1024 * 1024:
+        logging.debug('Loading skipped because the file is too large.')
+        return None
     return json.load(open(file))
 
 

@@ -30,9 +30,9 @@ def get_consistent(d, key, value=None, override=False):
     raise RuntimeError(f'Inconsistent value of key {key}. Expected: {value}. Actual: {d[key]}.')
 
 
-def len_robust(item):
+def len_robust(item, na=None):
     if item is None:
-        return None
+        return na
     return len(item)
 
 
