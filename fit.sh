@@ -35,7 +35,10 @@ fi
 
 XARGS_COMMAND=(
   xargs
-  "${python_call[@]}" vampire_ml fit
+  "${python_call[@]}"
+  vampire_ml
+  --log DEBUG
+  fit
   --output "$OUTPUT_LOCAL"
   --train-solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
