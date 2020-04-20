@@ -25,8 +25,8 @@ if __name__ == '__main__':
 
     namespace = parser.parse_args()
 
-    if namespace.log is not None:
-        logging.basicConfig(level=namespace.log)
+    assert namespace.log is not None
+    logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=namespace.log)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
 
     np.random.seed(0)
