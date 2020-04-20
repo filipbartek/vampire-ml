@@ -37,7 +37,7 @@ XARGS_COMMAND=(
   xargs
   "${python_call[@]}"
   vampire_ml
-  --log DEBUG
+  --log ${LOG_LEVEL:-INFO}
   fit
   --output "$OUTPUT_LOCAL"
   --train-solve-runs "$SOLVE_RUNS_PER_PROBLEM"
