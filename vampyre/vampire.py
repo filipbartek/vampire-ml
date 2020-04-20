@@ -219,8 +219,7 @@ class Problem:
         if reverse:
             seed_count = solve_count // 2
             solve_count = seed_count * 2
-        with tqdm(range(seed_count), total=solve_count, desc=self.path, unit='run', disable=not progress,
-                  mininterval=1) as t:
+        with tqdm(range(seed_count), total=solve_count, desc=self.path, unit='run', disable=not progress) as t:
             for seed in t:
                 precedences = self.random_precedences(random_predicates, random_functions, seed)
                 execution = self.get_execution(precedences=precedences)
