@@ -8,10 +8,10 @@ import sklearn.base
 from sklearn import pipeline
 from sklearn import preprocessing
 from sklearn.base import BaseEstimator, TransformerMixin
-from tqdm import tqdm
 
 import vampire_ml.precedence
 import vampyre
+from utils import ProgressBar
 from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 
@@ -36,7 +36,8 @@ class RunGenerator(BaseEstimator, StaticTransformer):
     dtype_precedence = vampyre.vampire.Problem.dtype_precedence
 
     def transform(self, problems):
-        for problem in tqdm(problems, desc=f'Solving each problem {self.runs_per_problem} times', unit='problem'):
+        for problem in ProgressBar(problems, desc=f'Solving each problem {self.runs_per_problem} times',
+                                   unit='problem'):
             yield self.transform_one(problem)
 
     def transform_one(self, problem):
@@ -105,8 +106,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
-        with tqdm(problems, desc='Estimating problem preference matrices', unit='problem', total=len(problems),
-                  disable=len(problems) <= 1, mininterval=1) as t:
+        with ProgressBar(problems, desc='Estimating problem preference matrices', unit='problem', total=len(problems),
+                         disable=len(problems) <= 1) as t:
             for problem in t:
                 t.set_postfix_str(problem)
                 yield self.transform_one(problem)
@@ -213,9 +214,9 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             assert id(reg) == id(self.pair_value_fitted_[symbol_type])
             if self.incremental_epochs is not None:
                 # TODO: Implement early stopping.
-                for _ in tqdm(range(self.incremental_epochs),
-                              desc=f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__}',
-                              unit='epoch', mininterval=1):
+                for _ in ProgressBar(range(self.incremental_epochs),
+                                     desc=f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__}',
+                                     unit='epoch'):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
                     reg.partial_fit(symbol_pair_embeddings, target_preference_values)
@@ -345,8 +346,7 @@ class ScorerMean:
             return np.nan
         precedence_dicts = estimator.transform(problems)
         scores = list()
-        with tqdm(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems),
-                  mininterval=1) as t:
+        with ProgressBar(zip(problems, precedence_dicts), desc=str(self), unit='problem', total=len(problems)) as t:
             stats = dict()
             for problem, precedence_dict in t:
                 stats['problem'] = problem

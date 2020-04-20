@@ -26,6 +26,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
 
+import utils
 import vampyre
 from utils import file_path_list
 from utils import memory
@@ -81,6 +82,10 @@ def add_arguments(parser):
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--jobs', '-j', type=int, default=1)
+    parser.add_argument('--progress', type=int, default=1)
+    parser.add_argument('--progress-mininterval', type=float, default=1)
+    parser.add_argument('--progress-postfix', type=int, default=1)
+    parser.add_argument('--progress-postfix-refresh', type=int, default=0)
 
 
 def split_size(s):
@@ -126,6 +131,11 @@ def call(namespace):
 
     if namespace.clear_cache_joblib:
         memory.clear()
+
+    utils.progress_bar.enabled = namespace.progress
+    utils.progress_bar.mininterval = namespace.progress_mininterval
+    utils.progress_bar.postfix_enabled = namespace.progress_postfix
+    utils.progress_bar.postfix_refresh = namespace.progress_postfix_refresh
 
     problem_base_path = namespace.problem_base_path
     if problem_base_path is None:

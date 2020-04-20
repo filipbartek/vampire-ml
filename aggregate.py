@@ -7,9 +7,9 @@ import logging
 import os
 
 import pandas as pd
-from tqdm import tqdm
 
 import vampyre
+from utils import ProgressBar
 from utils import file_path_list
 from vampire_ml import results
 
@@ -36,7 +36,7 @@ def call(namespace):
 
 
 def symlink_plots(result_dirs, output_dir):
-    for dir in tqdm(result_dirs, desc='Symlinking plots', unit='dir'):
+    for dir in ProgressBar(result_dirs, desc='Symlinking plots', unit='dir'):
         for target in plot_paths(dir):
             link_name = os.path.join(output_dir, os.path.relpath(target, dir))
             logging.debug(f'{link_name} -> {target}')

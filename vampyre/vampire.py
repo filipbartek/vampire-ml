@@ -15,8 +15,8 @@ import appdirs
 import methodtools
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
+from utils import ProgressBar
 from utils import len_robust
 from . import extractor
 from . import process
@@ -210,7 +210,7 @@ class Problem:
         return workspace.get_configuration_path(self.get_configuration(mode=mode, precedences=precedences))
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False,
-                                      reverse=False, progress=True):
+                                      reverse=False):
         # TODO: Parallelize.
         # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
         if solve_count > 1 and not random_predicates and not random_functions:
@@ -219,7 +219,7 @@ class Problem:
         if reverse:
             seed_count = solve_count // 2
             solve_count = seed_count * 2
-        with tqdm(range(seed_count), total=solve_count, desc=self.path, unit='run', disable=not progress) as t:
+        with ProgressBar(range(seed_count), total=solve_count, desc=self.path, unit='run') as t:
             for seed in t:
                 precedences = self.random_precedences(random_predicates, random_functions, seed)
                 execution = self.get_execution(precedences=precedences)
