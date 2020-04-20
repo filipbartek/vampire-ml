@@ -239,11 +239,15 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
 
     def predict_one(self, problem, symbol_type):
         reg = self.pair_value_fitted_[symbol_type]
-        n = len(problem.get_symbols(symbol_type))
-        l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
-        symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
-        symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
-        return reg.predict(symbol_pair_embeddings).reshape(n, n)
+        try:
+            n = len(problem.get_symbols(symbol_type))
+            l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
+            symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
+            symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
+            return reg.predict(symbol_pair_embeddings).reshape(n, n)
+        except RuntimeError:
+            logging.debug(f'Failed to predict preference on problem {problem}.', exc_info=True)
+            return None
 
     PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
 
