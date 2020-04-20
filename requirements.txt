@@ -3,6 +3,7 @@ flatten-dict
 guppy3
 joblib
 matplotlib
+memory-profiler
 methodtools
 numpy
 pandas
