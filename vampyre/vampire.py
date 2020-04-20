@@ -102,12 +102,10 @@ class Result(process.Result):
         try:
             symbols = load_symbols(os.path.join(path, 'symbols.csv'))
         except FileNotFoundError:
-            logging.debug('Ignoring missing symbols.csv')
             symbols = None
         try:
             clauses = load_clauses(os.path.join(path, 'clauses.json'))
         except FileNotFoundError:
-            logging.debug('Ignoring missing clauses.json')
             clauses = None
         return Result(process_result, symbols, clauses)
 
