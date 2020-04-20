@@ -173,6 +173,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         n = permutations.shape[1]
         assert permutations.shape == (m, n)
         assert n <= self.max_symbols
+        logging.debug(f'Allocating a bool array of size {m * n * n}.')
         res = np.empty((m, n, n), np.bool)
         precedence_inverse = np.empty(n, permutations.dtype)
         # TODO: Consider optimizing this loop.
@@ -355,6 +356,7 @@ def scorer_mean_call(self, estimator, problems):
 
 class ScorerMean:
     def __call__(self, estimator, problems, y=None):
+        logging.debug(str(self))
         if memory.recompute:
             scorer_mean_call.call_and_shelve(self, estimator, problems).clear()
         return scorer_mean_call(self, estimator, problems)
