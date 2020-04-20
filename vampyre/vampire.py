@@ -457,6 +457,7 @@ class Configuration:
 
 
 def load_symbols(file):
+    logging.debug(f'Loading {file} of size {os.path.getsize(file)}.')
     # The column 'name' may contain single quoted strings.
     # See http://www.tptp.org/TPTP/SyntaxBNF.html
     # <fof_plain_term> ::= <functor> ::= <atomic_word> ::= <single_quoted> ::= <single_quote> ::: [']
@@ -483,6 +484,7 @@ def save_symbols(symbols, file):
 
 
 def load_clauses(file):
+    logging.debug(f'Loading {file} of size {os.path.getsize(file)}.')
     return json.load(open(file))
 
 
