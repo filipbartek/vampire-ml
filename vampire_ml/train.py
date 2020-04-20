@@ -2,6 +2,7 @@ import collections
 import logging
 import warnings
 
+import guppy
 import numpy as np
 import scipy
 import sklearn.base
@@ -14,6 +15,8 @@ import vampyre
 from utils import ProgressBar
 from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
+
+hp = guppy.hpy()
 
 
 class StaticTransformer(TransformerMixin):
@@ -391,6 +394,9 @@ class ScorerMean:
                 stats['score'] = np.mean(scores)
                 t.set_postfix(stats)
         assert not np.isnan(scores).any()
+        h = hp.heap()
+        logging.debug(h)
+        logging.debug(h.byrcs)
         return np.mean(scores)
 
     def get_score(self, problem, precedence_dict):
