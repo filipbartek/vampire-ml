@@ -200,7 +200,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         :param pair_value: Symbol pair preference value predictor blueprint.
         Predicts preference value from an embedding of a symbol pair.
         :param batch_size: How many symbol pairs should we learn from in each training batch?
-        :param weighted: If True, each of the samples is weighted by absolute target value when fitting  `pair_value`.
+        :param weighted: If True, each of the samples is weighted by absolute target value when fitting `pair_value`.
         Moreover, each of the problems is weighted by mean absolute preference value.
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
