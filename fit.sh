@@ -28,9 +28,9 @@ VAMPIRE_MEMORY_LIMIT=${VAMPIRE_MEMORY_LIMIT:-3000}
 SOLVE_RUNS_PER_PROBLEM=${SOLVE_RUNS_PER_PROBLEM:-1000}
 CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
-python_call=(python -O -m)
+python_call=(python -O -u -m)
 if [ -n "${DO_MPROF-}" ]; then
-  python_call=(mprof run --python --include-children --interval 1 --exit-code --output "$OUTPUT_LOCAL/mprofile.dat")
+  python_call=(mprof run --python --include-children --interval 1 --exit-code --output "$OUTPUT_LOCAL/mprofile.dat" python -O -u -m)
 fi
 
 XARGS_COMMAND=(
