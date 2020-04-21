@@ -42,7 +42,8 @@ from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 from vampire_ml.train import ScorerPercentile
 from vampire_ml.train import ScorerSaturationIterations
-from vampire_ml.train import ScorerSuccessRate
+from vampire_ml.train import ScorerSuccess
+from vampire_ml.train import ScorerSuccessRelative
 
 cases_all = ['score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
              'pair_value_svr', 'default_heuristic', 'best_encountered', 'default']
@@ -282,15 +283,21 @@ def call(namespace):
             ('precedence', precedence_estimator)
         ])
         param_grid = list()
+        precedence_default_heuristic = FunctionTransformer(func=transform_problems_to_empty_dicts)
         if 'default_heuristic' in cases:
-            param_grid.extend([{'precedence': [FunctionTransformer(func=transform_problems_to_empty_dicts)]}])
+            param_grid.extend([{'precedence': [precedence_default_heuristic]}])
         if 'best_encountered' in cases:
             param_grid.extend([{'precedence': [BestPrecedenceGenerator(run_generator_test)]}])
         if 'default' in cases:
             param_grid.extend([{}])
         param_grid.extend(decorate_param_grid(preference_predictor_param_grid, 'precedence__preference__'))
         scorers = {
-            'success_rate': ScorerSuccessRate(),
+            'success_rate': ScorerSuccess(),
+            'success_count': ScorerSuccess(aggregate=np.sum),
+            'success_relative_better': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
+                                                             mode='better'),
+            'success_relative_worse': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
+                                                            mode='worse'),
             'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
             'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
             'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
