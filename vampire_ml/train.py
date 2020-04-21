@@ -225,7 +225,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             if self.incremental_epochs is not None:
                 # TODO: Implement early stopping.
                 for _ in ProgressBar(range(self.incremental_epochs),
-                                     desc=f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__}',
+                                     desc=f'Fitting general {symbol_type} preference regressor {type(reg).__name__}',
                                      unit='epoch'):
                     symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                            preferences[symbol_type])
@@ -234,8 +234,11 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
                 logging.info(
-                    f'Fitting {symbol_type} pairwise preference regressor {type(reg).__name__} on {len(symbol_pair_embeddings)} samples...')
-                reg.fit(symbol_pair_embeddings, target_preference_values)
+                    f'Fitting general {symbol_type} preference regressor {type(reg).__name__} on {len(symbol_pair_embeddings)} samples...')
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
+                    reg.fit(symbol_pair_embeddings, target_preference_values)
+                logging.info(f'Fitting general {symbol_type} preference regressor {type(reg).__name__} complete.')
         return self
 
     def transform(self, problems):
