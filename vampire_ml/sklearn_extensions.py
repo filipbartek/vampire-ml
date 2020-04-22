@@ -10,6 +10,11 @@ from sklearn.utils.validation import _num_samples
 from sklearn.utils.validation import check_random_state
 
 
+class StaticTransformer(TransformerMixin):
+    def fit(self, x, y=None):
+        return self
+
+
 class MeanRegression(RegressorMixin, LinearModel):
     def fit(self, X, y):
         self.intercept_ = 0

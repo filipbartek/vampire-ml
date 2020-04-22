@@ -30,6 +30,8 @@ import utils
 import vampyre
 from utils import file_path_list
 from utils import memory
+from vampire_ml.precedence_generators import BestPrecedenceGenerator
+from vampire_ml.precedence_generators import GreedyPrecedenceGenerator
 from vampire_ml.results import save_df
 from vampire_ml.scorers import ScorerPercentile
 from vampire_ml.scorers import ScorerSaturationIterations
@@ -39,8 +41,6 @@ from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.sklearn_extensions import StableStandardScaler
-from vampire_ml.train import BestPrecedenceGenerator
-from vampire_ml.train import GreedyPrecedenceGenerator
 from vampire_ml.train import PreferenceMatrixPredictor
 from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
