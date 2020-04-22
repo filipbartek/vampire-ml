@@ -234,11 +234,11 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
                 logging.info(
-                    f'Fitting general {symbol_type} preference regressor {type(reg).__name__} on {len(symbol_pair_embeddings)} samples...')
+                    f'General {symbol_type} preference regressor: Fitting on {len(symbol_pair_embeddings)} samples...')
                 with warnings.catch_warnings():
                     warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
                     reg.fit(symbol_pair_embeddings, target_preference_values)
-                logging.info(f'Fitting general {symbol_type} preference regressor {type(reg).__name__} complete.')
+                logging.info(f'General {symbol_type} preference regressor: Fitted.')
         return self
 
     def transform(self, problems):
