@@ -23,7 +23,7 @@ COMMON_SBATCH_OPTIONS=(
   "--mem-per-cpu=$MEM_PER_CPU"
 )
 
-OUTPUT_SLURM=${OUTPUT_SLURM:-$OUTPUT/slurm}
+OUTPUT_SLURM=${OUTPUT_SLURM:-slurm}
 mkdir -p "$OUTPUT_SLURM"
 
 PROBLEMS=${PROBLEMS:-problems_selected_aggregated.txt}
