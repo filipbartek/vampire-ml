@@ -46,7 +46,7 @@ from vampire_ml.train import ScorerSuccess
 from vampire_ml.train import ScorerSuccessRelative
 
 cases_all = ['score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
-             'pair_value_svr', 'default_heuristic', 'best_encountered', 'default']
+             'pair_value_svr', 'default_heuristic', 'best_encountered', 'default', 'score_predictors']
 
 
 def add_arguments(parser):
@@ -248,6 +248,9 @@ def call(namespace):
                 [{'score_scaler': [FunctionTransformer(func=np.isnan)],
                   'score_predictor': [LogisticRegression(), RidgeClassifier(), LogisticRegressionCV(),
                                       RidgeClassifierCV()]}])
+        if 'score_predictors' in cases:
+            problem_preference_matrix_transformer_param_grid.extend(
+                [{'score_predictor': [LinearRegression(copy_X=False)]}])
         if 'mean_regression' in cases:
             problem_preference_matrix_transformer_param_grid.extend([{'score_predictor': [MeanRegression()]}])
         if namespace.precompute:
