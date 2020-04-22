@@ -1,12 +1,12 @@
 # Problem lists
 
-## problems_cnf_fof.txt
+## cnf_fof.txt
 
 Command:
 
 ```bash
 . env.sh
-find "$TPTP_PROBLEMS" -regextype sed -regex ".*/[A-Z]\{3\}[0-9]\{3\}[-+][1-9][0-9]*\(\.[0-9]\{3\}\)*\.p" -exec realpath --relative-to "$TPTP_PROBLEMS" {} + | sort > problems_cnf_fof.txt
+find "$TPTP_PROBLEMS" -regextype sed -regex ".*/[A-Z]\{3\}[0-9]\{3\}[-+][1-9][0-9]*\(\.[0-9]\{3\}\)*\.p" -exec realpath --relative-to "$TPTP_PROBLEMS" {} + | sort > cnf_fof.txt
 ```
 
 TPTP version: v7.3.0
