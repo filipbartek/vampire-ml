@@ -38,7 +38,7 @@ def filter_columns(df, filters):
         elif op == '==':
             flags = actual == expected
         assert flags is not None
-        logging.debug({'column': column, 'op': op, 'expected': expected, 'len': len(flags), 'sum': flags.sum()})
+        logging.debug(f'{column} {op} {expected}: {flags.sum()}/{len(flags)}')
         df = df[flags]
     return df
 
