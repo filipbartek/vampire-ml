@@ -45,8 +45,7 @@ def filter_columns(df, filters):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--problems', nargs=2, action='append', metavar=('NAME', 'PATH'),
-                        help='pairs of dataset names and dataframe pickle paths')
+    parser.add_argument('problems', nargs='+', help='dataframe pickle paths')
     parser.add_argument('--output', required=True, metavar='DIRECTORY', help='output directory')
     parser.add_argument('--columns_common', nargs='+', action='append', type=str_to_column, metavar='COLUMN')
     parser.add_argument('--columns_individual', nargs='+', action='append', type=str_to_column, metavar='COLUMN')
@@ -64,7 +63,7 @@ if __name__ == '__main__':
 
     problems_common = None
     problems = dict()
-    for i, (name, file_path) in enumerate(namespace.problems):
+    for i, file_path in enumerate(namespace.problems):
         df = pd.read_pickle(file_path)
         assert df.index.name == 'problem_path'
         if columns_common is not None and i == 0:
@@ -77,8 +76,11 @@ if __name__ == '__main__':
         if namespace.count is not None:
             assert namespace.count >= 0
             df = df[:namespace.count]
-        problems[name] = df
-    problems_aggregated = pd.concat(problems.values(), axis=1, keys=problems.keys(), sort=True)
+        problems[file_path] = df
+    if len(problems) > 1:
+        problems_aggregated = pd.concat(problems.values(), axis=1, keys=problems.keys(), sort=True)
+    else:
+        problems_aggregated = next(iter(problems.values()))
     problems_aggregated.index.name = 'problem_path'
     if problems_common is not None:
         problems_aggregated = problems_common.join(problems_aggregated, how='right')
