@@ -253,6 +253,7 @@ def call(namespace):
         if namespace.precompute:
             preference_predictor = problem_preference_matrix_transformer
             preference_predictor_param_grid = problem_preference_matrix_transformer_param_grid
+            cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
@@ -276,6 +277,8 @@ def call(namespace):
                     {'pair_value': [reg_svr_linear], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
                     {'batch_size': [1000], 'pair_value': [reg_svr], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]}
                 ])
+            cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
+                                    test_size=namespace.test_size, random_state=0)
         precedence_estimator = sklearn.pipeline.Pipeline([
             ('preference', preference_predictor),
             ('precedence', GreedyPrecedenceGenerator())
@@ -309,12 +312,10 @@ def call(namespace):
             problem_paths_train_set = set(problem_paths_train)
             groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
                                  count=len(problem_paths))
+        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
+                          error_score='raise')
         with joblib.parallel_backend('threading', n_jobs=namespace.jobs):
             if namespace.precompute:
-                cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
-                gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                                  error_score='raise')
-
                 # Precompute data for train set
                 problems_train = problems[groups]
                 fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
@@ -323,10 +324,6 @@ def call(namespace):
                 problem_preference_matrix_transformer.run_generator = run_generator_test
                 fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
             else:
-                cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
-                                        test_size=namespace.test_size, random_state=0)
-                gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                                  error_score='raise')
                 fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
 
 
