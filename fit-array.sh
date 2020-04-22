@@ -48,7 +48,7 @@ else
   MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:map" --output="$OUTPUT_SLURM/%A_%a.out" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS" --time="$TIME_PER_TASK" --array="$ARRAY" fit.sh "$@" --precompute)
   echo "MAP_JOB_ID=$MAP_JOB_ID"
 
-  MAP_BATCHES_DIR="$OUTPUT/batches/$MAP_JOB_ID"
+  MAP_BATCHES_DIR="$OUTPUT/$MAP_JOB_ID"
   mkdir -p "$MAP_BATCHES_DIR"
   git rev-parse --verify HEAD >"$MAP_BATCHES_DIR/git-commit-sha.txt"
   env | sort >"$MAP_BATCHES_DIR/env.txt"
@@ -68,7 +68,7 @@ else
   REDUCE_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:reduce" --output="$OUTPUT_SLURM/%j.out" --cpus-per-task="$REDUCE_CPUS_PER_TASK" ${DEPENDENCY_OPTION-} fit.sh --problem-list "$PROBLEMS" "$@")
   echo "REDUCE_JOB_ID=$REDUCE_JOB_ID"
 
-  REDUCE_BATCHES_DIR="$OUTPUT/batches/$REDUCE_JOB_ID"
+  REDUCE_BATCHES_DIR="$OUTPUT/$REDUCE_JOB_ID"
   mkdir -p "$REDUCE_BATCHES_DIR"
   git rev-parse --verify HEAD >"$REDUCE_BATCHES_DIR/git-commit-sha.txt"
   env | sort >"$REDUCE_BATCHES_DIR/env.txt"
