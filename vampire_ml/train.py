@@ -248,6 +248,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
                     reg.fit(symbol_pair_embeddings, target_preference_values)
                 logging.info(f'General {symbol_type} preference regressor: Fitted.')
+            try:
+                logging.info(f'{symbol_type} regressor coefs: {reg.coef_}')
+            except AttributeError:
+                pass
         return self
 
     def transform(self, problems):
