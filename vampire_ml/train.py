@@ -194,7 +194,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, problem_matrix, pair_value, batch_size, weighted=True, incremental_epochs=None,
-                 max_symbols=None):
+                 max_symbols=None, random_state=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
         :param pair_value: Symbol pair preference value predictor blueprint.
@@ -205,6 +205,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
         :param max_symbols: Maximum signature size to predict preference matrix for.
+        :param random_state: If int, seed of a random number generator. If None, use `np.random`.
+        Otherwise a `RandomState`.
         """
         self.problem_matrix = problem_matrix
         self.pair_value = pair_value
@@ -212,6 +214,12 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         self.weighted = weighted
         self.incremental_epochs = incremental_epochs
         self.max_symbols = max_symbols
+        if random_state is None:
+            self.random_state = np.random
+        elif isinstance(random_state, int):
+            self.random_state = np.random.RandomState(random_state)
+        else:
+            self.random_state = random_state
 
     weight_dtype = np.float
 
@@ -296,7 +304,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                 warnings.warn('All of the problems have all-zero preference matrices. No data to learn from.')
                 return list(), list()
             p = preference_record.weights / np.sum(preference_record.weights)
-        problem_indexes = np.random.choice(len(problems), size=self.batch_size, p=p)
+        problem_indexes = self.random_state.choice(len(problems), size=self.batch_size, p=p)
         for problem_i, n_samples in zip(*np.unique(problem_indexes, return_counts=True)):
             problem = problems[problem_i]
             try:
@@ -320,7 +328,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             if np.allclose(0, all_pairs_values):
                 raise RuntimeError('Cannot learn from an all-zero preference matrix.')
             p = np.abs(all_pairs_values) / np.sum(np.abs(all_pairs_values))
-        chosen_pairs_indexes = np.random.choice(len(all_pairs_index_pairs), size=n_samples, p=p)
+        chosen_pairs_indexes = self.random_state.choice(len(all_pairs_index_pairs), size=n_samples, p=p)
         chosen_pairs_index_pairs = all_pairs_index_pairs[chosen_pairs_indexes]
         chosen_pairs_embeddings = problem.get_symbol_pair_embeddings(symbol_type, chosen_pairs_index_pairs)
         chosen_pairs_values = all_pairs_values[chosen_pairs_indexes]

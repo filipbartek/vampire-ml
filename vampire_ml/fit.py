@@ -261,7 +261,8 @@ def call(namespace):
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
                                                              reg_lasso,
                                                              batch_size=1000000,
-                                                             max_symbols=namespace.predict_max_symbols)
+                                                             max_symbols=namespace.predict_max_symbols,
+                                                             random_state=0)
             preference_predictor_param_grid = decorate_param_grid(problem_preference_matrix_transformer_param_grid,
                                                                   'problem_matrix__')
             if 'pair_value_regressors' in cases:
