@@ -5,7 +5,7 @@
 
 # Usage examples:
 # fit.sh < problems.txt
-# OUTPUT=out/sp-random-predicate sbatch --input=problems_selected_aggregated.txt --job-name=fit-predicate fit.sh --random-predicate-precedence
+# OUTPUT=out/sp-random-predicate sbatch --input=problems/problems_selected_aggregated.txt --job-name=fit-predicate fit.sh --random-predicate-precedence
 
 set -euo pipefail
 

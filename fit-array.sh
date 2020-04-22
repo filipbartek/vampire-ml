@@ -3,8 +3,8 @@
 # This script is intended to be run in cluster.ciirc.cvut.cz.
 
 # Usage examples:
-# PROBLEMS=problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate fit-array.sh --random-predicate-precedence
-# PROBLEMS=problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate ARRAY=493,3406 fit-array.sh --random-predicate-precedence
+# PROBLEMS=problems/problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate fit-array.sh --random-predicate-precedence
+# PROBLEMS=problems/problems_selected_aggregated.txt OUTPUT=out/sp-random-predicate ARRAY=493,3406 fit-array.sh --random-predicate-precedence
 
 set -euo pipefail
 
@@ -26,7 +26,7 @@ COMMON_SBATCH_OPTIONS=(
 OUTPUT_SLURM=${OUTPUT_SLURM:-slurm}
 mkdir -p "$OUTPUT_SLURM"
 
-PROBLEMS=${PROBLEMS:-problems_selected_aggregated.txt}
+PROBLEMS=${PROBLEMS:-problems/problems_selected_aggregated.txt}
 PROBLEMS_COUNT=$(wc -l <"$PROBLEMS")
 echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
 
