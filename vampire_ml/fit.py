@@ -329,7 +329,7 @@ def call(namespace):
 
 def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
     if len(problems) == 0:
-        logging.info('Skipping learning from an empty set of problems.')
+        logging.info(f'{name}: Skipping fitting on an empty set of problems.')
         return
     gs.fit(problems, groups=groups)
     df = pd.DataFrame(gs.cv_results_)
