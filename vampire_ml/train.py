@@ -231,8 +231,12 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                                                                                            preferences[symbol_type])
                     reg.partial_fit(symbol_pair_embeddings, target_preference_values)
             else:
+                logging.debug(
+                    f'General {symbol_type} preference regressor: Generating batch of {self.batch_size} samples...')
                 symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
                                                                                        preferences[symbol_type])
+                logging.debug(
+                    f'General {symbol_type} preference regressor: Batch of {len(symbol_pair_embeddings)} samples generated.')
                 logging.info(
                     f'General {symbol_type} preference regressor: Fitting on {len(symbol_pair_embeddings)} samples...')
                 with warnings.catch_warnings():
