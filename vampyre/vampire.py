@@ -152,6 +152,10 @@ class Problem:
         self.get_symbols.cache_clear()
         self.get_clausify_execution.cache_clear()
 
+    @staticmethod
+    def get_embedding_column_names():
+        return ['clauses_count']
+
     @methodtools.lru_cache(maxsize=1)
     def get_embedding(self):
         try:
@@ -182,6 +186,12 @@ class Problem:
         problem_embeddings = np.asarray(self.get_embedding()).reshape(1, -1).repeat(n_samples, axis=0)
         symbol_embeddings = self.get_symbols_embedding(symbol_type, symbol_indexes.flatten()).reshape(n_samples, 2, -1)
         return np.concatenate((problem_embeddings, symbol_embeddings[:, 0], symbol_embeddings[:, 1]), axis=1)
+
+    @classmethod
+    def get_symbol_pair_embedding_column_names(cls, symbol_type):
+        return np.concatenate((cls.get_embedding_column_names(),
+                               [f'l.{s}' for s in cls.get_symbol_embedding_column_names(symbol_type)],
+                               [f'r.{s}' for s in cls.get_symbol_embedding_column_names(symbol_type)]))
 
     def get_predicates(self):
         return self.get_symbols(symbol_type='predicate')
