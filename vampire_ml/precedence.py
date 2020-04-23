@@ -23,7 +23,11 @@ def learn_ltot(pair_scores, symbol_type=None):
 
 
 def ltot_construct_permutation(pair_scores, nan=None):
-    """Find good permutation greedily."""
+    """
+    Find good permutation greedily.
+    The permutation minimizes cumulative score of ordered pairs:
+    sum(pair_scores[l, r]) for each pair (l, r) that appears in the output permutation ..l..r..
+    """
     n = pair_scores.shape[0]
     logging.debug(f'Greedily constructing good permutation of {n} symbols.')
     assert (n, n) == pair_scores.shape
