@@ -156,3 +156,16 @@ class EstimatorDict(BaseEstimator):
 
     def items(self):
         return self.__dict__.items()
+
+
+def get_weights(predictor):
+    weights = None
+    try:
+        weights = predictor.coef_
+    except AttributeError:
+        pass
+    try:
+        weights = predictor.feature_importances_
+    except AttributeError:
+        pass
+    return weights
