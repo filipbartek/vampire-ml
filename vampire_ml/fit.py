@@ -16,6 +16,7 @@ import sklearn.linear_model
 import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
+from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import LogisticRegression
@@ -263,6 +264,7 @@ def call(namespace):
             reg_lasso = LassoCV(copy_X=False)
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
+            reg_gbr = GradientBoostingRegressor(random_state=0)
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
                                                              reg_lasso,
                                                              batch_size=1000000,
@@ -273,7 +275,7 @@ def call(namespace):
             if 'pair_value_regressors' in cases:
                 preference_predictor_param_grid.extend(
                     [{'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]},
-                     {'pair_value': [reg_linear, reg_lasso, reg_svr_linear]}])
+                     {'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_gbr]}])
             if 'unweighted' in cases:
                 preference_predictor_param_grid.extend([{'weighted': [False]}])
             if 'pair_value_svr' in cases:
