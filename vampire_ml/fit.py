@@ -37,6 +37,7 @@ from vampire_ml.scorers import ScorerPercentile
 from vampire_ml.scorers import ScorerSaturationIterations
 from vampire_ml.scorers import ScorerSuccess
 from vampire_ml.scorers import ScorerSuccessRelative
+from vampire_ml.scorers import ScorerExplainer
 from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
@@ -308,7 +309,8 @@ def call(namespace):
             'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
             'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
             'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
-            'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
+            'percentile.weak': ScorerPercentile(run_generator_test, kind='weak'),
+            'explainer': ScorerExplainer()
         }
         groups = None
         if len(problem_paths_train) > 0:
@@ -328,6 +330,8 @@ def call(namespace):
                 fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
             else:
                 fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
+        df = scorers['explainer'].get_dataframe('predicate')
+        save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
 
 
 def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):

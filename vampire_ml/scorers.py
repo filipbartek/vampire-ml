@@ -1,11 +1,14 @@
 import logging
 
 import numpy as np
+import pandas as pd
 import scipy
 import sklearn.base
 
+import vampyre
 from utils import ProgressBar
 from utils import memory
+from .sklearn_extensions import get_weights
 
 dtype_score = np.float
 
@@ -131,3 +134,32 @@ class ScorerPercentile(ScoreAggregator):
         percentile = scipy.stats.percentileofscore(base_scores, execution_score, kind=self.kind)
         assert 0 <= percentile <= 100
         return 100 - percentile
+
+
+class ScorerExplainer():
+    def __init__(self):
+        self.weights = dict()
+
+    def __call__(self, estimator, problems, y=None):
+        assert estimator not in self.weights
+        self.weights[estimator] = dict()
+        try:
+            for symbol_type, reg in estimator['precedence']['preference'].pair_value_fitted_.items():
+                weights = get_weights(reg)
+                self.weights[estimator][symbol_type] = weights
+                logging.info(f'{symbol_type}: {weights}')
+        except (TypeError, AttributeError):
+            pass
+        return np.nan
+
+    def get_dataframe(self, symbol_type):
+        column_names = vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type)
+        data = {column_name: list() for column_name in column_names}
+        for weights_dict in self.weights.values():
+            weights = weights_dict[symbol_type]
+            for i, column_name in enumerate(column_names):
+                try:
+                    data[column_name].append(weights[i])
+                except TypeError:
+                    data[column_name].append(None)
+        return pd.DataFrame(data, index=self.weights.keys())
