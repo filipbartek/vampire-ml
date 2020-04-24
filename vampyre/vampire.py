@@ -3,6 +3,7 @@
 import collections
 import contextlib
 import copy
+import functools
 import hashlib
 import itertools
 import json
@@ -12,7 +13,6 @@ import tempfile
 import warnings
 
 import appdirs
-import methodtools
 import numpy as np
 import pandas as pd
 
@@ -145,18 +145,19 @@ class Problem:
 
     dtype_embedding = np.uint
 
-    def cache_clear(self):
-        logging.debug(f'Problem {str(self)}: Clearing in-memory cache.')
+    @classmethod
+    def cache_clear(cls):
+        logging.debug(f'{str(cls)}: Clearing in-memory cache.')
         # We do not clear get_embedding because the cache is expected to be very small.
-        self.get_all_symbol_embeddings.cache_clear()
-        self.get_symbols.cache_clear()
-        self.get_clausify_execution.cache_clear()
+        cls.get_all_symbol_embeddings.cache_clear()
+        cls.get_symbols.cache_clear()
+        cls.get_clausify_execution.cache_clear()
 
     @staticmethod
     def get_embedding_column_names():
         return ['clauses_count']
 
-    @methodtools.lru_cache(maxsize=1)
+    @functools.lru_cache(maxsize=1)
     def get_embedding(self):
         try:
             clauses_count = len(self.get_clauses())
@@ -172,7 +173,7 @@ class Problem:
             res.append('skolem')
         return res
 
-    @methodtools.lru_cache(maxsize=2)
+    @functools.lru_cache(maxsize=2)
     def get_all_symbol_embeddings(self, symbol_type):
         assert symbol_type == 'function' or np.all(~self.get_symbols(symbol_type)[['skolem']])
         assert np.all(~self.get_symbols(symbol_type)[['inductionSkolem']])
@@ -201,7 +202,7 @@ class Problem:
     def get_functions(self):
         return self.get_symbols(symbol_type='function')
 
-    @methodtools.lru_cache(maxsize=2)
+    @functools.lru_cache(maxsize=2)
     def get_symbols(self, symbol_type=None):
         symbols = self.get_successful_clausify_result().get_symbols(symbol_type)
         if symbols is None:
@@ -217,7 +218,7 @@ class Problem:
             raise RuntimeError('Clausify run failed.', {'status': result.status, 'exit_code': result.exit_code})
         return result
 
-    @methodtools.lru_cache(maxsize=1)
+    @functools.lru_cache(maxsize=1)
     def get_clausify_execution(self):
         return self.get_execution(mode='clausify')
 

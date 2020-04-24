@@ -27,7 +27,6 @@ class RandomPrecedenceGenerator(BaseEstimator, StaticTransformer):
         """For each problem yields a precedence dictionary."""
         for problem in problems:
             yield problem.random_precedences(self.random_predicates, self.random_functions, seed=self.seed)
-            problem.cache_clear()
 
 
 class BestPrecedenceGenerator(BaseEstimator, StaticTransformer):

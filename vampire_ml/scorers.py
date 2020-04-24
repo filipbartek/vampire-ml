@@ -31,7 +31,6 @@ def get_base_scores(estimator, problems):
             logging.debug(f'Computing base score on problem {problem}.')
             t.set_postfix({'problem': problem})
             score = get_base_score(problem, precedence_dict)
-            problem.cache_clear()
             scores[i] = score
     return scores
 

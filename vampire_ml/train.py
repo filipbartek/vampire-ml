@@ -64,8 +64,6 @@ class RunGenerator(BaseEstimator, StaticTransformer):
         except RuntimeError:
             logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
             return None, None
-        finally:
-            problem.cache_clear()
 
     def symbol_types(self):
         res = list()
@@ -281,8 +279,6 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         except RuntimeError:
             logging.debug(f'Failed to predict preference on problem {problem}.', exc_info=True)
             return None
-        finally:
-            problem.cache_clear()
 
     PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
 
