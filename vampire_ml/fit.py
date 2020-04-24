@@ -31,6 +31,7 @@ import utils
 import vampyre
 from utils import file_path_list
 from utils import memory
+from vampire_ml import results
 from vampire_ml.precedence_generators import BestPrecedenceGenerator
 from vampire_ml.precedence_generators import GreedyPrecedenceGenerator
 from vampire_ml.results import save_df
@@ -95,6 +96,7 @@ def add_arguments(parser):
     parser.add_argument('--progress-postfix', type=int, default=1)
     parser.add_argument('--progress-postfix-refresh', type=int, default=0)
     parser.add_argument('--cases', nargs='+', choices=cases_all)
+    parser.add_argument('--problems-dataframe', action='store_true')
 
 
 def split_size(s):
@@ -215,6 +217,19 @@ def call(namespace):
         run_generator_test = RunGenerator(namespace.test_solve_runs,
                                           namespace.random_predicate_precedence,
                                           namespace.random_function_precedence)
+        if namespace.problems_dataframe:
+            clausify_dfs = list()
+            solve_dfs = list()
+            for problem in problems:
+                clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
+                    field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
+                executions = list(run_generator_test.get_executions(problem))
+                solve_dfs.extend(
+                    execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
+                    execution in executions)
+            solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
+            clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
+            results.save_all(solve_runs_df, clausify_runs_df, namespace.output)
         if namespace.cases is not None:
             cases = set(namespace.cases)
         else:
