@@ -345,8 +345,7 @@ def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
     if name is not None:
         save_df(df, name, output_dir=output, index=False)
     with pd.option_context('display.max_seq_items', None, 'display.max_columns', None,
-                           'display.expand_frame_repr',
-                           False):
+                           'display.expand_frame_repr', False):
         columns = ['params'] + [f'mean_test_{key}' for key in scorers.keys()]
         print(df[columns])
 
