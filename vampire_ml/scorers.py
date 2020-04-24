@@ -38,6 +38,9 @@ class ScoreAggregator:
     def __init__(self, aggregate=np.mean):
         self.aggregate = aggregate
 
+    def __str__(self):
+        return f'{type(self).__name__}({self.aggregate.__name__})'
+
     def __call__(self, estimator, problems, y=None):
         res = np.nan
         if len(problems) > 0:
@@ -56,9 +59,6 @@ class ScoreAggregator:
 class ScorerSuccess(ScoreAggregator):
     def __init__(self, aggregate=np.mean):
         super().__init__(aggregate=aggregate)
-
-    def __str__(self):
-        return f'{type(self).__name__}({self.aggregate.__name__})'
 
     def transform_score(self, base_score, problem):
         return not np.isnan(base_score)
