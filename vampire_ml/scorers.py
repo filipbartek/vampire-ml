@@ -44,7 +44,7 @@ class ScoreAggregator:
     def __call__(self, estimator, problems, y=None):
         res = np.nan
         if len(problems) > 0:
-            res = self.aggregate(list(self.get_scores(estimator, problems)))
+            res = self.aggregate(np.fromiter(self.get_scores(estimator, problems), dtype=dtype_score, count=len(problems)))
         logging.info(f'{self}: {res}')
         return res
 
