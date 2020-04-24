@@ -168,4 +168,6 @@ def get_feature_weights(estimator):
         weights = estimator.feature_importances_
     except AttributeError:
         pass
+    if weights is None:
+        raise RuntimeError('The estimator does not expose feature weights in `coef_` or `feature_importances_`.')
     return weights

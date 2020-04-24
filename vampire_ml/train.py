@@ -1,5 +1,6 @@
 import collections
 import logging
+import sys
 import warnings
 
 import numpy as np
@@ -249,7 +250,11 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
                     reg.fit(symbol_pair_embeddings, target_preference_values)
                 logging.info(f'General {symbol_type} preference regressor: Fitted.')
-            logging.info(f'Feature weights: {get_feature_weights(reg)}')
+            with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
+                try:
+                    logging.info(f'Feature weights: {get_feature_weights(reg)}')
+                except RuntimeError:
+                    logging.debug('Failed to extract feature weights.', exc_info=True)
         return self
 
     def transform(self, problems):

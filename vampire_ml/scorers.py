@@ -1,4 +1,5 @@
 import logging
+import sys
 
 import numpy as np
 import pandas as pd
@@ -137,19 +138,22 @@ class ScorerPercentile(ScoreAggregator):
 
 
 class ScorerExplainer():
-    def __init__(self):
+    def __init__(self, symbol_types=('predicate', 'function')):
+        self.symbol_types = symbol_types
         self.weights = dict()
 
     def __call__(self, estimator, problems, y=None):
         assert estimator not in self.weights
         self.weights[estimator] = dict()
-        try:
-            for symbol_type, reg in estimator['precedence']['preference'].pair_value_fitted_.items():
-                weights = get_feature_weights(reg)
-                self.weights[estimator][symbol_type] = weights
-                logging.info(f'{symbol_type}: {weights}')
-        except (TypeError, AttributeError):
-            pass
+        for symbol_type in self.symbol_types:
+            try:
+                weights = get_feature_weights(estimator['precedence']['preference'].pair_value_fitted_[symbol_type])
+                with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
+                    logging.debug(f'{symbol_type} feature weights: {weights}')
+            except (TypeError, AttributeError, KeyError, RuntimeError):
+                logging.debug(f'Failed to extract {symbol_type} feature weights.', exc_info=True)
+                weights = None
+            self.weights[estimator][symbol_type] = weights
         return np.nan
 
     def get_dataframe(self, symbol_type):
