@@ -158,7 +158,7 @@ class EstimatorDict(BaseEstimator):
         return self.__dict__.items()
 
 
-def get_weights(predictor):
+def get_feature_weights(predictor):
     weights = None
     try:
         weights = predictor.coef_

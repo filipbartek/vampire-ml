@@ -8,7 +8,7 @@ import sklearn.base
 import vampyre
 from utils import ProgressBar
 from utils import memory
-from .sklearn_extensions import get_weights
+from .sklearn_extensions import get_feature_weights
 
 dtype_score = np.float
 
@@ -145,7 +145,7 @@ class ScorerExplainer():
         self.weights[estimator] = dict()
         try:
             for symbol_type, reg in estimator['precedence']['preference'].pair_value_fitted_.items():
-                weights = get_weights(reg)
+                weights = get_feature_weights(reg)
                 self.weights[estimator][symbol_type] = weights
                 logging.info(f'{symbol_type}: {weights}')
         except (TypeError, AttributeError):

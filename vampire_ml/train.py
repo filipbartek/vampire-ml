@@ -13,7 +13,7 @@ from utils import ProgressBar
 from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 from vampire_ml.sklearn_extensions import StaticTransformer
-from vampire_ml.sklearn_extensions import get_weights
+from vampire_ml.sklearn_extensions import get_feature_weights
 
 
 @memory.cache
@@ -249,7 +249,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
                     reg.fit(symbol_pair_embeddings, target_preference_values)
                 logging.info(f'General {symbol_type} preference regressor: Fitted.')
-            logging.info(f'Feature weights: {get_weights(reg)}')
+            logging.info(f'Feature weights: {get_feature_weights(reg)}')
         return self
 
     def transform(self, problems):
