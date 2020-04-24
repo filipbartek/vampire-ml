@@ -350,8 +350,8 @@ def call(namespace):
                 fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
             else:
                 fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
-        df = scorers['explainer'].get_dataframe()
-        save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
+                df = scorers['explainer'].get_dataframe()
+                save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
 
 
 def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
