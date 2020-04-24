@@ -114,6 +114,9 @@ def generate_problems_df(runs_df, probe_runs_df=None, problem_paths=None, proble
         inplace=True)
 
     def variation(a):
+        if (a == 0).all():
+            # We need to handle this special case explicitly because `scipy.stats.variation` raises an exception on it.
+            return 0
         res = scipy.stats.variation(a.astype(np.float), nan_policy='omit')
         if isinstance(res, np.ma.core.MaskedConstant):
             # The input array contains all nans.
