@@ -30,7 +30,7 @@ CPUS=${CPUS:-${SLURM_CPUS_PER_TASK:-1}}
 
 python_call=(python -O -u -m)
 if [ -n "${DO_MPROF-}" ]; then
-  python_call=(mprof run --python --include-children --interval 1 --exit-code --output "$OUTPUT_LOCAL/mprofile.dat" python -O -u -m)
+  python_call=(mprof run --python --include-children --interval 1 --exit-code --output "$OUTPUT_LOCAL/mprofile.dat")
 fi
 
 XARGS_COMMAND=(
