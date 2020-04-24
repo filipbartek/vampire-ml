@@ -156,14 +156,22 @@ class ScorerExplainer():
             self.weights[estimator][symbol_type] = weights
         return np.nan
 
-    def get_dataframe(self, symbol_type):
-        column_names = vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type)
-        data = {column_name: list() for column_name in column_names}
-        for weights_dict in self.weights.values():
-            weights = weights_dict[symbol_type]
-            for i, column_name in enumerate(column_names):
-                try:
-                    data[column_name].append(weights[i])
-                except TypeError:
-                    data[column_name].append(None)
-        return pd.DataFrame(data, index=self.weights.keys())
+    def get_dataframe(self):
+        records = list()
+        for estimator, weights_dict in self.weights.items():
+            records.append(np.concatenate(
+                [self.get_weights_vector(weights_dict, symbol_type) for symbol_type in self.symbol_types]))
+        column_names = list()
+        for symbol_type in self.symbol_types:
+            column_names.extend(
+                (symbol_type, s) for s in vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))
+        return pd.DataFrame.from_records(records, index=pd.Index(self.weights.keys(), name='estimator'),
+                                         columns=pd.MultiIndex.from_tuples(column_names))
+
+    @staticmethod
+    def get_weights_vector(weights_dict, symbol_type):
+        if weights_dict[symbol_type] is None:
+            return np.full(len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type)), np.nan)
+        assert len(weights_dict[symbol_type]) == len(
+            vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))
+        return weights_dict[symbol_type]
