@@ -291,7 +291,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             for symbol_type in self.symbol_types():
                 matrix = problem_preferences[symbol_type]
                 preferences[symbol_type].matrices.append(matrix)
-                if matrix is not None:
+                if matrix is not None and matrix.size > 0:
                     preferences[symbol_type].weights[i] = np.mean(np.abs(matrix))
         return preferences
 
