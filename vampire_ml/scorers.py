@@ -34,6 +34,18 @@ def get_base_scores(estimator, problems):
     return scores
 
 
+@memory.cache
+def get_predicted_mask(estimator, problems):
+    precedence_dicts = estimator.transform(problems)
+    scores = np.empty(len(problems), dtype=np.bool)
+    with ProgressBar(zip(problems, precedence_dicts), desc='Computing prediction mask', unit='problem',
+                     total=len(problems)) as t:
+        for i, (problem, precedence_dict) in enumerate(t):
+            t.set_postfix({'problem': problem})
+            scores[i] = precedence_dict is not None
+    return scores
+
+
 class ScoreAggregator:
     def __init__(self, aggregate=np.mean):
         self.aggregate = aggregate
@@ -173,3 +185,11 @@ class ScorerExplainer():
         assert len(weights_dict[symbol_type]) == len(
             vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))
         return weights_dict[symbol_type]
+
+
+class ScorerPrediction(ScoreAggregator):
+    def __init__(self, aggregate=np.sum):
+        super().__init__(aggregate)
+
+    def get_scores(self, estimator, problems):
+        return get_predicted_mask(estimator, problems)

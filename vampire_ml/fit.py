@@ -39,6 +39,7 @@ from vampire_ml.scorers import ScorerPercentile
 from vampire_ml.scorers import ScorerSaturationIterations
 from vampire_ml.scorers import ScorerSuccess
 from vampire_ml.scorers import ScorerSuccessRelative
+from vampire_ml.scorers import ScorerPrediction
 from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
@@ -312,6 +313,8 @@ def call(namespace):
             'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
             'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
             'percentile.weak': ScorerPercentile(run_generator_test, kind='weak'),
+            'prediction_rate': ScorerPrediction(aggregate=np.mean),
+            'prediction_count': ScorerPrediction(aggregate=np.sum),
             'explainer': ScorerExplainer()
         }
         groups = None
