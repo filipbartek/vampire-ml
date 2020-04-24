@@ -51,11 +51,7 @@ class RunGenerator(BaseEstimator, StaticTransformer):
                 symbol_type: np.empty((self.runs_per_problem, len(problem.get_symbols(symbol_type))),
                                       dtype=self.dtype_precedence) for
                 symbol_type in self.symbol_types()}
-            # TODO: Exhaust all precedences on small problems.
-            executions = problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
-                                                               random_predicates=self.random_predicates,
-                                                               random_functions=self.random_functions)
-            for i, execution in enumerate(executions):
+            for i, execution in enumerate(self.get_executions(problem)):
                 assert i < self.runs_per_problem
                 base_scores[i] = execution.base_score()
                 for symbol_type, precedence_matrix in precedences.items():
@@ -64,6 +60,12 @@ class RunGenerator(BaseEstimator, StaticTransformer):
         except RuntimeError:
             logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
             return None, None
+
+    def get_executions(self, problem):
+        # TODO: Exhaust all precedences on small problems.
+        return problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
+                                                     random_predicates=self.random_predicates,
+                                                     random_functions=self.random_functions)
 
     def symbol_types(self):
         res = list()
