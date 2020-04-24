@@ -303,7 +303,7 @@ def call(namespace):
             param_grid.extend([{}])
         param_grid.extend(decorate_param_grid(preference_predictor_param_grid, 'precedence__preference__'))
         scorers = {
-            'success_rate': ScorerSuccess(),
+            'success_rate': ScorerSuccess(aggregate=np.mean),
             'success_count': ScorerSuccess(aggregate=np.sum),
             'success_relative_better': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
                                                              mode='better'),
