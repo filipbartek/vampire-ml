@@ -30,8 +30,7 @@ def get_base_scores(estimator, problems):
         for i, (problem, precedence_dict) in enumerate(t):
             logging.debug(f'Computing base score on problem {problem}.')
             t.set_postfix({'problem': problem})
-            score = get_base_score(problem, precedence_dict)
-            scores[i] = score
+            scores[i] = get_base_score(problem, precedence_dict)
     return scores
 
 
