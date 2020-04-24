@@ -13,7 +13,8 @@ def save_all(df_solve, df_clausify, output, df_custom=None):
     if df_solve.saturation_iterations.isnull().sum() < len(df_solve):
         scaler = sklearn.preprocessing.StandardScaler()
         df_solve['saturation_iterations_normalized'] = scaler.fit_transform(df_solve[['saturation_iterations']].astype(np.float))
-        df_custom['saturation_iterations_normalized'] = scaler.transform(df_custom[['saturation_iterations']].astype(np.float))
+        if df_custom is not None:
+            df_custom['saturation_iterations_normalized'] = scaler.transform(df_custom[['saturation_iterations']].astype(np.float))
 
     save_df(df_solve, 'runs_solve', output, index=False)
     save_df(df_clausify, 'runs_clausify', output, index=False)
