@@ -25,6 +25,10 @@ def str_to_column(s):
     return value
 
 
+def str_to_order(s):
+    return s in ['a', 'asc', 'ascending', '+', '1', 'True', 'true']
+
+
 def filter_columns(df, filters):
     for column, op, expected in filters:
         assert op in ['<=', '>=', '==']
@@ -51,8 +55,8 @@ if __name__ == '__main__':
     parser.add_argument('--columns_individual', nargs='+', action='append', type=str_to_column, metavar='COLUMN')
     parser.add_argument('--filters', nargs=3, action='append', metavar=('COLUMN', 'COMPARISON', 'VALUE'),
                         help='triplets "column_name {<=,>=,==} expected_value"')
-    parser.add_argument('--sort_column', type=str_to_column, metavar='COLUMN')
-    parser.add_argument('--sort_asc', action='store_true')
+    parser.add_argument('--sort_columns', type=str_to_column, metavar='COLUMN', nargs='+')
+    parser.add_argument('--sort_order', type=str_to_order, nargs='+')
     parser.add_argument('--count', type=int, metavar='N', help='number of top records to take from each input dataset')
     namespace = parser.parse_args()
 
@@ -68,9 +72,12 @@ if __name__ == '__main__':
         assert df.index.name == 'problem_path'
         if columns_common is not None and i == 0:
             problems_common = df[columns_common]
-        df = filter_columns(df, namespace.filters)
-        if namespace.sort_column is not None:
-            df.sort_values(namespace.sort_column, ascending=namespace.sort_asc, inplace=True)
+        if columns_individual is None:
+            continue
+        if namespace.filters is not None:
+            df = filter_columns(df, namespace.filters)
+        if namespace.sort_columns is not None:
+            df.sort_values(namespace.sort_columns, ascending=namespace.sort_order, inplace=True)
         if len(columns_individual) > 0:
             df = df[columns_individual]
         if namespace.count is not None:
@@ -79,10 +86,12 @@ if __name__ == '__main__':
         problems[file_path] = df
     if len(problems) > 1:
         problems_aggregated = pd.concat(problems.values(), axis=1, keys=problems.keys(), sort=True)
-    else:
+    elif len(problems) == 1:
         problems_aggregated = next(iter(problems.values()))
+    else:
+        problems_aggregated = problems_common
     problems_aggregated.index.name = 'problem_path'
-    if problems_common is not None:
+    if problems_common is not None and len(problems) >= 1:
         problems_aggregated = problems_common.join(problems_aggregated, how='right')
     vampire_ml.results.save_df(problems_aggregated, 'problems', output_dir=namespace.output)
     np.savetxt(os.path.join(namespace.output, 'problems.txt'), problems_aggregated.index.values, fmt='%s')
