@@ -223,10 +223,13 @@ def call(namespace):
             for problem in problems:
                 clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
                     field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
-                executions = list(run_generator_test.get_executions(problem))
-                solve_dfs.extend(
-                    execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
-                    execution in executions)
+                try:
+                    executions = list(run_generator_test.get_executions(problem))
+                    solve_dfs.extend(
+                        execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
+                        execution in executions)
+                except RuntimeError:
+                    logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
             solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
             clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
             results.save_all(solve_runs_df, clausify_runs_df, namespace.output)
