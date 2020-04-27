@@ -29,6 +29,7 @@ from sklearn.svm import LinearSVR, SVR
 
 import utils
 import vampyre
+from utils import ProgressBar
 from utils import file_path_list
 from utils import memory
 from vampire_ml import results
@@ -220,7 +221,7 @@ def call(namespace):
         if namespace.problems_dataframe:
             clausify_dfs = list()
             solve_dfs = list()
-            for problem in problems:
+            for problem in ProgressBar(problems, desc='Generating problems dataframe', unit='problem'):
                 clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
                     field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
                 try:
