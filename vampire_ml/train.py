@@ -61,11 +61,12 @@ class RunGenerator(BaseEstimator, StaticTransformer):
             logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
             return None, None
 
-    def get_executions(self, problem):
+    def get_executions(self, problem, progress_bar=True):
         # TODO: Exhaust all precedences on small problems.
         return problem.solve_with_random_precedences(solve_count=self.runs_per_problem,
                                                      random_predicates=self.random_predicates,
-                                                     random_functions=self.random_functions)
+                                                     random_functions=self.random_functions,
+                                                     progress_bar=progress_bar)
 
     def symbol_types(self):
         res = list()
