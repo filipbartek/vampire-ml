@@ -65,7 +65,7 @@ else
     DEPENDENCY_OPTION="--dependency=afterok:$MAP_JOB_ID"
   fi
 
-  REDUCE_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:reduce" --output="$OUTPUT_SLURM/%j.out" --cpus-per-task="$REDUCE_CPUS_PER_TASK" ${DEPENDENCY_OPTION-} fit.sh --problem-list "$PROBLEMS" --problems-dataframe "$@")
+  REDUCE_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:reduce" --output="$OUTPUT_SLURM/%j.out" --cpus-per-task="$REDUCE_CPUS_PER_TASK" ${DEPENDENCY_OPTION-} fit.sh --problem-list "$PROBLEMS" "$@")
   echo "REDUCE_JOB_ID=$REDUCE_JOB_ID"
 
   REDUCE_BATCHES_DIR="$OUTPUT/$REDUCE_JOB_ID"
