@@ -16,6 +16,7 @@ import sklearn.linear_model
 import sklearn.pipeline
 import sklearn.preprocessing
 import yaml
+from joblib import Parallel, delayed
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
@@ -220,18 +221,24 @@ def call(namespace):
                                           namespace.random_predicate_precedence,
                                           namespace.random_function_precedence)
         if namespace.problems_dataframe:
-            clausify_dfs = list()
-            solve_dfs = list()
-            for problem in ProgressBar(problems, desc='Generating problems dataframe', unit='problem'):
-                clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
-                    field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
+
+            def process_one_problem(problem):
+                clausify_df = problem.get_clausify_execution().get_dataframe(
+                    field_names_obligatory=vampyre.vampire.Execution.field_names_clausify)
+                solve_dfs = None
                 try:
                     executions = run_generator_test.get_executions(problem, progress_bar=False)
-                    solve_dfs.extend(
+                    solve_dfs = [
                         execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
-                        execution in executions)
+                        execution in executions]
                 except RuntimeError:
                     logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
+                return clausify_df, solve_dfs
+
+            dfs = Parallel()(delayed(process_one_problem)(problem) for problem in
+                             ProgressBar(problems, desc='Generating problems dataframe', unit='problem'))
+            clausify_dfs, solve_df_lists = zip(*dfs)
+            solve_dfs = list(itertools.chain(*solve_df_lists))
             solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
             clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
             results.save_all(solve_runs_df, clausify_runs_df, namespace.output)

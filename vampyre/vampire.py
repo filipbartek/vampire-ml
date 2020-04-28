@@ -72,7 +72,7 @@ class Execution:
 
     @classmethod
     def concat_dfs(cls, dfs):
-        dfs = [df.astype({col: np.object for col in df.select_dtypes(['category'])}) for df in dfs]
+        dfs = [df.astype({col: np.object for col in df.select_dtypes(['category'])}) for df in dfs if df is not None]
         if len(dfs) == 0:
             return None
         df = pd.concat(dfs, sort=False)
