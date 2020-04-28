@@ -85,8 +85,8 @@ else
 fi
 
 problem_count=$(echo "$problems" | wc -l)
-problem_first=$(echo "$problems" | head -1)
 echo "problem_count=$problem_count"
+problem_first=$(echo "$problems" | head -1)
 echo "problem_first=$problem_first"
 
 if [ -n "${SLURM_JOB_ID-}" ]; then
