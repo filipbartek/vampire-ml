@@ -38,6 +38,7 @@ XARGS_COMMAND=(
   "${python_call[@]}"
   vampire_ml
   --log ${LOG_LEVEL:-INFO}
+  --jobs "$CPUS"
   fit
   --output "$OUTPUT_LOCAL"
   --train-solve-runs "$SOLVE_RUNS_PER_PROBLEM"
@@ -46,7 +47,6 @@ XARGS_COMMAND=(
   --include "$TPTP"
   --problem-base-path "$TPTP_PROBLEMS"
   --timeout $((VAMPIRE_TIME_LIMIT + 10))
-  --jobs "$CPUS"
   "$@"
 )
 

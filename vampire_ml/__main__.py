@@ -3,6 +3,7 @@
 import argparse
 import logging
 
+import joblib
 import numpy as np
 
 from vampire_ml import action_vampire
@@ -20,6 +21,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--log', choices=['NOTSET', 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], default='INFO',
                         help='Logging level')
+    parser.add_argument('--jobs', '-j', type=int, default=1,
+                        help='Maximum number of concurrently running jobs. If -1 all CPUs are used.')
 
     # TODO: Allow loading a trained model.
 
@@ -32,4 +35,5 @@ if __name__ == '__main__':
 
     np.random.seed(0)
 
-    namespace.action(namespace)
+    with joblib.parallel_backend('threading', n_jobs=namespace.jobs):
+        namespace.action(namespace)

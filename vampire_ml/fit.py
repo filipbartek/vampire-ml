@@ -93,7 +93,6 @@ def add_arguments(parser):
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--predict-max-symbols', type=int, default=1024)
-    parser.add_argument('--jobs', '-j', type=int, default=1)
     parser.add_argument('--progress', type=int, default=1)
     parser.add_argument('--progress-mininterval', type=float, default=1)
     parser.add_argument('--progress-postfix', type=int, default=1)
@@ -355,19 +354,18 @@ def call(namespace):
                                  count=len(problem_paths))
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                           error_score='raise')
-        with joblib.parallel_backend('threading', n_jobs=namespace.jobs):
-            if namespace.precompute:
-                # Precompute data for train set
-                problems_train = problems[groups]
-                fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
+        if namespace.precompute:
+            # Precompute data for train set
+            problems_train = problems[groups]
+            fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
 
-                # Precompute data for test set
-                problem_preference_matrix_transformer.run_generator = run_generator_test
-                fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
-            else:
-                fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
-                df = scorers['explainer'].get_dataframe()
-                save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
+            # Precompute data for test set
+            problem_preference_matrix_transformer.run_generator = run_generator_test
+            fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
+        else:
+            fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
+            df = scorers['explainer'].get_dataframe()
+            save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
 
 
 def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
