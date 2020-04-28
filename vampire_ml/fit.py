@@ -51,8 +51,17 @@ from vampire_ml.train import PreferenceMatrixPredictor
 from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
-cases_all = ['score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
-             'pair_value_svr', 'default_heuristic', 'random', 'best_encountered', 'default', 'score_predictors']
+cases_all = ['score_scaling', 'binary_score', 'pair_value_regressors', 'unweighted',
+             'pair_value_svr', 'default_heuristic', 'random', 'best_encountered', 'default']
+
+cases_default = ['pair_value_regressors', 'unweighted', 'pair_value_svr', 'default_heuristic', 'random', 'default']
+
+scorers_all = ['success_rate', 'success_count', 'success_relative_better', 'success_relative_worse', 'iterations',
+               'percentile.strict', 'percentile.rank', 'percentile.weak', 'prediction_rate', 'prediction_count',
+               'explainer']
+
+scorers_default = ['success_rate', 'success_count', 'success_relative_better', 'success_relative_worse',
+                   'prediction_rate', 'prediction_count', 'explainer']
 
 
 def add_arguments(parser):
@@ -97,6 +106,7 @@ def add_arguments(parser):
     parser.add_argument('--progress-postfix', type=int, default=1)
     parser.add_argument('--progress-postfix-refresh', type=int, default=0)
     parser.add_argument('--cases', nargs='+', choices=cases_all)
+    parser.add_argument('--scorers', nargs='+', choices=scorers_all)
     parser.add_argument('--problems-dataframe', action='store_true')
 
 
@@ -243,44 +253,41 @@ def call(namespace):
         if namespace.cases is not None:
             cases = set(namespace.cases)
         else:
-            cases = set(cases_all)
+            cases = set(cases_default)
         score_scaler_steps = {
             'imputer': QuantileImputer(copy=False, quantile=1),
             'log': FunctionTransformer(func=np.log),
             'standardizer': StableStandardScaler(copy=False)
         }
-        score_scaler = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
+        score_scaler_continuous = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
+        score_scaler_binary = FunctionTransformer(func=np.isnan)
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
-                                                                            sklearn.base.clone(score_scaler),
-                                                                            LassoCV(copy_X=False),
+                                                                            score_scaler_binary,
+                                                                            LogisticRegression(),
                                                                             max_symbols=namespace.learn_max_symbols)
         problem_preference_matrix_transformer_param_grid = list()
         if 'score_scaling' in cases:
-            score_scaler_param_grid = [
+            problem_preference_matrix_transformer_param_grid.extend([
                 {
-                    'standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
-                    'log': [score_scaler_steps['log'], 'passthrough'],
-                    'imputer__divide_by_success_rate': [False, True],
-                    'imputer__factor': [1, 2, 10]
+                    'score_scaler': [score_scaler_continuous],
+                    'score_predictor': [LassoCV(copy_X=False)],
+                    'score_scaler__standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
+                    'score_scaler__log': [score_scaler_steps['log'], 'passthrough'],
+                    'score_scaler__imputer__divide_by_success_rate': [False, True],
+                    'score_scaler__imputer__factor': [1, 2, 10]
                 },
                 {
-                    'imputer': ['passthrough'],
-                    'log': [score_scaler_steps['log'], 'passthrough'],
-                    'standardizer': [score_scaler_steps['standardizer'], 'passthrough']
+                    'score_scaler': [score_scaler_continuous],
+                    'score_predictor': [LassoCV(copy_X=False)],
+                    'score_scaler__imputer': ['passthrough'],
+                    'score_scaler__log': [score_scaler_steps['log'], 'passthrough'],
+                    'score_scaler__standardizer': [score_scaler_steps['standardizer'], 'passthrough']
                 }
-            ]
-            problem_preference_matrix_transformer_param_grid.extend(
-                decorate_param_grid(score_scaler_param_grid, 'score_scaler__'))
+            ])
         if 'binary_score' in cases:
             problem_preference_matrix_transformer_param_grid.extend(
-                [{'score_scaler': [FunctionTransformer(func=np.isnan)],
-                  'score_predictor': [LogisticRegression(), RidgeClassifier(), LogisticRegressionCV(),
+                [{'score_predictor': [LogisticRegression(), RidgeClassifier(), LogisticRegressionCV(),
                                       RidgeClassifierCV()]}])
-        if 'score_predictors' in cases:
-            problem_preference_matrix_transformer_param_grid.extend(
-                [{'score_predictor': [LinearRegression(copy_X=False)]}])
-        if 'mean_regression' in cases:
-            problem_preference_matrix_transformer_param_grid.extend([{'score_predictor': [MeanRegression()]}])
         if namespace.precompute:
             preference_predictor = problem_preference_matrix_transformer
             preference_predictor_param_grid = problem_preference_matrix_transformer_param_grid
@@ -338,7 +345,7 @@ def call(namespace):
                                                              mode='better'),
             'success_relative_worse': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
                                                             mode='worse'),
-            'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler)),
+            'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler_continuous)),
             'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
             'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
             'percentile.weak': ScorerPercentile(run_generator_test, kind='weak'),
@@ -346,6 +353,10 @@ def call(namespace):
             'prediction_count': ScorerPrediction(aggregate=np.sum),
             'explainer': ScorerExplainer()
         }
+        if namespace.scorers is not None:
+            scorers = {k: scorers[k] for k in namespace.scorers}
+        else:
+            scorers = {k: scorers[k] for k in scorers_default}
         groups = None
         if len(problem_paths_train) > 0:
             problem_paths_train_set = set(problem_paths_train)
