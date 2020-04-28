@@ -373,6 +373,12 @@ def call(namespace):
             problem_preference_matrix_transformer.run_generator = run_generator_test
             fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
         else:
+            logging.info('Precomputing preference matrices for the splits.')
+            random_state = cv.random_state
+            for train, _ in cv.split(problems, groups=groups):
+                Parallel()(delayed(problem_preference_matrix_transformer.transform_one)(problem) for problem in
+                           ProgressBar(problems[train], desc='Precomputing preference matrices', unit='problem'))
+            cv.random_state = random_state
             fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
             df = scorers['explainer'].get_dataframe()
             save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
