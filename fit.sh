@@ -81,7 +81,7 @@ if [ -n "${PROBLEM_ID:-}" ]; then
   fi
 else
   echo "Processing all problems."
-  problems=$(cat)
+  problems=$(cat) || problems=""
 fi
 
 problem_count=$(echo "$problems" | wc -l)
