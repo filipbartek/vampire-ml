@@ -146,14 +146,6 @@ class Problem:
 
     dtype_embedding = np.uint
 
-    @classmethod
-    def cache_clear(cls):
-        logging.debug(f'{str(cls)}: Clearing in-memory cache.')
-        # We do not clear get_embedding because the cache is expected to be very small.
-        cls.get_all_symbol_embeddings.cache_clear()
-        cls.get_symbols.cache_clear()
-        cls.get_clausify_execution.cache_clear()
-
     @staticmethod
     def get_embedding_column_names():
         return ['clauses_count']
