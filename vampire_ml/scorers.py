@@ -5,9 +5,9 @@ import numpy as np
 import pandas as pd
 import scipy
 import sklearn.base
+from joblib import Parallel, delayed
 
 import vampyre
-from utils import ProgressBar
 from utils import memory
 from .sklearn_extensions import get_feature_weights
 
@@ -15,35 +15,21 @@ dtype_score = np.float
 
 
 def get_base_score(problem, precedence_dict):
+    logging.debug(f'Computing base score on problem {problem}.')
     if precedence_dict is None:
-        return np.nan
+        return np.nan, False
     else:
-        return problem.get_execution(precedences=precedence_dict).base_score()
+        return problem.get_execution(precedences=precedence_dict).base_score(), True
 
 
 @memory.cache
 def get_base_scores(estimator, problems):
+    logging.info(f'Computing base scores on {len(problems)} problems')
     precedence_dicts = estimator.transform(problems)
-    scores = np.empty(len(problems), dtype=dtype_score)
-    with ProgressBar(zip(problems, precedence_dicts), desc='Computing base scores', unit='problem',
-                     total=len(problems)) as t:
-        for i, (problem, precedence_dict) in enumerate(t):
-            logging.debug(f'Computing base score on problem {problem}.')
-            t.set_postfix({'problem': problem})
-            scores[i] = get_base_score(problem, precedence_dict)
-    return scores
-
-
-@memory.cache
-def get_predicted_mask(estimator, problems):
-    precedence_dicts = estimator.transform(problems)
-    scores = np.empty(len(problems), dtype=np.bool)
-    with ProgressBar(zip(problems, precedence_dicts), desc='Computing prediction mask', unit='problem',
-                     total=len(problems)) as t:
-        for i, (problem, precedence_dict) in enumerate(t):
-            t.set_postfix({'problem': problem})
-            scores[i] = precedence_dict is not None
-    return scores
+    r = Parallel(verbose=1)(delayed(get_base_score)(problem, precedence_dict) for problem, precedence_dict in
+                            zip(problems, precedence_dicts))
+    scores, predictions = zip(*r)
+    return np.asarray(scores, dtype=dtype_score), np.asarray(predictions, dtype=np.bool)
 
 
 class ScoreAggregator:
@@ -61,7 +47,7 @@ class ScoreAggregator:
         return res
 
     def get_scores(self, estimator, problems):
-        for problem, base_score in zip(problems, get_base_scores(estimator, problems)):
+        for problem, base_score in zip(problems, get_base_scores(estimator, problems)[0]):
             yield self.transform_score(base_score, problem)
 
     def transform_score(self, base_score, problem):
@@ -86,8 +72,8 @@ class ScorerSuccessRelative(ScoreAggregator):
         return f'{type(self).__name__}({self.mode})'
 
     def get_scores(self, estimator, problems):
-        baseline_scores = get_base_scores(self.baseline_estimator, problems)
-        current_scores = get_base_scores(estimator, problems)
+        baseline_scores = get_base_scores(self.baseline_estimator, problems)[0]
+        current_scores = get_base_scores(estimator, problems)[0]
         for baseline_score, current_score in zip(baseline_scores, current_scores):
             yield self.get_score(baseline_score, current_score)
 
@@ -174,7 +160,8 @@ class ScorerExplainer():
         column_names = list()
         for symbol_type in self.symbol_types:
             column_names.extend(
-                (symbol_type, s) for s in vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))
+                (symbol_type, s) for s in
+                vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))
         return pd.DataFrame.from_records(records, index=pd.Index(self.weights.keys(), name='estimator'),
                                          columns=pd.MultiIndex.from_tuples(column_names))
 
@@ -192,4 +179,4 @@ class ScorerPrediction(ScoreAggregator):
         super().__init__(aggregate)
 
     def get_scores(self, estimator, problems):
-        return get_predicted_mask(estimator, problems)
+        return get_base_scores(estimator, problems)[1]
