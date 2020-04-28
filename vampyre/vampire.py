@@ -15,6 +15,7 @@ import warnings
 import appdirs
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 
 from utils import ProgressBar
 from utils import len_robust
@@ -236,33 +237,34 @@ class Problem:
 
     def solve_with_random_precedences(self, solve_count=1, random_predicates=False, random_functions=False,
                                       reverse=False, progress_bar=True):
-        # TODO: Parallelize.
         # TODO: Consider exhausting all permutations if they fit in `namespace.solve_runs`. Watch out for imbalance in distribution when learning from all problems.
         if solve_count > 1 and not random_predicates and not random_functions:
             warnings.warn('Multiple solve runs without randomized precedences')
         seed_count = solve_count
         if reverse:
             seed_count = solve_count // 2
-            solve_count = seed_count * 2
-        with ProgressBar(range(seed_count), total=solve_count, desc=self.path, unit='run', disable=not progress_bar) as t:
-            for seed in t:
-                precedences = self.random_precedences(random_predicates, random_functions, seed)
-                execution = self.get_execution(precedences=precedences)
-                assert execution.path == self.get_configuration_path(precedences=precedences)
-                yield execution
-                t.update()
-                if reverse:
-                    reversed_precedences = dict()
-                    if random_predicates:
-                        head = np.asarray([0], dtype=np.uint)
-                        tail = precedences['predicate_precedence'][:0:-1]
-                        reversed_precedences['predicate_precedence'] = np.concatenate((head, tail))
-                    if random_functions:
-                        reversed_precedences['function_precedence'] = precedences['function_precedence'][::-1]
-                    execution = self.get_execution(precedences=reversed_precedences)
-                    assert execution.path == self.get_configuration_path(precedences=reversed_precedences)
-                    yield execution
-                    t.update()
+        r = Parallel()(delayed(self.solve_one_seed)(seed, random_predicates, random_functions, reverse) for seed in
+                       ProgressBar(range(seed_count), desc=f'Solving {self.path} with random precedences', unit='seed',
+                                   disable=not progress_bar))
+        return list(itertools.chain(*r))
+
+    def solve_one_seed(self, seed, random_predicates=False, random_functions=False, reverse=False):
+        precedences = self.random_precedences(random_predicates, random_functions, seed)
+        execution = self.get_execution(precedences=precedences)
+        assert execution.path == self.get_configuration_path(precedences=precedences)
+        result = [execution]
+        if reverse:
+            reversed_precedences = dict()
+            if random_predicates:
+                head = np.asarray([0], dtype=np.uint)
+                tail = precedences['predicate_precedence'][:0:-1]
+                reversed_precedences['predicate_precedence'] = np.concatenate((head, tail))
+            if random_functions:
+                reversed_precedences['function_precedence'] = precedences['function_precedence'][::-1]
+            execution = self.get_execution(precedences=reversed_precedences)
+            assert execution.path == self.get_configuration_path(precedences=reversed_precedences)
+            result.append(execution)
+        return result
 
     def random_precedences(self, predicate, function, seed=None):
         precedences = dict()
