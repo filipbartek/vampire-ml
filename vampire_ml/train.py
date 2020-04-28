@@ -119,6 +119,10 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         return preference_matrix_transformer_transform_one(self, problem)
 
     def _transform_one(self, problem):
+        if self.run_generator.random_predicates and len(problem.get_predicates()) > self.max_symbols:
+            return None
+        if self.run_generator.random_functions and len(problem.get_functions()) > self.max_symbols:
+            return None
         precedences, scores = self.run_generator.transform_one(problem)
         if precedences is None or scores is None:
             return None
