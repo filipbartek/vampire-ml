@@ -35,6 +35,7 @@ from utils import memory
 from vampire_ml import results
 from vampire_ml.precedence_generators import BestPrecedenceGenerator
 from vampire_ml.precedence_generators import GreedyPrecedenceGenerator
+from vampire_ml.precedence_generators import RandomPrecedenceGenerator
 from vampire_ml.results import save_df
 from vampire_ml.scorers import ScorerExplainer
 from vampire_ml.scorers import ScorerPercentile
@@ -51,7 +52,7 @@ from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
 cases_all = ['score_scaling', 'binary_score', 'mean_regression', 'pair_value_regressors', 'unweighted',
-             'pair_value_svr', 'default_heuristic', 'best_encountered', 'default', 'score_predictors']
+             'pair_value_svr', 'default_heuristic', 'random', 'best_encountered', 'default', 'score_predictors']
 
 
 def add_arguments(parser):
@@ -316,6 +317,10 @@ def call(namespace):
         precedence_default_heuristic = FunctionTransformer(func=transform_problems_to_empty_dicts)
         if 'default_heuristic' in cases:
             param_grid.extend([{'precedence': [precedence_default_heuristic]}])
+        if 'random' in cases:
+            param_grid.extend([{'precedence': [
+                RandomPrecedenceGenerator(random_predicates=namespace.random_predicate_precedence,
+                                          random_functions=namespace.random_function_precedence)]}])
         if 'best_encountered' in cases:
             param_grid.extend([{'precedence': [BestPrecedenceGenerator(run_generator_test)]}])
         if 'default' in cases:
