@@ -137,6 +137,21 @@ def augment_param_grid(param_grid, new_param):
     return param_grid
 
 
+@memory.cache
+def generate_dataframes(run_generator_test, problem):
+    clausify_df = problem.get_clausify_execution().get_dataframe(
+        field_names_obligatory=vampyre.vampire.Execution.field_names_clausify)
+    solve_dfs = None
+    try:
+        executions = run_generator_test.get_executions(problem, progress_bar=False)
+        solve_dfs = [
+            execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
+            execution in executions]
+    except RuntimeError:
+        logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
+    return clausify_df, solve_dfs
+
+
 def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
@@ -220,21 +235,7 @@ def call(namespace):
                                           namespace.random_predicate_precedence,
                                           namespace.random_function_precedence)
         if namespace.problems_dataframe:
-
-            def process_one_problem(problem):
-                clausify_df = problem.get_clausify_execution().get_dataframe(
-                    field_names_obligatory=vampyre.vampire.Execution.field_names_clausify)
-                solve_dfs = None
-                try:
-                    executions = run_generator_test.get_executions(problem, progress_bar=False)
-                    solve_dfs = [
-                        execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
-                        execution in executions]
-                except RuntimeError:
-                    logging.debug(f'Failed to generate runs on problem {problem}.', exc_info=True)
-                return clausify_df, solve_dfs
-
-            dfs = Parallel()(delayed(process_one_problem)(problem) for problem in
+            dfs = Parallel()(delayed(generate_dataframes)(run_generator_test, problem) for problem in
                              ProgressBar(problems, desc='Generating problems dataframe', unit='problem'))
             clausify_dfs, solve_df_lists = zip(*dfs)
             solve_dfs = list(itertools.chain(*solve_df_lists))
