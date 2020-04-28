@@ -7,7 +7,6 @@ import os
 import sys
 from itertools import chain
 
-import joblib
 import numpy as np
 import pandas as pd
 import sklearn
@@ -137,7 +136,6 @@ def augment_param_grid(param_grid, new_param):
     return param_grid
 
 
-@memory.cache
 def generate_dataframes(run_generator_test, problem):
     clausify_df = problem.get_clausify_execution().get_dataframe(
         field_names_obligatory=vampyre.vampire.Execution.field_names_clausify)
