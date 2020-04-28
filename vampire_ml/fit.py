@@ -226,7 +226,7 @@ def call(namespace):
                 clausify_dfs.append(problem.get_clausify_execution().get_dataframe(
                     field_names_obligatory=vampyre.vampire.Execution.field_names_clausify))
                 try:
-                    executions = run_generator_test.get_executions(problem)
+                    executions = run_generator_test.get_executions(problem, progress_bar=False)
                     solve_dfs.extend(
                         execution.get_dataframe(field_names_obligatory=vampyre.vampire.Execution.field_names_solve) for
                         execution in executions)
