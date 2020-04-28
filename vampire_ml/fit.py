@@ -43,7 +43,6 @@ from vampire_ml.scorers import ScorerPrediction
 from vampire_ml.scorers import ScorerSaturationIterations
 from vampire_ml.scorers import ScorerSuccess
 from vampire_ml.scorers import ScorerSuccessRelative
-from vampire_ml.sklearn_extensions import MeanRegression
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.sklearn_extensions import StableStandardScaler
@@ -376,8 +375,7 @@ def call(namespace):
             logging.info('Precomputing preference matrices for the splits.')
             random_state = cv.random_state
             for train, _ in cv.split(problems, groups=groups):
-                Parallel()(delayed(problem_preference_matrix_transformer.transform_one)(problem) for problem in
-                           ProgressBar(problems[train], desc='Precomputing preference matrices', unit='problem'))
+                problem_preference_matrix_transformer.transform(problems[train])
             cv.random_state = random_state
             fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
             df = scorers['explainer'].get_dataframe()

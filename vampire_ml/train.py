@@ -5,6 +5,7 @@ import warnings
 
 import numpy as np
 import sklearn.base
+from joblib import Parallel, delayed
 from sklearn import pipeline
 from sklearn import preprocessing
 from sklearn.base import BaseEstimator, TransformerMixin
@@ -107,11 +108,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
 
     def transform(self, problems):
         """Transforms each of the given problems into a dictionary of symbol preference matrices."""
-        with ProgressBar(problems, desc='Estimating problem preference matrices', unit='problem', total=len(problems),
-                         disable=len(problems) <= 1) as t:
-            for problem in t:
-                t.set_postfix_str(problem)
-                yield self.transform_one(problem)
+        logging.info(f'Estimating preference matrices for {len(problems)} problems')
+        return Parallel(verbose=1)(delayed(self.transform_one)(problem) for problem in problems)
 
     def transform_one(self, problem):
         if memory.recompute:
