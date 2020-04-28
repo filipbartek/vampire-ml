@@ -292,6 +292,9 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                        for symbol_type in self.symbol_types()}
         for i, problem_preferences in enumerate(self.problem_matrix.fit_transform(problems)):
             for symbol_type in self.symbol_types():
+                if problem_preferences is None:
+                    preferences[symbol_type].matrices.append(None)
+                    continue
                 matrix = problem_preferences[symbol_type]
                 preferences[symbol_type].matrices.append(matrix)
                 if matrix is not None and matrix.size > 0:
