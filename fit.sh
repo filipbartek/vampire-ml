@@ -50,6 +50,8 @@ XARGS_COMMAND=(
   "$@"
 )
 
+if [ -n "${PROBLEMS_TRAIN-}" ]; then XARGS_COMMAND+=(--problems-train "$PROBLEMS_TRAIN"); fi
+
 if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 
 # See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out

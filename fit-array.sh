@@ -23,13 +23,15 @@ COMMON_SBATCH_OPTIONS=(
 OUTPUT_SLURM=${OUTPUT_SLURM:-slurm}
 mkdir -p "$OUTPUT_SLURM"
 
-PROBLEMS=${PROBLEMS:-problems/problems_selected_aggregated.txt}
-PROBLEMS_COUNT=$(wc -l <"$PROBLEMS")
-echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
+PROBLEMS=${PROBLEMS:-problems/cnf_fof.txt}
 
 if [ -n "${SKIP_MAP-}" ]; then
   echo "Skipping map step (array job)."
 else
+  PROBLEMS_ARRAY=${PROBLEMS_TRAIN:-$PROBLEMS}
+  PROBLEMS_COUNT=$(wc -l <"$PROBLEMS_ARRAY")
+  echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
+
   MAX_ARRAY_SIZE=$(scontrol show config | grep MaxArraySize | awk '{split($0, a, "="); print a[2]}' | sed 's/^ *//g')
   # https://stackoverflow.com/a/10415158/4054250
   ARRAY_TASK_COUNT=${ARRAY_TASK_COUNT:-$((PROBLEMS_COUNT > MAX_ARRAY_SIZE ? MAX_ARRAY_SIZE : PROBLEMS_COUNT))}
@@ -42,7 +44,7 @@ else
   TIME_PER_TASK=${TIME_PER_TASK:-$((PROBLEMS_COUNT * (SOLVE_RUNS_PER_PROBLEM + 1) * (VAMPIRE_TIME_LIMIT + 10) / (ARRAY_TASK_COUNT * 60)))}
   echo "TIME_PER_TASK=$TIME_PER_TASK"
 
-  MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:map" --output="$OUTPUT_SLURM/%A_%a.out" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS" --time="$TIME_PER_TASK" --array="$ARRAY" fit.sh --precompute-only "$@")
+  MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:map" --output="$OUTPUT_SLURM/%A_%a.out" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS_ARRAY" --time="$TIME_PER_TASK" --array="$ARRAY" fit.sh --precompute-only "$@")
   echo "MAP_JOB_ID=$MAP_JOB_ID"
 
   MAP_BATCHES_DIR="$OUTPUT/$MAP_JOB_ID"
