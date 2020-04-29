@@ -55,13 +55,6 @@ cases_all = ['score_scaling', 'binary_score', 'pair_value_regressors', 'unweight
 
 cases_default = ['pair_value_regressors', 'unweighted', 'pair_value_svr', 'default_heuristic', 'random', 'default']
 
-scorers_all = ['success_rate', 'success_count', 'success_relative_better', 'success_relative_worse', 'iterations',
-               'percentile.strict', 'percentile.rank', 'percentile.weak', 'prediction_rate', 'prediction_count',
-               'explainer']
-
-scorers_default = ['success_rate', 'success_count', 'success_relative_better', 'success_relative_worse',
-                   'prediction_rate', 'prediction_count', 'explainer']
-
 
 def add_arguments(parser):
     parser.set_defaults(action=call)
@@ -105,7 +98,6 @@ def add_arguments(parser):
     parser.add_argument('--progress-postfix', type=int, default=1)
     parser.add_argument('--progress-postfix-refresh', type=int, default=0)
     parser.add_argument('--cases', nargs='+', choices=cases_all)
-    parser.add_argument('--scorers', nargs='+', choices=scorers_all)
     parser.add_argument('--problems-dataframe', action='store_true')
 
 
@@ -238,10 +230,12 @@ def call(namespace):
         run_generator_train = RunGenerator(namespace.train_solve_runs,
                                            namespace.random_predicate_precedence,
                                            namespace.random_function_precedence)
-        run_generator_test = RunGenerator(namespace.test_solve_runs,
-                                          namespace.random_predicate_precedence,
-                                          namespace.random_function_precedence)
-        if namespace.problems_dataframe:
+        run_generator_test = None
+        if namespace.test_solve_runs > 0:
+            run_generator_test = RunGenerator(namespace.test_solve_runs,
+                                              namespace.random_predicate_precedence,
+                                              namespace.random_function_precedence)
+        if namespace.problems_dataframe and run_generator_test is not None:
             dfs = Parallel()(delayed(generate_dataframes)(run_generator_test, problem) for problem in
                              ProgressBar(problems, desc='Generating problems dataframe', unit='problem'))
             clausify_dfs, solve_df_lists = zip(*dfs)
@@ -332,30 +326,30 @@ def call(namespace):
             param_grid.extend([{'precedence': [
                 RandomPrecedenceGenerator(random_predicates=namespace.random_predicate_precedence,
                                           random_functions=namespace.random_function_precedence)]}])
-        if 'best_encountered' in cases:
+        if 'best_encountered' in cases and run_generator_test is not None:
             param_grid.extend([{'precedence': [BestPrecedenceGenerator(run_generator_test)]}])
         if 'default' in cases:
             param_grid.extend([{}])
         param_grid.extend(decorate_param_grid(preference_predictor_param_grid, 'precedence__preference__'))
         scorers = {
-            'success_rate': ScorerSuccess(aggregate=np.mean),
-            'success_count': ScorerSuccess(aggregate=np.sum),
-            'success_relative_better': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
+            'success.rate': ScorerSuccess(aggregate=np.mean),
+            'success.count': ScorerSuccess(aggregate=np.sum),
+            'success_relative.better': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
                                                              mode='better'),
-            'success_relative_worse': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
+            'success_relative.worse': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
                                                             mode='worse'),
-            'iterations': ScorerSaturationIterations(run_generator_test, sklearn.base.clone(score_scaler_continuous)),
-            'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
-            'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
-            'percentile.weak': ScorerPercentile(run_generator_test, kind='weak'),
-            'prediction_rate': ScorerPrediction(aggregate=np.mean),
-            'prediction_count': ScorerPrediction(aggregate=np.sum),
+            'prediction.rate': ScorerPrediction(aggregate=np.mean),
+            'prediction.count': ScorerPrediction(aggregate=np.sum),
             'explainer': ScorerExplainer()
         }
-        if namespace.scorers is not None:
-            scorers = {k: scorers[k] for k in namespace.scorers}
-        else:
-            scorers = {k: scorers[k] for k in scorers_default}
+        if run_generator_test is not None:
+            scorers.update({
+                'iterations': ScorerSaturationIterations(run_generator_test,
+                                                         sklearn.base.clone(score_scaler_continuous)),
+                'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
+                'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
+                'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
+            })
         groups = None
         if len(problem_paths_train) > 0:
             problem_paths_train_set = set(problem_paths_train)
@@ -368,9 +362,10 @@ def call(namespace):
             problems_train = problems[groups]
             fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
 
-            # Precompute data for test set
-            problem_preference_matrix_transformer.run_generator = run_generator_test
-            fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
+            if run_generator_test is not None:
+                # Precompute data for test set
+                problem_preference_matrix_transformer.run_generator = run_generator_test
+                fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
         else:
             logging.info('Precomputing preference matrices for the splits.')
             random_state = cv.random_state
