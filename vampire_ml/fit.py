@@ -355,6 +355,12 @@ def call(namespace):
             problem_paths_train_set = set(problem_paths_train)
             groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
                                  count=len(problem_paths))
+        logging.info('Precomputing preference matrices for the splits with default preference matrix estimation.')
+        # Note: Calling `split` preserves `random_state`.
+        for train, test in cv.split(problems, groups=groups):
+            problem_preference_matrix_transformer.transform(problems[train])
+            if run_generator_test is not None:
+                run_generator_test.transform(problems[test])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                           error_score='raise')
         if namespace.precompute:
@@ -367,11 +373,6 @@ def call(namespace):
                 problem_preference_matrix_transformer.run_generator = run_generator_test
                 fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
         else:
-            logging.info('Precomputing preference matrices for the splits.')
-            random_state = cv.random_state
-            for train, _ in cv.split(problems, groups=groups):
-                problem_preference_matrix_transformer.transform(problems[train])
-            cv.random_state = random_state
             fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
             df = scorers['explainer'].get_dataframe()
             save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
