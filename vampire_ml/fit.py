@@ -365,7 +365,7 @@ def call(namespace):
             problem_paths_train_set = set(problem_paths_train)
             groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
                                  count=len(problem_paths))
-        logging.info('Precomputing preference matrices for the splits with default preference matrix estimation.')
+        logging.info('Precomputing preference matrices with default preference matrix estimation.')
         # Note: Calling `split` preserves `random_state`.
         for train, test in cv.split(problems, groups=groups):
             problem_preference_matrix_transformer.transform(problems[train])
