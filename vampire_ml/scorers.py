@@ -124,7 +124,7 @@ class ScorerPercentile(ScoreAggregator):
         return f'{type(self).__name__}({self.kind})'
 
     def transform_score(self, execution_score, problem):
-        _, base_scores = self.run_generator.transform_one(problem)
+        base_scores = self.run_generator.transform_one(problem)[1]
         if base_scores is None:
             # We assume that all the runs would fail.
             base_scores = np.repeat(np.inf, self.run_generator.runs_per_problem)
