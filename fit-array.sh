@@ -42,7 +42,7 @@ else
   TIME_PER_TASK=${TIME_PER_TASK:-$((PROBLEMS_COUNT * (SOLVE_RUNS_PER_PROBLEM + 1) * (VAMPIRE_TIME_LIMIT + 10) / (ARRAY_TASK_COUNT * 60)))}
   echo "TIME_PER_TASK=$TIME_PER_TASK"
 
-  MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:map" --output="$OUTPUT_SLURM/%A_%a.out" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS" --time="$TIME_PER_TASK" --array="$ARRAY" fit.sh "$@" --precompute)
+  MAP_JOB_ID=$(sbatch "${COMMON_SBATCH_OPTIONS[@]}" --job-name="$JOB_NAME:map" --output="$OUTPUT_SLURM/%A_%a.out" --cpus-per-task="$MAP_CPUS_PER_TASK" --input="$PROBLEMS" --time="$TIME_PER_TASK" --array="$ARRAY" fit.sh --precompute-only "$@")
   echo "MAP_JOB_ID=$MAP_JOB_ID"
 
   MAP_BATCHES_DIR="$OUTPUT/$MAP_JOB_ID"
