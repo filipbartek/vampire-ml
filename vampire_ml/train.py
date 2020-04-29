@@ -33,9 +33,8 @@ class RunGenerator(BaseEstimator, StaticTransformer):
     dtype_precedence = vampyre.vampire.Problem.dtype_precedence
 
     def transform(self, problems):
-        for problem in ProgressBar(problems, desc=f'Solving each problem {self.runs_per_problem} times',
-                                   unit='problem'):
-            yield self.transform_one(problem)
+        logging.info(f'Solving each of {len(problems)} problems {self.runs_per_problem} times')
+        return Parallel(verbose=1)(delayed(self.transform_one)(problem) for problem in problems)
 
     def transform_one(self, problem):
         if memory.recompute:
