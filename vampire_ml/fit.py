@@ -257,8 +257,8 @@ def call(namespace):
         score_scaler_continuous = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
         score_scaler_binary = FunctionTransformer(func=np.isnan)
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
-                                                                            score_scaler_binary,
-                                                                            LogisticRegression(),
+                                                                            score_scaler_continuous,
+                                                                            LassoCV(copy_X=False),
                                                                             max_symbols=namespace.learn_max_symbols)
         problem_preference_matrix_transformer_param_grid = list()
         if 'preference_estimation' in cases:
