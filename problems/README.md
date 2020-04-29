@@ -108,3 +108,31 @@ Filters:
 
 - n_exit_0 >= 1
 - n_exit_1 >= 1
+
+## function-easy-variation.txt
+
+Source data:
+
+```
+sftp://bartefil@cluster.ciirc.cvut.cz/home/bartefil/git/vampire-ml/out/sp-random-function/batches/404133/aggregate/problems.pkl
+```
+
+Command:
+
+```bash
+join_problems.py data/sp-random-function/problems.pkl --output data/sp-random-function-train --columns_common n_total predicates_count functions_count clauses_count --columns_individual n_exit_0 n_exit_1 "[saturation_iterations, variation]" --filter n_exit_0 >= 12 --sort_columns "[saturation_iterations, variation]" --sort_order d --count 100
+```
+
+## both-easy-variation.txt
+
+Source data:
+
+```
+sftp://bartefil@cluster.ciirc.cvut.cz/home/bartefil/git/vampire-ml/out/sp-random-both/batches/404135/aggregate/problems.pkl
+```
+
+Command:
+
+```bash
+join_problems.py data/sp-random-both/problems.pkl --output data/sp-random-both-train --columns_common n_total predicates_count functions_count clauses_count --columns_individual n_exit_0 n_exit_1 "[saturation_iterations, variation]" --filter n_exit_0 >= 12 --sort_columns "[saturation_iterations, variation]" --sort_order d --count 1000
+```
