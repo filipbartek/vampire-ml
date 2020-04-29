@@ -170,12 +170,12 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         # TODO: Consider using a sparse representation of the output.
         return preference_pipeline['flattener'].inverse_transform(score_predictor.coef_)[0]
 
-    def order_matrices(self, permutations):
+    @staticmethod
+    def order_matrices(permutations):
         permutations = np.asarray(permutations)
         m = permutations.shape[0]
         n = permutations.shape[1]
         assert permutations.shape == (m, n)
-        assert n <= self.max_symbols
         logging.debug(f'Allocating a bool array of size {m * n * n}.')
         res = np.empty((m, n, n), np.bool)
         precedence_inverse = np.empty(n, permutations.dtype)
