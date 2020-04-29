@@ -44,6 +44,7 @@ from vampire_ml.scorers import ScorerPrediction
 from vampire_ml.scorers import ScorerSaturationIterations
 from vampire_ml.scorers import ScorerSuccess
 from vampire_ml.scorers import ScorerSuccessRelative
+from vampire_ml.scorers import ScorerOrdering
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.sklearn_extensions import StableStandardScaler
@@ -354,6 +355,8 @@ def call(namespace):
             })
         if run_generator_test is not None:
             scorers.update({
+                'ordering.strict': ScorerOrdering(run_generator_test, comparison='strict'),
+                'ordering.weak': ScorerOrdering(run_generator_test, comparison='weak'),
                 'iterations': ScorerSaturationIterations(run_generator_test,
                                                          sklearn.base.clone(score_scaler_continuous)),
                 'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),

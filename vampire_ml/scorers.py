@@ -11,6 +11,7 @@ import vampyre
 from utils import ProgressBar
 from utils import memory
 from .sklearn_extensions import get_feature_weights
+from .train import PreferenceMatrixTransformer
 
 dtype_score = np.float
 
@@ -44,8 +45,11 @@ class ScoreAggregator:
     def __call__(self, estimator, problems, y=None):
         res = np.nan
         if len(problems) > 0:
-            res = self.aggregate(
-                np.fromiter(self.get_scores(estimator, problems), dtype=dtype_score, count=len(problems)))
+            try:
+                res = self.aggregate(
+                    np.fromiter(self.get_scores(estimator, problems), dtype=dtype_score, count=len(problems)))
+            except TypeError:
+                logging.debug('Failed to get scores.', exc_info=True)
         logging.info(f'{self}: {res}')
         return res
 
@@ -134,6 +138,43 @@ class ScorerPercentile(ScoreAggregator):
         percentile = scipy.stats.percentileofscore(base_scores, execution_score, kind=self.kind)
         assert 0 <= percentile <= 100
         return 100 - percentile
+
+
+class ScorerOrdering(ScoreAggregator):
+    def __init__(self, run_generator, comparison='strict', saturation_iterations=True):
+        super().__init__()
+        self.run_generator = run_generator
+        self.comparison = comparison
+        self.saturation_iterations = saturation_iterations
+
+    def __str__(self):
+        return f'{type(self).__name__}({self.comparison}, {self.saturation_iterations})'
+
+    def get_scores(self, estimator, problems):
+        preference_predictor = estimator['precedence']['preference']
+        for problem in problems:
+            precedences, base_scores = self.run_generator.transform_one(problem)
+            for symbol_type, precedence_matrix in precedences.items():
+                order_matrices = PreferenceMatrixTransformer.order_matrices(precedence_matrix)
+                preference_matrix = preference_predictor.predict_one(problem, symbol_type)
+                predicted_scores = np.sum(order_matrices * preference_matrix, axis=(1, 2))
+                yield self.compare_score_vectors(base_scores, predicted_scores)
+
+    def compare_score_vectors(self, measured, predicted):
+        n = len(predicted)
+        assert len(measured) == n
+        score = 0
+        for l in range(n):
+            for r in range(n):
+                if (self.saturation_iterations and measured[l] < measured[r]) or (
+                        not self.saturation_iterations and not np.isnan(measured[l]) and np.isnan(measured[r])):
+                    # measured[l] is strictly better than measured[r].
+                    if self.comparison == 'strict' and predicted[r] < predicted[l]:
+                        score += 1
+                    if self.comparison == 'weak' and predicted[r] <= predicted[l]:
+                        score += 1
+        maximum_score = n * (n - 1) / 2
+        return score / maximum_score
 
 
 class ScorerExplainer():
