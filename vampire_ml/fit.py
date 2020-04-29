@@ -55,7 +55,7 @@ from vampire_ml.train import RunGenerator
 cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'unweighted',
              'default_heuristic', 'random', 'best_encountered', 'default']
 
-cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default']
+cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'unweighted']
 
 
 def add_arguments(parser):
