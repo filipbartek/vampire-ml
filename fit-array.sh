@@ -28,7 +28,7 @@ PROBLEMS=${PROBLEMS:-problems/cnf_fof.txt}
 if [ -n "${SKIP_MAP-}" ]; then
   echo "Skipping map step (array job)."
 else
-  PROBLEMS_ARRAY=${PROBLEMS_TRAIN:-$PROBLEMS}
+  PROBLEMS_ARRAY=${PROBLEMS_ARRAY:-${PROBLEMS_TRAIN:-$PROBLEMS}}
   PROBLEMS_COUNT=$(wc -l <"$PROBLEMS_ARRAY")
   echo "PROBLEMS_COUNT=$PROBLEMS_COUNT"
 
