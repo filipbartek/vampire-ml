@@ -5,6 +5,7 @@ import itertools
 import logging
 import os
 import sys
+import warnings
 from itertools import chain
 
 import numpy as np
@@ -321,29 +322,36 @@ def call(namespace):
             ('precedence', precedence_estimator)
         ])
         param_grid = list()
-        precedence_default_heuristic = FunctionTransformer(func=transform_problems_to_empty_dicts)
+        precedence_default_heuristic = None
         if 'default_heuristic' in cases:
+            precedence_default_heuristic = FunctionTransformer(func=transform_problems_to_empty_dicts)
             param_grid.extend([{'precedence': [precedence_default_heuristic]}])
         if 'random' in cases:
             param_grid.extend([{'precedence': [
                 RandomPrecedenceGenerator(random_predicates=namespace.random_predicate_precedence,
                                           random_functions=namespace.random_function_precedence)]}])
-        if 'best_encountered' in cases and run_generator_test is not None:
-            param_grid.extend([{'precedence': [BestPrecedenceGenerator(run_generator_test)]}])
+        if 'best_encountered' in cases:
+            if run_generator_test is not None:
+                param_grid.extend([{'precedence': [BestPrecedenceGenerator(run_generator_test)]}])
+            else:
+                warnings.warn('Increase number of test runs to allow case best_encountered.')
         if 'default' in cases:
             param_grid.extend([{}])
         param_grid.extend(decorate_param_grid(preference_predictor_param_grid, 'precedence__preference__'))
         scorers = {
             'success.rate': ScorerSuccess(aggregate=np.mean),
             'success.count': ScorerSuccess(aggregate=np.sum),
-            'success_relative.better': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
-                                                             mode='better'),
-            'success_relative.worse': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
-                                                            mode='worse'),
             'prediction.rate': ScorerPrediction(aggregate=np.mean),
             'prediction.count': ScorerPrediction(aggregate=np.sum),
             'explainer': ScorerExplainer()
         }
+        if precedence_default_heuristic is not None:
+            scorers.update({
+                'success_relative.better': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
+                                                                 mode='better'),
+                'success_relative.worse': ScorerSuccessRelative(baseline_estimator=precedence_default_heuristic,
+                                                                mode='worse')
+            })
         if run_generator_test is not None:
             scorers.update({
                 'iterations': ScorerSaturationIterations(run_generator_test,
