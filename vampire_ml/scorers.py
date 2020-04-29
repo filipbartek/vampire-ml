@@ -8,6 +8,7 @@ import sklearn.base
 from joblib import Parallel, delayed
 
 import vampyre
+from utils import ProgressBar
 from utils import memory
 from .sklearn_extensions import get_feature_weights
 
@@ -27,7 +28,8 @@ def get_base_scores(estimator, problems):
     logging.info(f'Computing base scores on {len(problems)} problems')
     precedence_dicts = estimator.transform(problems)
     r = Parallel(verbose=1)(delayed(get_base_score)(problem, precedence_dict) for problem, precedence_dict in
-                            zip(problems, precedence_dicts))
+                            ProgressBar(zip(problems, precedence_dicts), total=len(problems), unit='problem',
+                                        desc='Computing base scores'))
     scores, predictions = zip(*r)
     return np.asarray(scores, dtype=dtype_score), np.asarray(predictions, dtype=np.bool)
 
