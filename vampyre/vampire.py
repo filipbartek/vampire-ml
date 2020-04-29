@@ -235,7 +235,7 @@ class Problem:
         seed_count = solve_count
         if reverse:
             seed_count = solve_count // 2
-        seeds = np.random.permutation(seed_count)
+        seeds = range(seed_count)
         r = Parallel()(delayed(self.solve_one_seed)(seed, random_predicates, random_functions, reverse) for seed in
                        ProgressBar(seeds, desc=f'Solving {self.path} with random precedences', unit='seed',
                                    disable=not progress_bar))
