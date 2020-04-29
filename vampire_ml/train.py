@@ -263,7 +263,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         """Estimate symbol preference matrix for each problem."""
         # TODO: Predict the preferences for all problems in one call to `self.reg.predict`.
         for problem in problems:
-            yield {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
+            yield self.transform_one(problem)
+
+    def transform_one(self, problem):
+        return {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
 
     def symbol_types(self):
         return self.problem_matrix.run_generator.symbol_types()
