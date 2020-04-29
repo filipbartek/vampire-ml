@@ -101,7 +101,7 @@ class ScorerSaturationIterations(ScoreAggregator):
         return type(self).__name__
 
     def transform_score(self, base_score, problem):
-        _, base_scores = self.run_generator.transform_one(problem)
+        base_scores = self.run_generator.transform_one(problem)[1]
         if base_scores is None or np.isnan(base_scores).all():
             # The problem is too difficult to scale the scores. All predictions score 0.
             return 0
