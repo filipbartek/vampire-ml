@@ -76,6 +76,20 @@ Filters:
 - n_exit_0 >= 7
 - n_exit_1 >= 7
 
+## predicate-easy-variation.txt
+
+Source data:
+
+```
+sftp://bartefil@cluster.ciirc.cvut.cz/home/bartefil/git/vampire-ml/out/sp-random-predicate/batches/404131/aggregate/problems.pkl
+```
+
+Command:
+
+```bash
+join_problems.py data/sp-random-predicate/problems.pkl --output data/sp-random-predicate-train --columns_common n_total predicates_count functions_count clauses_count --columns_individual n_exit_0 n_exit_1 "[saturation_iterations, variation]" --filter n_exit_0 >= 12 --filter "[saturation_iterations, variation]" >= 1 --sort_columns "[saturation_iterations, variation]" --sort_order d
+```
+
 ## function-1.txt
 
 Source data:
