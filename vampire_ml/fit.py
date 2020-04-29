@@ -50,8 +50,8 @@ from vampire_ml.train import PreferenceMatrixPredictor
 from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
-cases_all = ['score_scaling', 'binary_score', 'pair_value_regressors', 'unweighted',
-             'pair_value_svr', 'default_heuristic', 'random', 'best_encountered', 'default']
+cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'unweighted',
+             'default_heuristic', 'random', 'best_encountered', 'default']
 
 cases_default = ['pair_value_regressors', 'unweighted', 'pair_value_svr', 'default_heuristic', 'random', 'default']
 
@@ -89,7 +89,8 @@ def add_arguments(parser):
     parser.add_argument('--n-splits', type=int, default=1)
     parser.add_argument('--train-size', type=split_size)
     parser.add_argument('--test-size', type=split_size)
-    parser.add_argument('--precompute', action='store_true')
+    parser.add_argument('--precompute-exhaustive', action='store_true')
+    parser.add_argument('--precompute-only', action='store_true')
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--predict-max-symbols', type=int, default=1024)
@@ -259,7 +260,7 @@ def call(namespace):
                                                                             LogisticRegression(),
                                                                             max_symbols=namespace.learn_max_symbols)
         problem_preference_matrix_transformer_param_grid = list()
-        if 'score_scaling' in cases:
+        if 'preference_estimation' in cases:
             problem_preference_matrix_transformer_param_grid.extend([
                 {
                     'score_scaler': [score_scaler_continuous],
@@ -275,13 +276,14 @@ def call(namespace):
                     'score_scaler__imputer': ['passthrough'],
                     'score_scaler__log': [score_scaler_steps['log'], 'passthrough'],
                     'score_scaler__standardizer': [score_scaler_steps['standardizer'], 'passthrough']
+                },
+                {
+                    'scorer_scaler': [score_scaler_binary],
+                    'score_predictor': [LogisticRegression(), RidgeClassifier(), LogisticRegressionCV(),
+                                        RidgeClassifierCV()]
                 }
             ])
-        if 'binary_score' in cases:
-            problem_preference_matrix_transformer_param_grid.extend(
-                [{'score_predictor': [LogisticRegression(), RidgeClassifier(), LogisticRegressionCV(),
-                                      RidgeClassifierCV()]}])
-        if namespace.precompute:
+        if namespace.precompute_exhaustive:
             preference_predictor = problem_preference_matrix_transformer
             preference_predictor_param_grid = problem_preference_matrix_transformer_param_grid
             cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
@@ -363,7 +365,7 @@ def call(namespace):
                 run_generator_test.transform(problems[test])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                           error_score='raise')
-        if namespace.precompute:
+        if namespace.precompute_exhaustive:
             # Precompute data for train set
             problems_train = problems[groups]
             fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
@@ -372,10 +374,12 @@ def call(namespace):
                 # Precompute data for test set
                 problem_preference_matrix_transformer.run_generator = run_generator_test
                 fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
-        else:
-            fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
-            df = scorers['explainer'].get_dataframe()
-            save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
+            return
+        if namespace.precompute_only:
+            return
+        fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
+        df = scorers['explainer'].get_dataframe()
+        save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
 
 
 def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
