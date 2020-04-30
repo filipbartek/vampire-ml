@@ -12,7 +12,8 @@ from vampire_ml import fit
 if __name__ == '__main__':
     np.seterr(all='raise', under='warn')
 
-    parser = argparse.ArgumentParser(prog='python -m vampire_ml')
+    parser = argparse.ArgumentParser(prog='python -m vampire_ml',
+                                     description='Recognized environment variables: TPTP (path to TPTP), TPTP_PROBLEMS (path to TPTP/Problems), SCRATCH (path to scratch directory)')
     # Why does dest need to be specified? See https://bugs.python.org/issue29298
     subparsers = parser.add_subparsers(help='action', dest='action', required=True)
 

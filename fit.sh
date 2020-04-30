@@ -42,29 +42,25 @@ XARGS_COMMAND=(
   --train-solve-runs "$SOLVE_RUNS_PER_PROBLEM"
   --vampire "$VAMPIRE"
   --vampire-options "{time_limit: $VAMPIRE_TIME_LIMIT, memory_limit: $VAMPIRE_MEMORY_LIMIT}"
-  --include "$TPTP"
-  --problem-base-path "$TPTP_PROBLEMS"
   --timeout $((VAMPIRE_TIME_LIMIT + 10))
   "$@"
 )
 
 if [ -n "${PROBLEMS_TRAIN-}" ]; then XARGS_COMMAND+=(--problems-train "$PROBLEMS_TRAIN"); fi
 
-if [ -n "${SLURM_JOB_ID-}" ]; then OUTPUT_SCRATCH=${OUTPUT_SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
+if [ -n "${SLURM_JOB_ID-}" ]; then SCRATCH=${SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 
 # See also https://hpc-uit.readthedocs.io/en/latest/jobs/examples.html#how-to-recover-files-before-a-job-times-out
 function finish {
-  if [ -n "${OUTPUT_SCRATCH-}" ]; then
-    echo Finish: Removing directory "$OUTPUT_SCRATCH"
-    rm -rf "$OUTPUT_SCRATCH"
+  if [ -n "${SCRATCH-}" ]; then
+    echo Finish: Removing directory "$SCRATCH"
+    rm -rf "$SCRATCH"
   fi
   if [ -n "${DO_MPROF-}" ]; then
     mprof plot --output "$OUTPUT_LOCAL/mprofile.png" "$OUTPUT_LOCAL/mprofile.dat"
   fi
 }
 trap finish EXIT INT TERM
-
-if [ -n "${OUTPUT_SCRATCH-}" ]; then XARGS_COMMAND+=(--scratch "$OUTPUT_SCRATCH"); fi
 
 PROBLEM_ID=${PROBLEM_ID:-${SLURM_ARRAY_TASK_ID:-}}
 if [ -n "${SLURM_ARRAY_TASK_MAX:-}" ]; then PROBLEM_MODULUS=${PROBLEM_MODULUS:-$((SLURM_ARRAY_TASK_MAX + 1))}; fi

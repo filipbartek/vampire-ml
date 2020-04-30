@@ -62,11 +62,8 @@ def add_arguments(parser):
     parser.set_defaults(action=call)
     parser.add_argument('problem', type=str, nargs='*', help='glob pattern of a problem path')
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
-    parser.add_argument('--problem-base-path', type=str, help='the problem paths are relative to the base path')
-    parser.add_argument('--include', help='path prefix for the include TPTP directive')
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
-    parser.add_argument('--scratch', help='temporary output directory')
     parser.add_argument('--train-solve-runs', type=int, default=1000,
                         help='Number of Vampire executions per problem. '
                              'Each of the executions uses random predicate and function precedence.')
@@ -167,27 +164,23 @@ def call(namespace):
     utils.progress_bar.postfix_enabled = namespace.progress_postfix
     utils.progress_bar.postfix_refresh = namespace.progress_postfix_refresh
 
-    problem_base_path = namespace.problem_base_path
-    if problem_base_path is None:
-        try:
-            problem_base_path = os.environ['TPTP_PROBLEMS']
-            logging.info(f'Problem base path set to $TPTP_PROBLEMS: {problem_base_path}')
-        except KeyError:
-            pass
-    if problem_base_path is None:
+    problem_base_path = None
+    try:
+        problem_base_path = os.environ['TPTP_PROBLEMS']
+        logging.info(f'Problem base path set to $TPTP_PROBLEMS: {problem_base_path}')
+    except KeyError:
         try:
             problem_base_path = os.path.join(os.environ['TPTP'], 'Problems')
             logging.info(f'Problem base path set to $TPTP/Problems: {problem_base_path}')
         except KeyError:
-            pass
+            warnings.warn('Set $TPTP_PROBLEMS to the problem base path.')
 
-    include_path = namespace.include
-    if include_path is None:
-        try:
-            include_path = os.environ['TPTP']
-            logging.info(f'Include path set to $TPTP: {include_path}')
-        except KeyError:
-            pass
+    include_path = None
+    try:
+        include_path = os.environ['TPTP']
+        logging.info(f'Include path set to $TPTP: {include_path}')
+    except KeyError:
+        warnings.warn('Set $TPTP to the path prefix for the include TPTP directive.')
 
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
                                                               problem_base_path)
@@ -225,7 +218,6 @@ def call(namespace):
 
     with vampyre.vampire.workspace_context(program=namespace.vampire,
                                            problem_dir=problem_base_path, include_dir=include_path,
-                                           scratch_dir=namespace.scratch,
                                            never_load=never_load, never_run=never_run,
                                            result_is_ok_to_load=result_is_ok_to_load):
         problems = np.asarray(
