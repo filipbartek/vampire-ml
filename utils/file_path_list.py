@@ -11,8 +11,12 @@ def compose(sublist_file_paths=None, glob_patterns=None, base_path=None):
     if sublist_file_paths is not None:
         for sublist_file_path in sublist_file_paths:
             with open(sublist_file_path) as sublist_file:
-                file_paths.extend(
-                    os.path.abspath(os.path.join(base_path, l.rstrip('\n'))) for l in sublist_file.readlines())
+                for l in sublist_file.readlines():
+                    cur_path = l.rstrip('\n')
+                    if base_path is not None:
+                        cur_path = os.path.join(base_path, cur_path)
+                    cur_path = os.path.abspath(cur_path)
+                    file_paths.append(cur_path)
     # We modify the glob patterns to be relative to base_path.
     # Alternatively, we could change the CWD which is used by glob.iglob.
     if glob_patterns is not None:
