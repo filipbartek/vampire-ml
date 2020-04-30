@@ -90,6 +90,8 @@ def add_arguments(parser):
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute-exhaustive', action='store_true')
     parser.add_argument('--precompute-only', action='store_true')
+    parser.add_argument('--precompute-all', action='store_true',
+                        help='Precompute all problems. Otherwise only precompute the splits that end up actually used.')
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--predict-max-symbols', type=int, default=1024)
@@ -361,11 +363,22 @@ def call(namespace):
             groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
                                  count=len(problem_paths))
         logging.info('Precomputing preference matrices with default preference matrix estimation.')
-        # Note: Calling `split` preserves `random_state`.
-        for train, test in cv.split(problems, groups=groups):
-            problem_preference_matrix_transformer.transform(problems[train])
+        if namespace.precompute_all:
+            if groups is not None:
+                problems_train = problems[groups]
+            else:
+                problems_train = problems
+            logging.info('Precomputing %s train problems.', len(problems_train))
+            problem_preference_matrix_transformer.transform(problems_train)
             if run_generator_test is not None:
-                run_generator_test.transform(problems[test])
+                logging.info('Precomputing %s test problems.', len(problems))
+                run_generator_test.transform(problems)
+        else:
+            # Note: Calling `split` preserves `random_state`.
+            for train, test in cv.split(problems, groups=groups):
+                problem_preference_matrix_transformer.transform(problems[train])
+                if run_generator_test is not None:
+                    run_generator_test.transform(problems[test])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                           error_score='raise')
         if namespace.precompute_exhaustive:
