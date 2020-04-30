@@ -298,6 +298,12 @@ class Workspace:
         self.problem_dir = problem_dir
         self.include_dir = include_dir
         self.scratch_dir = scratch_dir
+        if self.scratch_dir is None:
+            try:
+                self.scratch_dir = os.environ['SCRATCH']
+                logging.debug('Scratch dir set to $SCRATCH: %s', self.scratch_dir)
+            except KeyError:
+                logging.debug('Set $SCRATCH to the path to scratch directory.')
         self.never_load = never_load
         self.never_run = never_run
         if result_is_ok_to_load is None:
