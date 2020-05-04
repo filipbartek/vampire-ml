@@ -116,17 +116,21 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         return preference_matrix_transformer_transform_one(self, problem)
 
     def _transform_one(self, problem):
-        if self.run_generator.random_predicates and len(problem.get_predicates()) > self.max_symbols:
+        try:
+            if self.run_generator.random_predicates and len(problem.get_predicates()) > self.max_symbols:
+                return None
+            if self.run_generator.random_functions and len(problem.get_functions()) > self.max_symbols:
+                return None
+            precedences, scores = self.run_generator.transform_one(problem)
+            if precedences is None or scores is None:
+                return None
+            # For each problem, we fit an independent copy of target transformer.
+            scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
+            return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
+                    symbol_type, precedence_matrix in precedences.items()}
+        except RuntimeError:
+            logging.debug('Transforming problem into preference matrices failed.', exc_info=True)
             return None
-        if self.run_generator.random_functions and len(problem.get_functions()) > self.max_symbols:
-            return None
-        precedences, scores = self.run_generator.transform_one(problem)
-        if precedences is None or scores is None:
-            return None
-        # For each problem, we fit an independent copy of target transformer.
-        scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
-        return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
-                symbol_type, precedence_matrix in precedences.items()}
 
     dtype_preference = np.float
 
