@@ -106,7 +106,7 @@ class Result(process.Result):
             symbols = None
         try:
             clauses = load_clauses(os.path.join(path, 'clauses.json'))
-        except FileNotFoundError:
+        except (FileNotFoundError, json.JSONDecodeError):
             clauses = None
         return Result(process_result, symbols, clauses)
 
@@ -331,7 +331,7 @@ class Workspace:
             return result, configuration_path
         except (FileNotFoundError, RuntimeError, KeyError, json.JSONDecodeError) as e:
             # KeyError may occur when 'configuration.json' is missing a required configuration property.
-            # JSONDecodeError occurs if a Vampire run produced malformed clauses.json.
+            # JSONDecodeError occurs if the configuration file is malformed.
             self.cache_info['misses'] += 1
             if self.never_run:
                 raise RuntimeError('Loading failed.') from e
