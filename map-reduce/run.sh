@@ -6,7 +6,7 @@ export OUTPUT=${OUTPUT:-$(dirname $0)}
 
 mkdir -p $OUTPUT
 
-nohup nice $(realpath $(dirname $0))/map-reduce.sh "$@" >$OUTPUT/stdout.txt 2>$OUTPUT/stderr.txt &
+nohup nice $(realpath $(dirname $0))/map-reduce.sh "$@" &>$OUTPUT/stdout.txt &
 
 # https://stackoverflow.com/a/17389526/4054250
 pid=$!
