@@ -21,8 +21,10 @@ class Result:
     def save(self, path):
         json.dump({'time_elapsed': self.time_elapsed, 'status': self.status, 'exit_code': self.exit_code},
                   open(os.path.join(path, 'result.json'), 'w'), indent=4)
-        open(os.path.join(path, 'stdout.txt'), 'w').write(self.stdout)
-        open(os.path.join(path, 'stderr.txt'), 'w').write(self.stderr)
+        if self.stdout is not None:
+            open(os.path.join(path, 'stdout.txt'), 'w').write(self.stdout)
+        if self.stderr is not None:
+            open(os.path.join(path, 'stderr.txt'), 'w').write(self.stderr)
 
     @staticmethod
     def load(path):
