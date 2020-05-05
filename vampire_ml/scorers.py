@@ -1,3 +1,4 @@
+import itertools
 import logging
 import sys
 
@@ -140,41 +141,75 @@ class ScorerPercentile(ScoreAggregator):
         return 100 - percentile
 
 
+def compare_score_vectors(measured, predicted):
+    n = len(predicted)
+    assert len(measured) == n
+    if n <= 1:
+        return np.nan
+    measured = np.nan_to_num(measured, nan=np.inf)
+    predicted = np.nan_to_num(predicted, nan=np.inf)
+    hits = {('saturation_iterations', 'strict'): 0,
+            ('saturation_iterations', 'weak'): 0,
+            ('success', 'strict'): 0,
+            ('success', 'weak'): 0}
+    totals = {'saturation_iterations': 0, 'success': 0}
+    # TODO: Optimize.
+    for l, r in itertools.product(range(n), range(n)):
+        if measured[l] < measured[r]:
+            totals['saturation_iterations'] += 1
+            if predicted[r] < predicted[l]:
+                hits[('saturation_iterations', 'strict')] += 1
+            if predicted[r] <= predicted[l]:
+                hits[('saturation_iterations', 'weak')] += 1
+            if np.isinf(measured[r]):
+                assert not np.isinf(measured[l])
+                totals['success'] += 1
+                if predicted[r] < predicted[l]:
+                    hits[('success', 'strict')] += 1
+                if predicted[r] <= predicted[l]:
+                    hits[('success', 'weak')] += 1
+    for measure, comparison in itertools.product(['saturation_iterations', 'success'], ['strict', 'weak']):
+        if totals[measure] > 0:
+            hits[(measure, comparison)] /= totals[measure]
+        else:
+            hits[(measure, comparison)] = np.nan
+    return hits
+
+
+@memory.cache
+def get_ordering_scores(preference_predictor, problems, run_generator):
+    records = {}
+    # TODO: Parallelize.
+    for problem in ProgressBar(problems, unit='problem', desc='Computing ordering scores'):
+        precedences, base_scores = run_generator.transform_one(problem)
+        for symbol_type, precedence_matrix in precedences.items():
+            order_matrices = PreferenceMatrixTransformer.order_matrices(precedence_matrix)
+            preference_matrix = preference_predictor.predict_one(problem, symbol_type)
+            predicted_scores = np.sum(order_matrices * preference_matrix, axis=(1, 2))
+            scores = compare_score_vectors(base_scores, predicted_scores)
+            if symbol_type not in records:
+                records[symbol_type] = []
+            records[symbol_type].append(scores)
+    return {symbol_type: pd.DataFrame.from_records(scores) for symbol_type, scores in records.items()}
+
+
 class ScorerOrdering(ScoreAggregator):
-    def __init__(self, run_generator, comparison='strict', saturation_iterations=True):
-        super().__init__()
+    def __init__(self, run_generator, symbol_type, measure='saturation_iterations', comparison='strict'):
+        super().__init__(aggregate=np.nanmean)
         self.run_generator = run_generator
+        self.symbol_type = symbol_type
+        assert measure in {'saturation_iterations', 'success'}
+        self.measure = measure
+        assert comparison in {'strict', 'weak'}
         self.comparison = comparison
-        self.saturation_iterations = saturation_iterations
 
     def __str__(self):
-        return f'{type(self).__name__}({self.comparison}, {self.saturation_iterations})'
+        return f'{type(self).__name__}({self.symbol_type}, {self.measure}, {self.comparison})'
 
     def get_scores(self, estimator, problems):
         preference_predictor = estimator['precedence']['preference']
-        for problem in problems:
-            precedences, base_scores = self.run_generator.transform_one(problem)
-            for symbol_type, precedence_matrix in precedences.items():
-                order_matrices = PreferenceMatrixTransformer.order_matrices(precedence_matrix)
-                preference_matrix = preference_predictor.predict_one(problem, symbol_type)
-                predicted_scores = np.sum(order_matrices * preference_matrix, axis=(1, 2))
-                yield self.compare_score_vectors(base_scores, predicted_scores)
-
-    def compare_score_vectors(self, measured, predicted):
-        n = len(predicted)
-        assert len(measured) == n
-        score = 0
-        for l in range(n):
-            for r in range(n):
-                if (self.saturation_iterations and measured[l] < measured[r]) or (
-                        not self.saturation_iterations and not np.isnan(measured[l]) and np.isnan(measured[r])):
-                    # measured[l] is strictly better than measured[r].
-                    if self.comparison == 'strict' and predicted[r] < predicted[l]:
-                        score += 1
-                    if self.comparison == 'weak' and predicted[r] <= predicted[l]:
-                        score += 1
-        maximum_score = n * (n - 1) / 2
-        return score / maximum_score
+        df = get_ordering_scores(preference_predictor, problems, self.run_generator)[self.symbol_type]
+        return df[(self.measure, self.comparison)]
 
 
 class ScorerExplainer():

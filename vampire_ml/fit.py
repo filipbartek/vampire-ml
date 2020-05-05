@@ -349,14 +349,24 @@ def call(namespace):
             })
         if run_generator_test is not None:
             scorers.update({
-                'ordering.strict': ScorerOrdering(run_generator_test, comparison='strict'),
-                'ordering.weak': ScorerOrdering(run_generator_test, comparison='weak'),
                 'iterations': ScorerSaturationIterations(run_generator_test,
                                                          sklearn.base.clone(score_scaler_continuous)),
                 'percentile.strict': ScorerPercentile(run_generator_test, kind='strict'),
                 'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
                 'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
             })
+            symbol_types = []
+            if namespace.random_predicate_precedence:
+                symbol_types.append('predicate')
+            if namespace.random_function_precedence:
+                symbol_types.append('function')
+            for symbol_type in symbol_types:
+                for measure in ['saturation_iterations', 'success']:
+                    for comparison in ['strict', 'weak']:
+                        scorers[f'ordering.{symbol_type}.{measure}.{comparison}'] = ScorerOrdering(run_generator_test,
+                                                                                                   symbol_type,
+                                                                                                   measure=measure,
+                                                                                                   comparison=comparison)
         groups = None
         if len(problem_paths_train) > 0:
             problem_paths_train_set = set(problem_paths_train)
