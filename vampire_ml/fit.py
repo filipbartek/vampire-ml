@@ -373,7 +373,8 @@ def call(namespace):
             groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
                                  count=len(problem_paths))
         logging.info('Number of splits: %s', namespace.n_splits)
-        logging.info('Train problems per split: %s / %s', cv.train_samples(np.count_nonzero(groups)), np.count_nonzero(groups))
+        logging.info('Train problems per split: %s / %s', cv.train_samples(np.count_nonzero(groups)),
+                     np.count_nonzero(groups))
         logging.info('Test problems per split: %s / %s', cv.test_samples(len(problems)), len(problems))
         logging.info('Precomputing preference matrices with default preference matrix estimation.')
         if namespace.precompute_all:
