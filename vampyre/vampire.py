@@ -106,7 +106,7 @@ class Result(process.Result):
             symbols = None
         try:
             clauses = load_clauses(os.path.join(path, 'clauses.json'))
-        except (FileNotFoundError, json.JSONDecodeError):
+        except FileNotFoundError:
             clauses = None
         return Result(process_result, symbols, clauses)
 
