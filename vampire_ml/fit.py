@@ -39,12 +39,12 @@ from vampire_ml.precedence_generators import GreedyPrecedenceGenerator
 from vampire_ml.precedence_generators import RandomPrecedenceGenerator
 from vampire_ml.results import save_df
 from vampire_ml.scorers import ScorerExplainer
+from vampire_ml.scorers import ScorerOrdering
 from vampire_ml.scorers import ScorerPercentile
 from vampire_ml.scorers import ScorerPrediction
 from vampire_ml.scorers import ScorerSaturationIterations
 from vampire_ml.scorers import ScorerSuccess
 from vampire_ml.scorers import ScorerSuccessRelative
-from vampire_ml.scorers import ScorerOrdering
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.sklearn_extensions import StableStandardScaler
