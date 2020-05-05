@@ -105,8 +105,8 @@ class StableShuffleSplit(ShuffleSplit):
         assert groups.dtype == np.bool
         assert groups.shape == (n_samples,)
         n_samples_train = np.count_nonzero(groups)
-        n_train = self._subset_size_to_n(self.train_size, n_samples_train)
-        n_test = self._subset_size_to_n(self.test_size, n_samples)
+        n_train = self.train_samples(n_samples_train)
+        n_test = self.test_samples(n_samples)
         rng = check_random_state(self.random_state)
         for i in range(self.n_splits):
             if self.n_splits == 1 and n_samples == n_train:
@@ -123,6 +123,12 @@ class StableShuffleSplit(ShuffleSplit):
             ind_test = permutation_test[:-n_test - 1:-1]
             assert len(ind_test) == n_test
             yield ind_train, ind_test
+
+    def train_samples(self, train_candidates):
+        return self._subset_size_to_n(self.train_size, train_candidates)
+
+    def test_samples(self, test_candidates):
+        return self._subset_size_to_n(self.test_size, test_candidates)
 
     def _subset_size_to_n(self, subset_size, total_samples):
         if subset_size is None:
