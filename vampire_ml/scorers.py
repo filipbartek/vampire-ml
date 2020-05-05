@@ -49,7 +49,7 @@ class ScoreAggregator:
             try:
                 res = self.aggregate(self.get_scores(estimator, problems))
             except TypeError:
-                logging.debug('Failed to get scores.', exc_info=True)
+                logging.warning('Failed to get scores.', exc_info=True)
         logging.info(f'{self}: {res}')
         return res
 
