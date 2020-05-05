@@ -47,14 +47,16 @@ class ScoreAggregator:
         res = np.nan
         if len(problems) > 0:
             try:
-                res = self.aggregate(
-                    np.fromiter(self.get_scores(estimator, problems), dtype=dtype_score, count=len(problems)))
+                res = self.aggregate(self.get_scores(estimator, problems))
             except TypeError:
                 logging.debug('Failed to get scores.', exc_info=True)
         logging.info(f'{self}: {res}')
         return res
 
     def get_scores(self, estimator, problems):
+        return np.fromiter(self.generate_scores(estimator, problems), dtype=dtype_score, count=len(problems))
+
+    def generate_scores(self, estimator, problems):
         for problem, base_score in zip(problems, get_base_scores(estimator, problems)[0]):
             yield self.transform_score(base_score, problem)
 
@@ -79,7 +81,7 @@ class ScorerSuccessRelative(ScoreAggregator):
     def __str__(self):
         return f'{type(self).__name__}({self.mode})'
 
-    def get_scores(self, estimator, problems):
+    def generate_scores(self, estimator, problems):
         baseline_scores = get_base_scores(self.baseline_estimator, problems)[0]
         current_scores = get_base_scores(estimator, problems)[0]
         for baseline_score, current_score in zip(baseline_scores, current_scores):
@@ -177,14 +179,20 @@ def compare_score_vectors(measured, predicted):
 
 
 @memory.cache
-def get_ordering_scores(preference_predictor, problems, run_generator):
+def get_ordering_scores(preference_predictor, problems, run_generator, max_symbols=1024):
     records = {}
     # TODO: Parallelize.
     for problem in ProgressBar(problems, unit='problem', desc='Computing ordering scores'):
         precedences, base_scores = run_generator.transform_one(problem)
         for symbol_type, precedence_matrix in precedences.items():
+            if precedence_matrix.shape[1] > max_symbols:
+                logging.warning(f'{problem}: {symbol_type}: Too many symbols: {precedence_matrix.shape[1]} > {max_symbols}. Skipping.')
+                continue
             order_matrices = PreferenceMatrixTransformer.order_matrices(precedence_matrix)
             preference_matrix = preference_predictor.predict_one(problem, symbol_type)
+            if preference_matrix is None:
+                logging.warning(f'{problem}: {symbol_type}: Failed to predict preference matrix. Skipping.')
+                continue
             predicted_scores = np.sum(order_matrices * preference_matrix, axis=(1, 2))
             scores = compare_score_vectors(base_scores, predicted_scores)
             if symbol_type not in records:
