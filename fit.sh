@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-. env.sh
+. $(dirname $0)/env.sh
 
 if [ -n "${SLURM_ARRAY_JOB_ID-}" ] && [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then
   JOB_ID=${JOB_ID-$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}
@@ -30,6 +30,8 @@ python_call=(python -O -u -m)
 if [ -n "${DO_MPROF-}" ]; then
   python_call=(mprof run --python --include-children --interval 1 --exit-code --output "$OUTPUT_LOCAL/mprofile.dat")
 fi
+
+export PYTHONPATH=${PYTHONPATH-}:$(dirname $0)
 
 XARGS_COMMAND=(
   xargs
