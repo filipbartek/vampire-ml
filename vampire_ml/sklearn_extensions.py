@@ -15,6 +15,18 @@ class StaticTransformer(TransformerMixin):
         return self
 
 
+class FrozenLinearModel(RegressorMixin, LinearModel):
+    def __init__(self, coef, intercept=0):
+        self.coef = coef
+        self.intercept = intercept
+
+    def fit(self, X, y):
+        assert self.coef.shape == (X.shape[1],)
+        self.coef_ = self.coef
+        self.intercept_ = self.intercept
+        return self
+
+
 class MeanRegression(RegressorMixin, LinearModel):
     def fit(self, X, y):
         self.intercept_ = 0

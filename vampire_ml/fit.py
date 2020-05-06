@@ -45,6 +45,7 @@ from vampire_ml.scorers import ScorerPrediction
 from vampire_ml.scorers import ScorerSaturationIterations
 from vampire_ml.scorers import ScorerSuccess
 from vampire_ml.scorers import ScorerSuccessRelative
+from vampire_ml.sklearn_extensions import FrozenLinearModel
 from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.sklearn_extensions import StableStandardScaler
@@ -53,9 +54,10 @@ from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
 cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'unweighted',
-             'default_heuristic', 'random', 'best_encountered', 'default']
+             'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics']
 
-cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'unweighted']
+cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'unweighted',
+                 'heuristics']
 
 
 def add_arguments(parser):
@@ -153,6 +155,14 @@ def generate_dataframes(run_generator_test, problem):
     return clausify_df, solve_dfs
 
 
+def frozen_model(symbol_type, values):
+    column_names = vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type)
+    coef = np.zeros(len(column_names))
+    for column, value in values.items():
+        coef[np.where(column_names == column)[0][0]] = value
+    return FrozenLinearModel(coef)
+
+
 def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
@@ -217,6 +227,12 @@ def call(namespace):
         result_is_ok_to_load = lambda result: result.status == 'completed' and result.exit_code == 0
     if namespace.run_policy == 'all':
         never_load = True
+
+    symbol_types = []
+    if namespace.random_predicate_precedence:
+        symbol_types.append('predicate')
+    if namespace.random_function_precedence:
+        symbol_types.append('function')
 
     with vampyre.vampire.workspace_context(program=namespace.vampire,
                                            problem_dir=problem_base_path, include_dir=include_path,
@@ -300,6 +316,12 @@ def call(namespace):
                 preference_predictor_param_grid.extend(
                     [{'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]},
                      {'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_gbr]}])
+            if 'heuristics' in cases:
+                if len(symbol_types) == 1:
+                    symbol_type = symbol_types[0]
+                    preference_predictor_param_grid.extend([{'batch_size': [0], 'pair_value': [
+                        frozen_model(symbol_type, {'l.usageCnt': 1, 'r.usageCnt': -1}),
+                        frozen_model(symbol_type, {'l.arity': -1, 'r.arity': 1})]}])
             if 'unweighted' in cases:
                 preference_predictor_param_grid.extend([{'weighted': [False]}])
             if 'pair_value_svr' in cases:
@@ -355,11 +377,6 @@ def call(namespace):
                 'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
                 'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
             })
-            symbol_types = []
-            if namespace.random_predicate_precedence:
-                symbol_types.append('predicate')
-            if namespace.random_function_precedence:
-                symbol_types.append('function')
             for symbol_type in symbol_types:
                 for measure in ['saturation_iterations', 'success']:
                     for comparison in ['strict', 'weak']:
