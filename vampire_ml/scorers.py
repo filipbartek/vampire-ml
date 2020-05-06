@@ -230,7 +230,8 @@ class ScorerExplainer():
         self.weights = dict()
 
     def __call__(self, estimator, problems, y=None):
-        assert estimator not in self.weights
+        if estimator in self.weights:
+            return np.nan
         self.weights[estimator] = dict()
         for symbol_type in self.symbol_types:
             try:
