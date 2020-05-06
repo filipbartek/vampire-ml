@@ -411,7 +411,7 @@ def call(namespace):
                 if run_generator_test is not None:
                     run_generator_test.transform(problems[test])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                          error_score='raise')
+                          error_score='raise', return_train_score=True)
         if namespace.precompute_exhaustive:
             # Precompute data for train set
             problems_train = problems[groups]
