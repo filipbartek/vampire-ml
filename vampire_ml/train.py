@@ -328,6 +328,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                 target_preference_values.append(target_preference_value)
             except RuntimeError as e:
                 warnings.warn(f'Failed to generate samples from problem {problem}. Cause: {e}')
+        if len(symbol_pair_embeddings) == 0:
+            assert len(target_preference_values) == 0
+            return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
+                            dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
         return np.concatenate(symbol_pair_embeddings), np.concatenate(target_preference_values)
 
     def generate_sample_from_preference_matrix(self, problem, symbol_type, preference_matrix, n_samples):
