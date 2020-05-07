@@ -319,8 +319,11 @@ def call(namespace):
                 if len(symbol_types) == 1:
                     symbol_type = symbol_types[0]
                     preference_predictor_param_grid.extend([{'batch_size': [0], 'pair_value': [
+                        # Descending order by usage count
                         frozen_model(symbol_type, {'l.usageCnt': 1, 'r.usageCnt': -1}),
+                        # Ascending order by usage count
                         frozen_model(symbol_type, {'l.usageCnt': -1, 'r.usageCnt': 1}),
+                        # Ascending order by arity
                         frozen_model(symbol_type, {'l.arity': -1, 'r.arity': 1})]}])
             if 'unweighted' in cases:
                 preference_predictor_param_grid.extend([{'weighted': [False]}])
