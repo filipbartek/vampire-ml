@@ -52,7 +52,9 @@ class Execution:
                                        pd.UInt64Dtype()),
         'predicates_count': Field(lambda job: len_robust(job.result.get_symbols('predicate')), pd.UInt64Dtype()),
         'functions_count': Field(lambda job: len_robust(job.result.get_symbols('function')), pd.UInt64Dtype()),
-        'clauses_count': Field(lambda job: len_robust(job.result.clauses), pd.UInt64Dtype())
+        'clauses_count': Field(lambda job: len_robust(job.result.clauses), pd.UInt64Dtype()),
+        'predicate_precedence': Field(lambda job: extractor.predicate_precedence(job.result.stdout), 'object'),
+        'function_precedence': Field(lambda job: extractor.function_precedence(job.result.stdout), 'object')
     }
 
     field_names_clausify = ['output_dir', 'problem_path', 'status', 'exit_code', 'termination_reason',
