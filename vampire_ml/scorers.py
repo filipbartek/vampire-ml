@@ -48,8 +48,8 @@ class ScoreAggregator:
         if len(problems) > 0:
             try:
                 res = self.aggregate(self.get_scores(estimator, problems))
-            except TypeError:
-                logging.warning('Failed to get scores.', exc_info=True)
+            except RuntimeError:
+                logging.debug('Failed to get scores.', exc_info=True)
         logging.info(f'{self}: {res}')
         return res
 
@@ -220,7 +220,10 @@ class ScorerOrdering(ScoreAggregator):
         return f'{type(self).__name__}({self.symbol_type}, {self.measure}, {self.comparison})'
 
     def get_scores(self, estimator, problems):
-        preference_predictor = estimator['precedence']['preference']
+        try:
+            preference_predictor = estimator['precedence']['preference']
+        except TypeError as e:
+            raise RuntimeError from e
         df = get_ordering_scores(preference_predictor, problems, self.run_generator)[self.symbol_type]
         return df[(self.measure, self.comparison)]
 
