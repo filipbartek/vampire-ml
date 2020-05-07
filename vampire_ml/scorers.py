@@ -179,7 +179,7 @@ def compare_score_vectors(measured, predicted):
 
 
 @memory.cache
-def get_ordering_scores(preference_predictor, problems, run_generator, max_symbols=1024):
+def get_ordering_scores(preference_predictor, problems, run_generator, max_symbols=10000):
     records = {}
     # TODO: Parallelize.
     for problem in ProgressBar(problems, unit='problem', desc='Computing ordering scores'):
