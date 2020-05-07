@@ -318,7 +318,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
             assert np.all(preference_record.weights >= 0)
             if np.count_nonzero(preference_record.weights) == 0:
                 warnings.warn('All of the problems have all-zero preference matrices. No data to learn from.')
-                return list(), list()
+                return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
+                                dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
             p = preference_record.weights / np.sum(preference_record.weights)
         problem_indexes = self.random_state.choice(len(problems), size=self.batch_size, p=p)
         for problem_i, n_samples in zip(*np.unique(problem_indexes, return_counts=True)):
