@@ -37,7 +37,8 @@ XARGS_COMMAND=(
   xargs
   "${python_call[@]}"
   vampire_ml
-  --log ${LOG_LEVEL:-INFO}
+  --log-level ${LOG_LEVEL:-INFO}
+  --log-output "$OUTPUT_LOCAL/vampire_ml.log"
   --jobs "$CPUS"
   fit
   --output "$OUTPUT_LOCAL"
