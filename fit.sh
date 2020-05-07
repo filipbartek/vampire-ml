@@ -38,6 +38,7 @@ XARGS_COMMAND=(
   "${python_call[@]}"
   vampire_ml
   --log-level ${LOG_LEVEL:-INFO}
+  --log-config "$VAMPIRE_ML/logging.conf"
   --log-output "$OUTPUT_LOCAL/vampire_ml.log"
   --jobs "$CPUS"
   fit
