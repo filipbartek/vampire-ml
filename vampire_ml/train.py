@@ -167,6 +167,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         score_predictor = sklearn.base.clone(self.score_predictor)
         assert not (preferences_flattened == preferences_flattened[0]).all()
         assert (~np.isnan(scores)).all()
+        logging.debug('Fitting a score predictor.')
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
             score_predictor.fit(preferences_flattened, scores)
