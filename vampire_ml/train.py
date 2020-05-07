@@ -172,7 +172,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
             score_predictor.fit(preferences_flattened, scores)
             # Note: If fitting fails to converge, the coefficients are all zeros.
         # TODO: Consider using a sparse representation of the output.
-        return preference_pipeline['flattener'].inverse_transform(score_predictor.coef_)[0]
+        preference_matrix = preference_pipeline['flattener'].inverse_transform(score_predictor.coef_)[0]
+        return preference_matrix
 
     @staticmethod
     def order_matrices(permutations):
