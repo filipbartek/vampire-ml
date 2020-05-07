@@ -15,6 +15,8 @@ class ReExtractor:
         self.name = name
 
     def __call__(self, s):
+        if s is None:
+            return None
         m = self.pattern.search(s)
         if m is None:
             return None
