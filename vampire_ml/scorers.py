@@ -185,12 +185,12 @@ def get_ordering_scores(preference_predictor, problems, run_generator, max_symbo
     for problem in ProgressBar(problems, unit='problem', desc='Computing ordering scores'):
         precedences, base_scores = run_generator.transform_one(problem)
         if precedences is None:
-            logging.warning(f'{problem}: Failed to generate runs. Skipping.')
+            logging.debug(f'{problem}: Failed to generate runs. Skipping.')
             continue
         assert base_scores is not None
         for symbol_type, precedence_matrix in precedences.items():
             if precedence_matrix.shape[1] > max_symbols:
-                logging.warning(f'{problem}: {symbol_type}: Too many symbols: {precedence_matrix.shape[1]} > {max_symbols}. Skipping.')
+                logging.debug(f'{problem}: {symbol_type}: Too many symbols: {precedence_matrix.shape[1]} > {max_symbols}. Skipping.')
                 continue
             order_matrices = PreferenceMatrixTransformer.order_matrices(precedence_matrix)
             preference_matrix = preference_predictor.predict_one(problem, symbol_type)
