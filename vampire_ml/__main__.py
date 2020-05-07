@@ -30,8 +30,10 @@ if __name__ == '__main__':
     namespace = parser.parse_args()
 
     assert namespace.log is not None
-    logging.basicConfig(format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
-    logging.getLogger().setLevel(namespace.log)
+    logging.basicConfig(format='%(asctime)s %(threadName)s %(name)s %(levelname)s - %(message)s', level=namespace.log)
+    if logging.getLogger().level != getattr(logging, namespace.log):
+        logging.warning('Failed to configure the logging level. Desired: %s. Actual: %s.',
+                        getattr(logging, namespace.log), logging.getLogger().level)
     logging.info('Beginning.')
     logging.info(f'Log level: {namespace.log}')
     logging.getLogger('matplotlib').setLevel(logging.INFO)
