@@ -330,7 +330,6 @@ class Workspace:
         try:
             result = self.load(configuration, configuration_path)
             self.cache_info['hits'] += 1
-            return result, configuration_path
         except (FileNotFoundError, RuntimeError, KeyError, json.JSONDecodeError) as e:
             # KeyError may occur when 'configuration.json' is missing a required configuration property.
             # JSONDecodeError occurs if the configuration file is malformed.
@@ -341,7 +340,7 @@ class Workspace:
             configuration.save(os.path.join(configuration_path, 'configuration.json'))
             result = self.run(configuration, configuration_path=configuration_path)
             result.save(configuration_path)
-            return result, configuration_path
+        return result, configuration_path
 
     def run(self, configuration, configuration_path=None):
         return configuration.run(program=self.program, problem_dir=self.problem_dir, include_dir=self.include_dir,
