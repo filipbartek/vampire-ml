@@ -196,7 +196,7 @@ def get_ordering_scores(preference_predictor, problems, run_generator, max_symbo
             preference_matrix = preference_predictor.predict_one(problem, symbol_type)
             if preference_matrix is None:
                 # If we got this far, preference matrix prediction should always pass.
-                logging.warning(f'{problem}: {symbol_type}: Failed to predict preference matrix. Skipping.')
+                logging.debug(f'{problem}: {symbol_type}: Failed to predict preference matrix. Skipping.')
                 continue
             predicted_scores = np.sum(order_matrices * preference_matrix, axis=(1, 2))
             scores = compare_score_vectors(base_scores, predicted_scores)
