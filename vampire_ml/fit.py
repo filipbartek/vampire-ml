@@ -251,7 +251,7 @@ def call(namespace):
             dfs = Parallel()(delayed(generate_dataframes)(run_generator_test, problem) for problem in
                              ProgressBar(problems, desc='Generating problems dataframe', unit='problem'))
             clausify_dfs, solve_df_lists = zip(*dfs)
-            solve_dfs = list(itertools.chain(*solve_df_lists))
+            solve_dfs = list(itertools.chain(*(df for df in solve_df_lists if df is not None)))
             solve_runs_df = vampyre.vampire.Execution.concat_dfs(solve_dfs)
             clausify_runs_df = vampyre.vampire.Execution.concat_dfs(clausify_dfs)
             results.save_all(solve_runs_df, clausify_runs_df, namespace.output)
