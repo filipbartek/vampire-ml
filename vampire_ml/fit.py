@@ -324,7 +324,8 @@ def call(namespace):
                         # Descending order by usage count; mimics `vampire --symbol_precedence frequency`
                         frozen_model(symbol_type, {'l.usageCnt': -1, 'r.usageCnt': 1}),
                         # Descending order by arity
-                        frozen_model(symbol_type, {'l.arity': -1, 'r.arity': 1})]}])
+                        frozen_model(symbol_type, {'l.arity': -1, 'r.arity': 1})
+                    ]}])
             if 'unweighted' in cases:
                 preference_predictor_param_grid.extend([{'weighted': [False]}])
             if 'pair_value_svr' in cases:
