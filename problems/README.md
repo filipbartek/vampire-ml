@@ -106,6 +106,22 @@ Command:
 join_problems.py data/sp-random-predicate/problems.pkl --output data/sp-random-predicate-small --columns_common n_total predicates_count functions_count clauses_count --columns_individual n_exit_0 n_exit_1 "[time_elapsed_process, mean]" "[saturation_iterations, variation]" --filter predicates_count <= 10000 --sort_columns n_exit_0 "[time_elapsed_process, mean]" --sort_order a d
 ```
 
+## predicate-small-1024.txt
+
+Description: Problems with at most 1024 predicates sorted by difficulty in descending order
+
+Source data:
+
+```
+sftp://bartefil@cluster.ciirc.cvut.cz/home/bartefil/git/vampire-ml/out/sp-random-predicate/batches/404131/aggregate/problems.pkl
+```
+
+Command:
+
+```bash
+join_problems.py data/sp-random-predicate/problems.pkl --output data/sp-random-predicate-small --columns_common n_total predicates_count functions_count clauses_count --columns_individual n_exit_0 n_exit_1 "[time_elapsed_process, mean]" "[saturation_iterations, variation]" --filter predicates_count <= 1024 --sort_columns n_exit_0 "[time_elapsed_process, mean]" --sort_order a d
+```
+
 ## function-1.txt
 
 Source data:
