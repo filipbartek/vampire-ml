@@ -387,7 +387,8 @@ def call(namespace):
                         scorers[f'ordering.{symbol_type}.{measure}.{comparison}'] = ScorerOrdering(run_generator_test,
                                                                                                    symbol_type,
                                                                                                    measure=measure,
-                                                                                                   comparison=comparison)
+                                                                                                   comparison=comparison,
+                                                                                                   max_symbols=namespace.predict_max_symbols)
         groups = None
         if len(problem_paths_train) > 0:
             problem_paths_train_set = set(problem_paths_train)
