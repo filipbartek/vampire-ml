@@ -208,7 +208,8 @@ def get_ordering_scores(preference_predictor, problems, run_generator, max_symbo
 
 
 class ScorerOrdering(ScoreAggregator):
-    def __init__(self, run_generator, symbol_type, measure='saturation_iterations', comparison='strict'):
+    def __init__(self, run_generator, symbol_type, measure='saturation_iterations', comparison='strict',
+                 max_symbols=10000):
         super().__init__(aggregate=np.nanmean)
         self.run_generator = run_generator
         self.symbol_type = symbol_type
@@ -216,6 +217,7 @@ class ScorerOrdering(ScoreAggregator):
         self.measure = measure
         assert comparison in {'strict', 'weak'}
         self.comparison = comparison
+        self.max_symbols = max_symbols
 
     def __str__(self):
         return f'{type(self).__name__}({self.symbol_type}, {self.measure}, {self.comparison})'
@@ -225,7 +227,8 @@ class ScorerOrdering(ScoreAggregator):
             preference_predictor = estimator['precedence']['preference']
         except TypeError as e:
             raise RuntimeError from e
-        df = get_ordering_scores(preference_predictor, problems, self.run_generator)[self.symbol_type]
+        df = get_ordering_scores(preference_predictor, problems, self.run_generator, max_symbols=self.max_symbols)[
+            self.symbol_type]
         return df[(self.measure, self.comparison)]
 
 
