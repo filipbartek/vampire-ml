@@ -159,16 +159,16 @@ def compare_score_vectors(measured, predicted):
     for l, r in itertools.product(range(n), range(n)):
         if measured[l] < measured[r]:
             totals['saturation_iterations'] += 1
-            if predicted[r] < predicted[l]:
+            if predicted[l] < predicted[r]:
                 hits[('saturation_iterations', 'strict')] += 1
-            if predicted[r] <= predicted[l]:
+            if predicted[l] <= predicted[r]:
                 hits[('saturation_iterations', 'weak')] += 1
             if np.isinf(measured[r]):
                 assert not np.isinf(measured[l])
                 totals['success'] += 1
-                if predicted[r] < predicted[l]:
+                if predicted[l] < predicted[r]:
                     hits[('success', 'strict')] += 1
-                if predicted[r] <= predicted[l]:
+                if predicted[l] <= predicted[r]:
                     hits[('success', 'weak')] += 1
     for measure, comparison in itertools.product(['saturation_iterations', 'success'], ['strict', 'weak']):
         if totals[measure] > 0:
