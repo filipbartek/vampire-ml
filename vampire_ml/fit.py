@@ -312,11 +312,13 @@ def call(namespace):
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
+            reg_elasticnet = ElasticNetCV(l1_ratio=[.01, .05, .1, .5, .9, .95, .99, 1], copy_X=False, random_state=0)
+            reg_ridge = RidgeCV()
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
             reg_gbr = GradientBoostingRegressor(random_state=0)
             preference_predictor = PreferenceMatrixPredictor(problem_preference_matrix_transformer,
-                                                             reg_lasso,
+                                                             reg_elasticnet,
                                                              batch_size=1000000,
                                                              max_symbols=namespace.predict_max_symbols,
                                                              random_state=0)
@@ -324,8 +326,8 @@ def call(namespace):
                                                                   'problem_matrix__')
             if 'pair_value_regressors' in cases:
                 preference_predictor_param_grid.extend(
-                    [{'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_svr]},
-                     {'pair_value': [reg_linear, reg_lasso, reg_svr_linear, reg_gbr]}])
+                    [{'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_elasticnet, reg_ridge, reg_svr_linear, reg_svr]},
+                     {'pair_value': [reg_linear, reg_lasso, reg_elasticnet, reg_ridge, reg_svr_linear, reg_gbr]}])
             if 'heuristics' in cases:
                 if len(symbol_types) == 1:
                     symbol_type = symbol_types[0]
