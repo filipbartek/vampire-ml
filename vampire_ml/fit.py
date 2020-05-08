@@ -33,6 +33,7 @@ import vampyre
 from utils import ProgressBar
 from utils import file_path_list
 from utils import memory
+from utils import uniquify
 from vampire_ml import results
 from vampire_ml.precedence_generators import BestPrecedenceGenerator
 from vampire_ml.precedence_generators import GreedyPrecedenceGenerator
@@ -193,9 +194,11 @@ def call(namespace):
     except KeyError:
         warnings.warn('Set $TPTP to the path prefix for the include TPTP directive.')
 
-    problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
-                                                              problem_base_path)
+    problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list + namespace.problems_train,
+                                                              namespace.problem, problem_base_path)
+    problem_paths = uniquify(problem_paths)
     problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
+    problem_paths_train = uniquify(problem_paths_train)
     if len(problem_paths_train) == 0:
         logging.info('Falling back: training on all problems.')
         problem_paths_train = problem_paths
