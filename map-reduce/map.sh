@@ -14,4 +14,4 @@ echo MAX_PROCS=$MAX_PROCS
 
 echo Parameters: "$@"
 
-xargs --max-args=1 --max-procs=$MAX_PROCS --process-slot-var=JOB_ID --verbose $(realpath $VAMPIRE_ML/fit.sh) --precompute-all --precompute-only "$@" <$PROBLEMS
+xargs --max-args=1 --max-procs=$MAX_PROCS --process-slot-var=JOB_ID --verbose $(realpath $VAMPIRE_ML/fit.sh) --precompute all --precompute-only "$@" <$PROBLEMS
