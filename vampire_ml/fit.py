@@ -18,10 +18,12 @@ import sklearn.preprocessing
 import yaml
 from joblib import Parallel, delayed
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.linear_model import ElasticNetCV
 from sklearn.linear_model import LassoCV
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.linear_model import LogisticRegressionCV
+from sklearn.linear_model import RidgeCV
 from sklearn.linear_model import RidgeClassifier
 from sklearn.linear_model import RidgeClassifierCV
 from sklearn.model_selection import GridSearchCV
@@ -269,16 +271,22 @@ def call(namespace):
         }
         score_scaler_continuous = sklearn.pipeline.Pipeline(list(score_scaler_steps.items()))
         score_scaler_binary = FunctionTransformer(func=np.isnan)
+        score_predictors_continuous = {
+            'lasso': LassoCV(copy_X=False),
+            'elasticnet': ElasticNetCV(l1_ratio=[.01, .05, .1, .5, .9, .95, .99, 1], copy_X=False, random_state=0),
+            'ridge': RidgeCV()
+        }
+        score_predictor_default = score_predictors_continuous['elasticnet']
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
                                                                             score_scaler_continuous,
-                                                                            LassoCV(copy_X=False),
+                                                                            score_predictor_default,
                                                                             max_symbols=namespace.learn_max_symbols)
         problem_preference_matrix_transformer_param_grid = list()
         if 'preference_estimation' in cases:
             problem_preference_matrix_transformer_param_grid.extend([
                 {
                     'score_scaler': [score_scaler_continuous],
-                    'score_predictor': [LassoCV(copy_X=False)],
+                    'score_predictor': [score_predictor_default],
                     'score_scaler__standardizer': [score_scaler_steps['standardizer'], 'passthrough'],
                     'score_scaler__log': [score_scaler_steps['log'], 'passthrough'],
                     'score_scaler__imputer__divide_by_success_rate': [False, True],
@@ -286,7 +294,7 @@ def call(namespace):
                 },
                 {
                     'score_scaler': [score_scaler_continuous],
-                    'score_predictor': [LassoCV(copy_X=False)],
+                    'score_predictor': [score_predictor_default],
                     'score_scaler__imputer': ['passthrough'],
                     'score_scaler__log': [score_scaler_steps['log'], 'passthrough'],
                     'score_scaler__standardizer': [score_scaler_steps['standardizer'], 'passthrough']
