@@ -199,6 +199,8 @@ def call(namespace):
     problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list + namespace.problems_train,
                                                               namespace.problem, problem_base_path)
     problem_paths = uniquify(problem_paths)
+    problem_paths_main, _ = file_path_list.compose(namespace.problem_list, namespace.problem, base_path=problem_base_path)
+    problem_paths_main = uniquify(problem_paths_main)
     problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
     problem_paths_train = uniquify(problem_paths_train)
 
@@ -241,6 +243,8 @@ def call(namespace):
                                            result_is_ok_to_load=result_is_ok_to_load):
         problems = np.asarray(
             list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout)))
+        problems_main = np.asarray(
+            list(instantiate_problems(problem_paths_main, problem_base_path, vampire_options, namespace.timeout)))
         run_generator_train = RunGenerator(namespace.train_solve_runs,
                                            namespace.random_predicate_precedence,
                                            namespace.random_function_precedence)
@@ -422,11 +426,12 @@ def call(namespace):
                     problems_train = problems[groups]
                 else:
                     problems_train = problems
+                problems_train = [problem for problem in problems_train if problem in problems_main]
                 logging.info('Precomputing %s train problems.', len(problems_train))
                 problem_preference_matrix_transformer.transform(problems_train)
                 if run_generator_test is not None:
-                    logging.info('Precomputing %s test problems.', len(problems))
-                    run_generator_test.transform(problems)
+                    logging.info('Precomputing %s test problems.', len(problems_main))
+                    run_generator_test.transform(problems_main)
             if namespace.precompute == 'splits':
                 # Note: Calling `split` preserves `random_state`.
                 for train, test in cv.split(problems, groups=groups):
