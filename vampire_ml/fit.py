@@ -96,7 +96,7 @@ def add_arguments(parser):
     parser.add_argument('--precompute-exhaustive', action='store_true')
     parser.add_argument('--precompute-only', action='store_true')
     parser.add_argument('--precompute', choices=['all', 'splits'])
-    parser.add_argument('--problems-train', action='append')
+    parser.add_argument('--problems-train', action='append', default=[])
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--predict-max-symbols', type=int, default=1024)
     parser.add_argument('--progress', type=int, default=1)
