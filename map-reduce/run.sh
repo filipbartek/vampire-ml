@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-export OUTPUT=${OUTPUT:-$(dirname $0)}
+export OUTPUT=${OUTPUT:-$(dirname $0)}/$(date +"%Y-%m-%d_%H-%M-%S")
 
 mkdir -p $OUTPUT
 
