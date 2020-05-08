@@ -150,32 +150,29 @@ def compare_score_vectors(measured, predicted):
         return np.nan
     measured = np.nan_to_num(measured, nan=np.inf)
     predicted = np.nan_to_num(predicted, nan=np.inf)
-    hits = {('saturation_iterations', 'strict'): 0,
+    data = {('saturation_iterations', 'total'): 0,
+            ('saturation_iterations', 'strict'): 0,
             ('saturation_iterations', 'weak'): 0,
+            ('success', 'total'): 0,
             ('success', 'strict'): 0,
-            ('success', 'weak'): 0}
-    totals = {'saturation_iterations': 0, 'success': 0}
+            ('success', 'weak'): 0,
+            'total_precedences': n}
     # TODO: Optimize.
     for l, r in itertools.product(range(n), range(n)):
         if measured[l] < measured[r]:
-            totals['saturation_iterations'] += 1
+            data[('saturation_iterations', 'total')] += 1
             if predicted[l] < predicted[r]:
-                hits[('saturation_iterations', 'strict')] += 1
+                data[('saturation_iterations', 'strict')] += 1
             if predicted[l] <= predicted[r]:
-                hits[('saturation_iterations', 'weak')] += 1
+                data[('saturation_iterations', 'weak')] += 1
             if np.isinf(measured[r]):
                 assert not np.isinf(measured[l])
-                totals['success'] += 1
+                data[('success', 'total')] += 1
                 if predicted[l] < predicted[r]:
-                    hits[('success', 'strict')] += 1
+                    data[('success', 'strict')] += 1
                 if predicted[l] <= predicted[r]:
-                    hits[('success', 'weak')] += 1
-    for measure, comparison in itertools.product(['saturation_iterations', 'success'], ['strict', 'weak']):
-        if totals[measure] > 0:
-            hits[(measure, comparison)] /= totals[measure]
-        else:
-            hits[(measure, comparison)] = np.nan
-    return hits
+                    data[('success', 'weak')] += 1
+    return data
 
 
 @memory.cache
@@ -200,11 +197,12 @@ def get_ordering_scores(preference_predictor, problems, run_generator, max_symbo
                 logging.debug(f'{problem}: {symbol_type}: Failed to predict preference matrix. Skipping.')
                 continue
             predicted_scores = np.sum(order_matrices * preference_matrix, axis=(1, 2))
-            scores = compare_score_vectors(base_scores, predicted_scores)
+            record = compare_score_vectors(base_scores, predicted_scores)
+            record['problem'] = problem.path
             if symbol_type not in records:
                 records[symbol_type] = []
-            records[symbol_type].append(scores)
-    return {symbol_type: pd.DataFrame.from_records(scores) for symbol_type, scores in records.items()}
+            records[symbol_type].append(record)
+    return {symbol_type: pd.DataFrame.from_records(scores, index='problem') for symbol_type, scores in records.items()}
 
 
 class ScorerOrdering(ScoreAggregator):
@@ -229,7 +227,9 @@ class ScorerOrdering(ScoreAggregator):
             raise RuntimeError from e
         df = get_ordering_scores(preference_predictor, problems, self.run_generator, max_symbols=self.max_symbols)[
             self.symbol_type]
-        return df[(self.measure, self.comparison)]
+        hits = df[(self.measure, self.comparison)]
+        totals = df[(self.measure, 'total')]
+        return hits / totals
 
 
 class ScorerExplainer():
