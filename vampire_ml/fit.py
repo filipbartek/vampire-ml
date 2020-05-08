@@ -57,7 +57,7 @@ from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
 cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'unweighted',
-             'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics']
+             'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics', 'score_predictors']
 
 cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'unweighted',
                  'heuristics']
@@ -282,6 +282,13 @@ def call(namespace):
                                                                             score_predictor_default,
                                                                             max_symbols=namespace.learn_max_symbols)
         problem_preference_matrix_transformer_param_grid = list()
+        if 'score_predictors' in cases:
+            problem_preference_matrix_transformer_param_grid.extend([
+                {
+                    'score_scaler': [score_scaler_continuous],
+                    'score_predictor': score_predictors_continuous.values()
+                }
+            ])
         if 'preference_estimation' in cases:
             problem_preference_matrix_transformer_param_grid.extend([
                 {
