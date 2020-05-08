@@ -201,9 +201,6 @@ def call(namespace):
     problem_paths = uniquify(problem_paths)
     problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
     problem_paths_train = uniquify(problem_paths_train)
-    if len(problem_paths_train) == 0:
-        logging.info('Falling back: training on all problems.')
-        problem_paths_train = problem_paths
 
     # Default Vampire options:
     vampire_options = {
