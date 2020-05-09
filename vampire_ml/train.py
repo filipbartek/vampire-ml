@@ -330,8 +330,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                 return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
                                 dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
             p = preference_record.weights / np.sum(preference_record.weights)
-        else:
+        elif self.weighted_symbol_pairs:
             p = (preference_record.weights != 0).astype(preference_record.weights.dtype) / np.sum(preference_record.weights != 0)
+        else:
+            p = None
         problem_indexes = self.random_state.choice(len(problems), size=self.batch_size, p=p)
         for problem_i, n_samples in zip(*np.unique(problem_indexes, return_counts=True)):
             problem = problems[problem_i]
