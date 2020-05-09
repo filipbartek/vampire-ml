@@ -428,14 +428,17 @@ def call(namespace):
                 'percentile.rank': ScorerPercentile(run_generator_test, kind='rank'),
                 'percentile.weak': ScorerPercentile(run_generator_test, kind='weak')
             })
-            for symbol_type in symbol_types:
-                for measure in ['saturation_iterations', 'success']:
-                    for comparison in ['strict', 'weak']:
-                        scorers[f'ordering.{symbol_type}.{measure}.{comparison}'] = ScorerOrdering(run_generator_test,
-                                                                                                   symbol_type,
-                                                                                                   measure=measure,
-                                                                                                   comparison=comparison,
-                                                                                                   max_symbols=namespace.predict_max_symbols)
+            for symbol_type, aggregation, measure, comparison in itertools.product(symbol_types,
+                                                                                   ['problems', 'samples'],
+                                                                                   ['saturation_iterations', 'success'],
+                                                                                   ['strict', 'weak', 'mean']):
+                scorers[f'ordering.{symbol_type}.{aggregation}.{measure}.{comparison}'] = ScorerOrdering(
+                    run_generator_test,
+                    symbol_type,
+                    aggregation=aggregation,
+                    measure=measure,
+                    comparison=comparison,
+                    max_symbols=namespace.predict_max_symbols)
         if namespace.precompute is not None:
             logging.info('Precomputing preference matrices with default preference matrix estimation.')
             if namespace.precompute == 'selection':

@@ -205,20 +205,41 @@ def get_ordering_scores(preference_predictor, problems, run_generator, max_symbo
     return {symbol_type: pd.DataFrame.from_records(scores, index='problem') for symbol_type, scores in records.items()}
 
 
-class ScorerOrdering(ScoreAggregator):
-    def __init__(self, run_generator, symbol_type, measure='saturation_iterations', comparison='strict',
-                 max_symbols=10000):
-        super().__init__(aggregate=np.nanmean)
+class ScorerOrdering:
+    def __init__(self, run_generator, symbol_type, aggregation='problems', measure='saturation_iterations',
+                 comparison='strict', max_symbols=10000):
         self.run_generator = run_generator
         self.symbol_type = symbol_type
+        assert aggregation in {'problems', 'samples'}
+        self.aggregation = aggregation
         assert measure in {'saturation_iterations', 'success'}
         self.measure = measure
-        assert comparison in {'strict', 'weak'}
+        assert comparison in {'strict', 'weak', 'mean'}
         self.comparison = comparison
         self.max_symbols = max_symbols
 
     def __str__(self):
-        return f'{type(self).__name__}({self.symbol_type}, {self.measure}, {self.comparison})'
+        return f'{type(self).__name__}({self.symbol_type}, {self.aggregation}, {self.measure}, {self.comparison})'
+
+    def __call__(self, estimator, problems, y=None):
+        res = np.nan
+        if len(problems) > 0:
+            try:
+                hits, totals = self.get_scores(estimator, problems)
+                assert np.all(hits >= 0)
+                assert np.all(totals >= 0)
+                if self.aggregation == 'problems':
+                    rates = hits / totals
+                    res = np.nanmean(rates)
+                else:
+                    assert self.aggregation == 'samples'
+                    total = np.nansum(totals)
+                    if total != 0:
+                        res = np.nansum(hits) / total
+            except RuntimeError:
+                logging.debug('Failed to get scores.', exc_info=True)
+        logging.info(f'{self}: {res}')
+        return res
 
     def get_scores(self, estimator, problems):
         try:
@@ -227,12 +248,15 @@ class ScorerOrdering(ScoreAggregator):
             raise RuntimeError from e
         df = get_ordering_scores(preference_predictor, problems, self.run_generator, max_symbols=self.max_symbols)[
             self.symbol_type]
-        hits = df[(self.measure, self.comparison)]
+        if self.comparison == 'mean':
+            hits = (df[(self.measure, 'strict')] + df[(self.measure, 'weak')]) / 2
+        else:
+            hits = df[(self.measure, self.comparison)]
         totals = df[(self.measure, 'total')]
-        return hits / totals
+        return hits, totals
 
 
-class ScorerExplainer():
+class ScorerExplainer:
     def __init__(self, symbol_types=('predicate', 'function')):
         self.symbol_types = symbol_types
         self.weights = dict()
