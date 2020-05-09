@@ -6,6 +6,7 @@ matplotlib
 memory-profiler
 methodtools
 numpy
+ordered-set
 pandas
 pyyaml
 scipy

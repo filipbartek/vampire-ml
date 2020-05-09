@@ -1,3 +1,5 @@
+import logging
+
 import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.base import RegressorMixin
@@ -111,36 +113,39 @@ class StableShuffleSplit(ShuffleSplit):
     dtype = np.uint32
 
     def _iter_indices(self, X, y=None, groups=None):
-        n_samples = _num_samples(X)
+        n_available_total = _num_samples(X)
         if groups is None:
-            n_samples_train = n_samples
-            n_samples_test = n_samples
+            n_available_train = n_available_total
+            n_available_test = n_available_total
         else:
-            assert groups.dtype == np.bool
-            assert groups.shape == (n_samples,)
-            n_samples_train = np.count_nonzero(groups)
-            n_samples_test = np.count_nonzero(~groups)
-        n_train = self.train_samples(n_samples_train)
-        n_test = self.test_samples(n_samples_test)
-        if n_train + n_test > n_samples:
+            assert groups.shape == (n_available_total,)
+            n_available_train = np.count_nonzero(groups != 'test')
+            n_available_test = np.count_nonzero(groups != 'train')
+        n_train = self.train_samples(n_available_train)
+        n_test = self.test_samples(n_available_test)
+        logging.info('Generating %s splits. Train: %s / %s. Test: %s / %s. Total: %s.', self.n_splits, n_train, n_available_train, n_test, n_available_test, n_available_total)
+        if n_train + n_test > n_available_total:
             raise ValueError('Reduce test size or train size.')
-        rng = check_random_state(self.random_state)
-        if self.n_splits == 1 and n_samples == n_train:
+        # We omit shuffling if all samples go into one output set with only one split.
+        if self.n_splits == 1 and n_available_total == n_train:
             assert n_test == 0
-            yield np.arange(n_samples, dtype=self.dtype), np.empty((0,), dtype=self.dtype)
+            yield np.arange(n_available_total, dtype=self.dtype), np.empty((0,), dtype=self.dtype)
             return
-        if self.n_splits == 1 and n_samples == n_test:
+        if self.n_splits == 1 and n_available_total == n_test:
             assert n_train == 0
-            yield np.empty((0,), dtype=self.dtype), np.arange(n_samples, dtype=self.dtype)
+            yield np.empty((0,), dtype=self.dtype), np.arange(n_available_total, dtype=self.dtype)
             return
+        rng = check_random_state(self.random_state)
         for i in range(self.n_splits):
+            permutation = rng.permutation(n_available_total).astype(self.dtype)
             if groups is None:
-                permutation = rng.permutation(n_samples).astype(self.dtype)
                 ind_train = permutation[:n_train]
                 ind_test = permutation[:-n_test - 1:-1]
             else:
-                ind_train = rng.choice(np.nonzero(groups)[0], size=n_train).astype(self.dtype)
-                ind_test = rng.choice(np.nonzero(~groups)[0], size=n_test).astype(self.dtype)
+                ind_train = np.fromiter((p for p in permutation if groups[p] != 'test'), dtype=self.dtype,
+                                        count=n_train)
+                ind_test = np.fromiter((p for p in reversed(permutation) if groups[p] != 'train'), dtype=self.dtype,
+                                       count=n_test)
             assert len(ind_train) == n_train
             assert len(ind_test) == n_test
             yield ind_train, ind_test

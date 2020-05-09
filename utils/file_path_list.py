@@ -4,28 +4,39 @@ import glob
 import itertools
 import logging
 import os
+from functools import partial
+
+from ordered_set import OrderedSet
+
+
+def normalize_path(path, base_path=None):
+    if base_path is not None:
+        path = os.path.join(base_path, path)
+    return os.path.abspath(path)
+
+
+def paths_from_sublists(sublist_file_paths, base_path=None):
+    files = map(open, sublist_file_paths)
+    line_generators = (file.readlines() for file in files)
+    lines = itertools.chain(*line_generators)
+    lines_stripped = (l.strip('\n') for l in lines)
+    paths = map(partial(normalize_path, base_path=base_path), lines_stripped)
+    return paths
+
+
+def paths_from_patterns(patterns, base_path=None):
+    # We modify the glob patterns to be relative to base_path.
+    # Alternatively, we could change the CWD which is used by glob.iglob.
+    patterns_normalized = map(partial(normalize_path, base_path=base_path), patterns)
+    path_generators = map(partial(glob.iglob, recursive=True), patterns_normalized)
+    paths = itertools.chain(*path_generators)
+    return paths
 
 
 def compose(sublist_file_paths=None, glob_patterns=None, base_path=None):
-    file_paths = []
-    if sublist_file_paths is not None:
-        for sublist_file_path in sublist_file_paths:
-            with open(sublist_file_path) as sublist_file:
-                for l in sublist_file.readlines():
-                    cur_path = l.rstrip('\n')
-                    if base_path is not None:
-                        cur_path = os.path.join(base_path, cur_path)
-                    cur_path = os.path.abspath(cur_path)
-                    file_paths.append(cur_path)
-    # We modify the glob patterns to be relative to base_path.
-    # Alternatively, we could change the CWD which is used by glob.iglob.
-    if glob_patterns is not None:
-        glob_patterns_rel_to_base = glob_patterns
-        if base_path is not None:
-            glob_patterns_rel_to_base = (os.path.join(base_path, pattern) for pattern in glob_patterns_rel_to_base)
-        file_paths.extend(
-            itertools.chain(*(glob.iglob(pattern, recursive=True) for pattern in glob_patterns_rel_to_base)))
-    if base_path is None and len(file_paths) >= 1:
-        base_path = os.path.commonpath(file_paths)
+    paths = OrderedSet(itertools.chain(paths_from_sublists(sublist_file_paths, base_path=base_path),
+                                       paths_from_patterns(glob_patterns, base_path=base_path)))
+    if base_path is None and len(paths) >= 1:
+        base_path = os.path.commonpath(paths)
         logging.info(f'Defaulting base path to \"{base_path}\".')
-    return file_paths, base_path
+    return paths, base_path

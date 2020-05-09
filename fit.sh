@@ -50,7 +50,7 @@ XARGS_COMMAND=(
   "$@"
 )
 
-if [ -n "${PROBLEMS_TRAIN-}" ]; then XARGS_COMMAND+=(--problems-train "$PROBLEMS_TRAIN"); fi
+if [ -n "${PROBLEMS_TRAIN-}" ]; then XARGS_COMMAND+=(--train-problem-list "$PROBLEMS_TRAIN"); fi
 
 if [ -n "${SLURM_JOB_ID-}" ]; then SCRATCH=${SCRATCH-/lscratch/$USER/slurm-$SLURM_JOB_ID}; fi
 

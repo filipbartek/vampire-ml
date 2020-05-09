@@ -6,6 +6,7 @@ import logging
 import os
 import sys
 import warnings
+from functools import partial
 from itertools import chain
 
 import numpy as np
@@ -67,6 +68,10 @@ def add_arguments(parser):
     parser.set_defaults(action=call)
     parser.add_argument('problem', type=str, nargs='*', help='glob pattern of a problem path')
     parser.add_argument('--problem-list', action='append', default=[], help='input file with a list of problem paths')
+    parser.add_argument('--train-problem', action='append', default=[])
+    parser.add_argument('--train-problem-list', action='append', default=[])
+    parser.add_argument('--test-problem', action='append', default=[])
+    parser.add_argument('--test-problem-list', action='append', default=[])
     # Naming convention: `sbatch --output`
     parser.add_argument('--output', '-o', required=True, type=str, help='main output directory')
     parser.add_argument('--train-solve-runs', type=int, default=1000,
@@ -96,7 +101,6 @@ def add_arguments(parser):
     parser.add_argument('--precompute-exhaustive', action='store_true')
     parser.add_argument('--precompute-only', action='store_true')
     parser.add_argument('--precompute', choices=['all', 'splits'])
-    parser.add_argument('--problems-train', action='append', default=[])
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--predict-max-symbols', type=int, default=1024)
     parser.add_argument('--progress', type=int, default=1)
@@ -165,6 +169,17 @@ def frozen_model(symbol_type, values):
     return FrozenLinearModel(coef)
 
 
+def problem_category(problem_path, problem_paths_train, problem_paths_test):
+    train = problem_path in problem_paths_train
+    test = problem_path in problem_paths_test
+    if train and not test:
+        return 'train'
+    elif test and not train:
+        return 'test'
+    else:
+        return None
+
+
 def call(namespace):
     # SWV567-1.014.p has clause depth of more than the default recursion limit of 1000,
     # making `json.load()` raise `RecursionError`.
@@ -196,13 +211,18 @@ def call(namespace):
     except KeyError:
         warnings.warn('Set $TPTP to the path prefix for the include TPTP directive.')
 
-    problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list + namespace.problems_train,
-                                                              namespace.problem, problem_base_path)
-    problem_paths = uniquify(problem_paths)
-    problem_paths_main, _ = file_path_list.compose(namespace.problem_list, namespace.problem, base_path=problem_base_path)
-    problem_paths_main = uniquify(problem_paths_main)
-    problem_paths_train, _ = file_path_list.compose(namespace.problems_train, base_path=problem_base_path)
-    problem_paths_train = uniquify(problem_paths_train)
+    problem_lists_all = uniquify(
+        itertools.chain(namespace.problem_list, namespace.train_problem_list, namespace.test_problem_list))
+    problem_patterns_all = uniquify(itertools.chain(namespace.problem, namespace.train_problem, namespace.test_problem))
+    problem_paths, problem_base_path = file_path_list.compose(problem_lists_all, problem_patterns_all,
+                                                              problem_base_path)
+    problem_paths_train, _ = file_path_list.compose(namespace.train_problem_list, namespace.train_problem,
+                                                    base_path=problem_base_path)
+    problem_paths_test, _ = file_path_list.compose(namespace.test_problem_list, namespace.test_problem,
+                                                   base_path=problem_base_path)
+    problem_categories = np.asarray(list(
+        map(partial(problem_category, problem_paths_train=problem_paths_train, problem_paths_test=problem_paths_test),
+            problem_paths)))
 
     # Default Vampire options:
     vampire_options = {
@@ -243,8 +263,6 @@ def call(namespace):
                                            result_is_ok_to_load=result_is_ok_to_load):
         problems = np.asarray(
             list(instantiate_problems(problem_paths, problem_base_path, vampire_options, namespace.timeout)))
-        problems_main = np.asarray(
-            list(instantiate_problems(problem_paths_main, problem_base_path, vampire_options, namespace.timeout)))
         run_generator_train = RunGenerator(namespace.train_solve_runs,
                                            namespace.random_predicate_precedence,
                                            namespace.random_function_precedence)
@@ -410,31 +428,17 @@ def call(namespace):
                                                                                                    measure=measure,
                                                                                                    comparison=comparison,
                                                                                                    max_symbols=namespace.predict_max_symbols)
-        groups = None
-        if len(problem_paths_train) > 0:
-            problem_paths_train_set = set(problem_paths_train)
-            groups = np.fromiter((p in problem_paths_train_set for p in problem_paths), dtype=np.bool,
-                                 count=len(problem_paths))
-        logging.info('Number of splits: %s', namespace.n_splits)
-        logging.info('Train problems per split: %s / %s', cv.train_samples(np.count_nonzero(groups)),
-                     np.count_nonzero(groups))
-        logging.info('Test problems per split: %s / %s', cv.test_samples(len(problems)), len(problems))
         if namespace.precompute is not None:
             logging.info('Precomputing preference matrices with default preference matrix estimation.')
             if namespace.precompute == 'all':
-                if groups is not None:
-                    problems_train = problems[groups]
-                else:
-                    problems_train = problems
-                problems_train = [problem for problem in problems_train if problem in problems_main]
-                logging.info('Precomputing %s train problems.', len(problems_train))
-                problem_preference_matrix_transformer.transform(problems_train)
+                logging.info('Precomputing %s train problems.', np.count_nonzero(problem_categories != 'test'))
+                problem_preference_matrix_transformer.transform(problems[problem_categories != 'test'])
                 if run_generator_test is not None:
-                    logging.info('Precomputing %s test problems.', len(problems_main))
-                    run_generator_test.transform(problems_main)
+                    logging.info('Precomputing %s test problems.', problem_categories != 'train')
+                    run_generator_test.transform(problems[problem_categories != 'train'])
             if namespace.precompute == 'splits':
                 # Note: Calling `split` preserves `random_state`.
-                for train, test in cv.split(problems, groups=groups):
+                for train, test in cv.split(problems, groups=problem_categories):
                     problem_preference_matrix_transformer.transform(problems[train])
                     if run_generator_test is not None:
                         run_generator_test.transform(problems[test])
@@ -442,17 +446,16 @@ def call(namespace):
                           error_score='raise', return_train_score=True)
         if namespace.precompute_exhaustive:
             # Precompute data for train set
-            problems_train = problems[groups]
-            fit_gs(gs, problems_train, scorers, output=namespace.output, name='precompute_train')
+            fit_gs(gs, problems[problem_categories != 'test'], scorers, output=namespace.output, name='precompute_train')
 
             if run_generator_test is not None:
                 # Precompute data for test set
                 problem_preference_matrix_transformer.run_generator = run_generator_test
-                fit_gs(gs, problems, scorers, output=namespace.output, name='precompute_test')
+                fit_gs(gs, problems[problem_categories != 'train'], scorers, output=namespace.output, name='precompute_test')
             return
         if namespace.precompute_only:
             return
-        fit_gs(gs, problems, scorers, groups=groups, output=namespace.output, name='fit_cv_results')
+        fit_gs(gs, problems, scorers, groups=problem_categories, output=namespace.output, name='fit_cv_results')
         if 'explainer' in scorers:
             df = scorers['explainer'].get_dataframe()
             save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
