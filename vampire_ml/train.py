@@ -201,35 +201,22 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         return res
 
 
-class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
-    """
-    Predicts a symbol preference matrix dictionary for a problem.
-    Generalizes to new problems by exploiting patterns shared by multiple problems.
-    Learns from a batch of problems jointly.
-    """
-
-    def __init__(self, problem_matrix, pair_value, batch_size, weighted_problems=False, weighted_symbol_pairs=True,
-                 incremental_epochs=None, max_symbols=None, random_state=None):
+class BatchGeneratorPreference(BaseEstimator, StaticTransformer):
+    def __init__(self, problem_matrix, batch_size, weighted_problems=False, weighted_symbol_pairs=True,
+                 random_state=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
-        :param pair_value: Symbol pair preference value predictor blueprint.
         Predicts preference value from an embedding of a symbol pair.
         :param batch_size: How many symbol pairs should we learn from in each training batch?
         :param weighted_problems: If True, each of the problems is weighted by mean absolute target value when fitting `pair_value`.
         :param weighted_symbol_pairs: If True, each of the symbol pair samples is weighted by absolute target value when fitting `pair_value`.
-        :param incremental_epochs: How many batches should we train on incrementally?
-        If None, the training is performed in one batch.
-        :param max_symbols: Maximum signature size to predict preference matrix for.
         :param random_state: If int, seed of a random number generator. If None, use `np.random`.
         Otherwise a `RandomState`.
         """
         self.problem_matrix = problem_matrix
-        self.pair_value = pair_value
         self.batch_size = batch_size
         self.weighted_problems = weighted_problems
         self.weighted_symbol_pairs = weighted_symbol_pairs
-        self.incremental_epochs = incremental_epochs
-        self.max_symbols = max_symbols
         if random_state is None:
             self.random_state = np.random
         elif isinstance(random_state, int):
@@ -239,69 +226,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
 
     weight_dtype = np.float
 
-    def fit(self, problems):
-        preferences = self.get_preferences(problems)
-        self.pair_value_fitted_ = dict()
-        for symbol_type in self.symbol_types():
-            reg = sklearn.base.clone(self.pair_value)
-            self.pair_value_fitted_[symbol_type] = reg
-            assert id(reg) == id(self.pair_value_fitted_[symbol_type])
-            if self.incremental_epochs is not None:
-                # TODO: Implement early stopping.
-                for _ in ProgressBar(range(self.incremental_epochs),
-                                     desc=f'Fitting general {symbol_type} preference regressor {type(reg).__name__}',
-                                     unit='epoch'):
-                    symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
-                                                                                           preferences[symbol_type])
-                    reg.partial_fit(symbol_pair_embeddings, target_preference_values)
-            else:
-                logging.debug(
-                    f'General {symbol_type} preference regressor: Generating batch of {self.batch_size} samples...')
-                symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type,
-                                                                                       preferences[symbol_type])
-                logging.debug(
-                    f'General {symbol_type} preference regressor: Batch of {len(symbol_pair_embeddings)} samples generated.')
-                logging.info(
-                    f'General {symbol_type} preference regressor: Fitting on {len(symbol_pair_embeddings)} samples...')
-                with warnings.catch_warnings():
-                    warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
-                    reg.fit(symbol_pair_embeddings, target_preference_values)
-                logging.info(f'General {symbol_type} preference regressor: Fitted.')
-            logging.debug('Fitted hyperparameters: %s', get_hyperparameters(reg))
-            with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
-                try:
-                    logging.info(f'Feature weights: {get_feature_weights(reg)}')
-                except RuntimeError:
-                    logging.debug('Failed to extract feature weights.', exc_info=True)
-        return self
-
-    def transform(self, problems):
-        """Estimate symbol preference matrix for each problem."""
-        # TODO: Predict the preferences for all problems in one call to `self.reg.predict`.
-        for problem in problems:
-            yield self.transform_one(problem)
-
-    def transform_one(self, problem):
-        return {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
-
     def symbol_types(self):
         return self.problem_matrix.run_generator.symbol_types()
-
-    def predict_one(self, problem, symbol_type):
-        reg = self.pair_value_fitted_[symbol_type]
-        try:
-            n = len(problem.get_symbols(symbol_type))
-            if self.max_symbols is not None and n > self.max_symbols:
-                logging.debug(
-                    f'{problem} has {n}>{self.max_symbols} {symbol_type} symbols. This is too many to predict a preference matrix.')
-                return None
-            l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
-            symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
-            symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
-            return reg.predict(symbol_pair_embeddings).reshape(n, n)
-        except RuntimeError:
-            logging.debug(f'Failed to predict preference on problem {problem}.', exc_info=True)
-            return None
 
     PreferenceRecord = collections.namedtuple('PreferenceRecord', ['matrices', 'weights'])
 
@@ -319,7 +245,10 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     preferences[symbol_type].weights[i] = np.mean(np.abs(matrix))
         return preferences
 
-    def generate_batch(self, problems, symbol_type, preference_record):
+    def generate_batch(self, problems, symbol_type):
+        logging.debug(f'General {symbol_type} preference regressor: Generating batch of {self.batch_size} samples...')
+        preferences = self.get_preferences(problems)
+        preference_record = preferences[symbol_type]
         assert len(problems) == len(preference_record.matrices) == len(preference_record.weights)
         symbol_pair_embeddings = list()
         target_preference_values = list()
@@ -367,3 +296,88 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         chosen_pairs_embeddings = problem.get_symbol_pair_embeddings(symbol_type, chosen_pairs_index_pairs)
         chosen_pairs_values = all_pairs_values[chosen_pairs_indexes]
         return chosen_pairs_embeddings, chosen_pairs_values
+
+
+class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
+    """
+    Predicts a symbol preference matrix dictionary for a problem.
+    Generalizes to new problems by exploiting patterns shared by multiple problems.
+    Learns from a batch of problems jointly.
+    """
+
+    def __init__(self, batch_generator, pair_value, incremental_epochs=None, max_symbols=None):
+        """
+        :param pair_value: Symbol pair preference value predictor blueprint.
+        Predicts preference value from an embedding of a symbol pair.
+        :param incremental_epochs: How many batches should we train on incrementally?
+        If None, the training is performed in one batch.
+        :param max_symbols: Maximum signature size to predict preference matrix for.
+        """
+        self.batch_generator = batch_generator
+        self.pair_value = pair_value
+        self.incremental_epochs = incremental_epochs
+        self.max_symbols = max_symbols
+
+    weight_dtype = np.float
+
+    def fit(self, problems):
+        self.pair_value_fitted_ = dict()
+        for symbol_type in self.symbol_types():
+            reg = sklearn.base.clone(self.pair_value)
+            self.pair_value_fitted_[symbol_type] = reg
+            assert id(reg) == id(self.pair_value_fitted_[symbol_type])
+            if self.incremental_epochs is not None:
+                # TODO: Implement early stopping.
+                for _ in ProgressBar(range(self.incremental_epochs),
+                                     desc=f'Fitting general {symbol_type} preference regressor {type(reg).__name__}',
+                                     unit='epoch'):
+                    symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type)
+                    reg.partial_fit(symbol_pair_embeddings, target_preference_values)
+            else:
+                symbol_pair_embeddings, target_preference_values = self.generate_batch(problems, symbol_type)
+                logging.debug(
+                    f'General {symbol_type} preference regressor: Batch of {len(symbol_pair_embeddings)} samples generated.')
+                logging.info(
+                    f'General {symbol_type} preference regressor: Fitting on {len(symbol_pair_embeddings)} samples...')
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
+                    reg.fit(symbol_pair_embeddings, target_preference_values)
+                logging.info(f'General {symbol_type} preference regressor: Fitted.')
+            logging.debug('Fitted hyperparameters: %s', get_hyperparameters(reg))
+            with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
+                try:
+                    logging.info(f'Feature weights: {get_feature_weights(reg)}')
+                except RuntimeError:
+                    logging.debug('Failed to extract feature weights.', exc_info=True)
+        return self
+
+    def transform(self, problems):
+        """Estimate symbol preference matrix for each problem."""
+        # TODO: Predict the preferences for all problems in one call to `self.reg.predict`.
+        for problem in problems:
+            yield self.transform_one(problem)
+
+    def transform_one(self, problem):
+        return {symbol_type: self.predict_one(problem, symbol_type) for symbol_type in self.symbol_types()}
+
+    def symbol_types(self):
+        return self.batch_generator.symbol_types()
+
+    def predict_one(self, problem, symbol_type):
+        reg = self.pair_value_fitted_[symbol_type]
+        try:
+            n = len(problem.get_symbols(symbol_type))
+            if self.max_symbols is not None and n > self.max_symbols:
+                logging.debug(
+                    f'{problem} has {n}>{self.max_symbols} {symbol_type} symbols. This is too many to predict a preference matrix.')
+                return None
+            l, r = np.meshgrid(np.arange(n), np.arange(n), indexing='ij')
+            symbol_indexes = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
+            symbol_pair_embeddings = problem.get_symbol_pair_embeddings(symbol_type, symbol_indexes)
+            return reg.predict(symbol_pair_embeddings).reshape(n, n)
+        except RuntimeError:
+            logging.debug(f'Failed to predict preference on problem {problem}.', exc_info=True)
+            return None
+
+    def generate_batch(self, problems, symbol_type):
+        return self.batch_generator.generate_batch(problems, symbol_type)
