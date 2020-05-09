@@ -225,8 +225,11 @@ def call(namespace):
         map(partial(problem_category, problem_paths_train=problem_paths_train, problem_paths_test=problem_paths_test),
             problem_paths)))
     problem_paths_selection, _ = file_path_list.compose(None, problem_patterns_all, problem_base_path)
-    problem_selection_mask = np.fromiter((path in problem_paths_selection for path in problem_paths), dtype=np.bool,
-                                         count=len(problem_paths))
+    if len(problem_paths_selection) == 0:
+        problem_selection_mask = np.ones(len(problem_paths), dtype=np.bool)
+    else:
+        problem_selection_mask = np.fromiter((path in problem_paths_selection for path in problem_paths), dtype=np.bool,
+                                             count=len(problem_paths))
 
     # Default Vampire options:
     vampire_options = {
