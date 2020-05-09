@@ -300,7 +300,7 @@ def call(namespace):
         score_scaler_binary = FunctionTransformer(func=np.isnan)
         score_predictors_continuous = {
             'lasso': LassoCV(copy_X=False),
-            'elasticnet': ElasticNetCV(l1_ratio=[.01, .05, .1, .5, .9, .95, .99, 1], copy_X=False, random_state=0),
+            'elasticnet': ElasticNetCV(l1_ratio=[.01, .1, .5, .9, 1], copy_X=False, random_state=0),
             'ridge': RidgeCV()
         }
         score_predictor_default = score_predictors_continuous['elasticnet']
@@ -348,7 +348,7 @@ def call(namespace):
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
-            reg_elasticnet = ElasticNetCV(l1_ratio=[.01, .05, .1, .5, .9, .95, .99, 1], copy_X=False, random_state=0)
+            reg_elasticnet = ElasticNetCV(l1_ratio=[.01, .1, .5, .9, 1], copy_X=False, random_state=0)
             reg_ridge = RidgeCV()
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
