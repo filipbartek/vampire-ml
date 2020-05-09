@@ -201,7 +201,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         return res
 
 
-class BatchGeneratorPreference(BaseEstimator, StaticTransformer):
+class BatchGeneratorPreference(BaseEstimator):
     def __init__(self, problem_matrix, batch_size, weighted_problems=False, weighted_symbol_pairs=True,
                  random_state=None):
         """
