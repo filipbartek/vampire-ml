@@ -82,3 +82,10 @@ def uniquify(seq):
     seen_add = seen.add
     res = [x for x in seq if not (x in seen or seen_add(x))]
     return res
+
+
+def indices_to_mask(indices, n):
+    assert np.all(indices < n)
+    res = np.zeros(n, dtype=np.bool)
+    res[indices] = True
+    return res

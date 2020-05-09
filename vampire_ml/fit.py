@@ -35,6 +35,7 @@ import utils
 import vampyre
 from utils import ProgressBar
 from utils import file_path_list
+from utils import indices_to_mask
 from utils import memory
 from utils import uniquify
 from vampire_ml import results
@@ -443,11 +444,12 @@ def call(namespace):
                     logging.info('Precomputing %s test problems.', len(problems_test))
                     run_generator_test.transform(problems_test)
             if namespace.precompute == 'splits':
+                n = len(problems)
                 # Note: Calling `split` preserves `random_state`.
                 for train, test in cv.split(problems, groups=problem_categories):
-                    problem_preference_matrix_transformer.transform(problems[train])
+                    problem_preference_matrix_transformer.transform(problems[problem_selection_mask & indices_to_mask(train, n)])
                     if run_generator_test is not None:
-                        run_generator_test.transform(problems[test])
+                        run_generator_test.transform(problems[problem_selection_mask & indices_to_mask(test, n)])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
                           error_score='raise', return_train_score=True)
         if namespace.precompute_exhaustive:
