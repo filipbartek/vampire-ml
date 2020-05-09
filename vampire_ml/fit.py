@@ -57,10 +57,10 @@ from vampire_ml.train import PreferenceMatrixPredictor
 from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
-cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'unweighted',
+cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'weighting',
              'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics', 'score_predictors']
 
-cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'unweighted',
+cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'weighting',
                  'heuristics']
 
 
@@ -365,8 +365,9 @@ def call(namespace):
                         # Descending order by arity
                         frozen_model(symbol_type, {'l.arity': -1, 'r.arity': 1})
                     ]}])
-            if 'unweighted' in cases:
-                preference_predictor_param_grid.extend([{'weighted': [False]}])
+            if 'weighting' in cases:
+                preference_predictor_param_grid.extend(
+                    [{'weighted_problems': [False, True], 'weighted_symbol_pairs': [False, True]}])
             if 'pair_value_svr' in cases:
                 preference_predictor_param_grid.extend([
                     {'pair_value': [reg_svr_linear], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},

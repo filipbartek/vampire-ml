@@ -203,15 +203,15 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     Learns from a batch of problems jointly.
     """
 
-    def __init__(self, problem_matrix, pair_value, batch_size, weighted=True, incremental_epochs=None,
-                 max_symbols=None, random_state=None):
+    def __init__(self, problem_matrix, pair_value, batch_size, weighted_problems=False, weighted_symbol_pairs=True,
+                 incremental_epochs=None, max_symbols=None, random_state=None):
         """
         :param problem_matrix: Transforms a problem into a preference matrix dictionary.
         :param pair_value: Symbol pair preference value predictor blueprint.
         Predicts preference value from an embedding of a symbol pair.
         :param batch_size: How many symbol pairs should we learn from in each training batch?
-        :param weighted: If True, each of the samples is weighted by absolute target value when fitting `pair_value`.
-        Moreover, each of the problems is weighted by mean absolute preference value.
+        :param weighted_problems: If True, each of the problems is weighted by mean absolute target value when fitting `pair_value`.
+        :param weighted_symbol_pairs: If True, each of the symbol pair samples is weighted by absolute target value when fitting `pair_value`.
         :param incremental_epochs: How many batches should we train on incrementally?
         If None, the training is performed in one batch.
         :param max_symbols: Maximum signature size to predict preference matrix for.
@@ -221,7 +221,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         self.problem_matrix = problem_matrix
         self.pair_value = pair_value
         self.batch_size = batch_size
-        self.weighted = weighted
+        self.weighted_problems = weighted_problems
+        self.weighted_symbol_pairs = weighted_symbol_pairs
         self.incremental_epochs = incremental_epochs
         self.max_symbols = max_symbols
         if random_state is None:
@@ -316,14 +317,15 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         assert len(problems) == len(preference_record.matrices) == len(preference_record.weights)
         symbol_pair_embeddings = list()
         target_preference_values = list()
-        p = None
-        if self.weighted:
-            assert np.all(preference_record.weights >= 0)
+        assert np.all(preference_record.weights >= 0)
+        if self.weighted_problems:
             if np.count_nonzero(preference_record.weights) == 0:
                 warnings.warn('All of the problems have all-zero preference matrices. No data to learn from.')
                 return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
                                 dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
             p = preference_record.weights / np.sum(preference_record.weights)
+        else:
+            p = (preference_record.weights != 0).astype(preference_record.weights.dtype) / np.sum(preference_record.weights != 0)
         problem_indexes = self.random_state.choice(len(problems), size=self.batch_size, p=p)
         for problem_i, n_samples in zip(*np.unique(problem_indexes, return_counts=True)):
             problem = problems[problem_i]
@@ -348,7 +350,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
         all_pairs_index_pairs = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
         all_pairs_values = preference_matrix.flatten()
         p = None
-        if self.weighted:
+        if self.weighted_symbol_pairs:
             if np.allclose(0, all_pairs_values):
                 raise RuntimeError('Cannot learn from an all-zero preference matrix.')
             p = np.abs(all_pairs_values) / np.sum(np.abs(all_pairs_values))
