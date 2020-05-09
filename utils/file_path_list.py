@@ -34,6 +34,10 @@ def paths_from_patterns(patterns, base_path=None):
 
 
 def compose(sublist_file_paths=None, glob_patterns=None, base_path=None):
+    if sublist_file_paths is None:
+        sublist_file_paths = []
+    if glob_patterns is None:
+        glob_patterns = []
     paths = OrderedSet(itertools.chain(paths_from_sublists(sublist_file_paths, base_path=base_path),
                                        paths_from_patterns(glob_patterns, base_path=base_path)))
     if base_path is None and len(paths) >= 1:

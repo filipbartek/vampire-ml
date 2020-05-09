@@ -100,7 +100,7 @@ def add_arguments(parser):
     parser.add_argument('--test-size', type=split_size)
     parser.add_argument('--precompute-exhaustive', action='store_true')
     parser.add_argument('--precompute-only', action='store_true')
-    parser.add_argument('--precompute', choices=['all', 'splits'])
+    parser.add_argument('--precompute', choices=['selection', 'splits'])
     parser.add_argument('--learn-max-symbols', type=int, default=200)
     parser.add_argument('--predict-max-symbols', type=int, default=1024)
     parser.add_argument('--progress', type=int, default=1)
@@ -223,6 +223,9 @@ def call(namespace):
     problem_categories = np.asarray(list(
         map(partial(problem_category, problem_paths_train=problem_paths_train, problem_paths_test=problem_paths_test),
             problem_paths)))
+    problem_paths_selection, _ = file_path_list.compose(None, problem_patterns_all, problem_base_path)
+    problem_selection_mask = np.fromiter((path in problem_paths_selection for path in problem_paths), dtype=np.bool,
+                                         count=len(problem_paths))
 
     # Default Vampire options:
     vampire_options = {
@@ -431,12 +434,14 @@ def call(namespace):
                                                                                                    max_symbols=namespace.predict_max_symbols)
         if namespace.precompute is not None:
             logging.info('Precomputing preference matrices with default preference matrix estimation.')
-            if namespace.precompute == 'all':
-                logging.info('Precomputing %s train problems.', np.count_nonzero(problem_categories != 'test'))
-                problem_preference_matrix_transformer.transform(problems[problem_categories != 'test'])
+            if namespace.precompute == 'selection':
+                problems_train = problems[problem_selection_mask & (problem_categories != 'test')]
+                logging.info('Precomputing %s train problems.', len(problems_train))
+                problem_preference_matrix_transformer.transform(problems_train)
                 if run_generator_test is not None:
-                    logging.info('Precomputing %s test problems.', problem_categories != 'train')
-                    run_generator_test.transform(problems[problem_categories != 'train'])
+                    problems_test = problems[problem_selection_mask & (problem_categories != 'train')]
+                    logging.info('Precomputing %s test problems.', len(problems_test))
+                    run_generator_test.transform(problems_test)
             if namespace.precompute == 'splits':
                 # Note: Calling `split` preserves `random_state`.
                 for train, test in cv.split(problems, groups=problem_categories):
