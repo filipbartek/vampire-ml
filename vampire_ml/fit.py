@@ -447,7 +447,8 @@ def call(namespace):
                 n = len(problems)
                 # Note: Calling `split` preserves `random_state`.
                 for train, test in cv.split(problems, groups=problem_categories):
-                    problem_preference_matrix_transformer.transform(problems[problem_selection_mask & indices_to_mask(train, n)])
+                    problem_preference_matrix_transformer.transform(
+                        problems[problem_selection_mask & indices_to_mask(train, n)])
                     if run_generator_test is not None:
                         run_generator_test.transform(problems[problem_selection_mask & indices_to_mask(test, n)])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
