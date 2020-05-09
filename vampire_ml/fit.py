@@ -361,7 +361,8 @@ def call(namespace):
                                                                   'problem_matrix__')
             if 'pair_value_regressors' in cases:
                 preference_predictor_param_grid.extend(
-                    [{'batch_size': [1000], 'pair_value': [reg_linear, reg_lasso, reg_elasticnet, reg_ridge, reg_svr_linear, reg_svr]},
+                    [{'batch_size': [1000],
+                      'pair_value': [reg_linear, reg_lasso, reg_elasticnet, reg_ridge, reg_svr_linear, reg_svr]},
                      {'pair_value': [reg_linear, reg_lasso, reg_elasticnet, reg_ridge, reg_svr_linear, reg_gbr]}])
             if 'heuristics' in cases:
                 if len(symbol_types) == 1:
