@@ -55,12 +55,14 @@ from vampire_ml.sklearn_extensions import QuantileImputer
 from vampire_ml.sklearn_extensions import StableShuffleSplit
 from vampire_ml.sklearn_extensions import StableStandardScaler
 from vampire_ml.train import BatchGeneratorPreference
+from vampire_ml.train import BatchGeneratorRaw
 from vampire_ml.train import PreferenceMatrixPredictor
 from vampire_ml.train import PreferenceMatrixTransformer
 from vampire_ml.train import RunGenerator
 
 cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'weighting',
-             'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics', 'score_predictors']
+             'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics', 'score_predictors',
+             'raw_scores']
 
 cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'weighting',
                  'heuristics']
@@ -353,13 +355,19 @@ def call(namespace):
             reg_svr_linear = LinearSVR(loss='squared_epsilon_insensitive', dual=False, random_state=0)
             reg_svr = SVR()
             reg_gbr = GradientBoostingRegressor(random_state=0)
-            batch_generator = BatchGeneratorPreference(problem_preference_matrix_transformer, batch_size=1000000,
-                                                       random_state=0)
-            preference_predictor = PreferenceMatrixPredictor(batch_generator,
+            batch_generator_preference = BatchGeneratorPreference(problem_preference_matrix_transformer,
+                                                                  batch_size=1000000,
+                                                                  random_state=0)
+            batch_generator_raw = BatchGeneratorRaw(run_generator_train, score_scaler_continuous, batch_size=1000000,
+                                                    random_state=0)
+            preference_predictor = PreferenceMatrixPredictor(batch_generator_preference,
                                                              reg_elasticnet,
                                                              max_symbols=namespace.predict_max_symbols)
             preference_predictor_param_grid = decorate_param_grid(problem_preference_matrix_transformer_param_grid,
                                                                   'batch_generator__problem_matrix__')
+            if 'raw_scores' in cases:
+                preference_predictor_param_grid.extend([{'batch_generator': [batch_generator_raw],
+                                                         'batch_generator__weighted_precedences': [False, True]}])
             if 'pair_value_regressors' in cases:
                 preference_predictor_param_grid.extend(
                     [{'batch_generator__batch_size': [1000],

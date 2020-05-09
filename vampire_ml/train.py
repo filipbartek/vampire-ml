@@ -298,6 +298,77 @@ class BatchGeneratorPreference(BaseEstimator):
         return chosen_pairs_embeddings, chosen_pairs_values
 
 
+class BatchGeneratorRaw(BaseEstimator):
+    def __init__(self, run_generator, score_scaler, batch_size, weighted_precedences=True, random_state=None):
+        self.run_generator = run_generator
+        self.score_scaler = score_scaler
+        self.batch_size = batch_size
+        self.weighted_precedences = weighted_precedences
+        if random_state is None:
+            self.random_state = np.random
+        elif isinstance(random_state, int):
+            self.random_state = np.random.RandomState(random_state)
+        else:
+            self.random_state = random_state
+
+    def symbol_types(self):
+        return self.run_generator.symbol_types()
+
+    def generate_batch(self, problems, symbol_type):
+        problem_indexes = self.random_state.choice(len(problems), size=self.batch_size)
+        symbol_pair_embeddings = []
+        target_preference_values = []
+        for problem_i, n_samples in zip(*np.unique(problem_indexes, return_counts=True)):
+            problem = problems[problem_i]
+            try:
+                symbol_pair_embedding, target_preference_value = self.generate_batch_from_problem(problem, symbol_type, n_samples)
+                symbol_pair_embeddings.append(symbol_pair_embedding)
+                target_preference_values.append(target_preference_value)
+            except RuntimeError:
+                logging.debug(f'Failed to generate samples from problem {problem}.', exc_info=True)
+        if len(symbol_pair_embeddings) == 0:
+            assert len(target_preference_values) == 0
+            return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
+                            dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
+        return np.concatenate(symbol_pair_embeddings), np.concatenate(target_preference_values)
+
+    def generate_batch_from_problem(self, problem, symbol_type, n_samples):
+        n_symbols = len(problem.get_symbols(symbol_type))  # May raise RuntimeError
+        if n_symbols < 2:
+            raise RuntimeError('Problem has less than 2 symbols.')
+        precedences, scores = self.process_problem(problem)
+        precedences = precedences[symbol_type]
+        precedences = precedences[~np.isnan(scores)]
+        scores = scores[~np.isnan(scores)]
+        if len(precedences) == 0:
+            raise RuntimeError('No valid-scored runs.')
+        l, r = np.triu_indices(n_symbols, k=1)
+        consequent_symbol_index_pairs = np.concatenate((l.reshape(-1, 1), r.reshape(-1, 1)), axis=1)
+        p = None
+        if self.weighted_precedences:
+            if np.allclose(0, scores):
+                raise RuntimeError('Cannot learn from all-zero-scored runs.')
+            p = np.abs(scores) / np.sum(np.abs(scores))
+        precedence_indices = self.random_state.choice(len(precedences), size=n_samples, p=p)
+        symbol_pair_indices = self.random_state.choice(len(consequent_symbol_index_pairs), size=n_samples)
+        chosen_pairs_index_pairs = np.empty((n_samples, 2), dtype=np.uint)
+        for sample_i in range(n_samples):
+            precedence = precedences[precedence_indices[sample_i]]
+            index_pair = consequent_symbol_index_pairs[symbol_pair_indices[sample_i]]
+            chosen_pairs_index_pairs[sample_i] = precedence[index_pair]
+        chosen_pairs_embeddings = problem.get_symbol_pair_embeddings(symbol_type, chosen_pairs_index_pairs)
+        chosen_scores = scores[precedence_indices]
+        return chosen_pairs_embeddings, chosen_scores
+
+    def process_problem(self, problem):
+        precedences, scores = self.run_generator.transform_one(problem)
+        if precedences is None or scores is None:
+            raise RuntimeError(f'Failed to generate precedences.')
+        # For each problem, we fit an independent copy of target transformer.
+        scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
+        return precedences, scores
+
+
 class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
     """
     Predicts a symbol preference matrix dictionary for a problem.
