@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import logging
 import os
 from contextlib import contextmanager
 
@@ -79,9 +78,7 @@ assert dict_to_name({'a': 0.1, 'c': {'d': 'str'}, 'b': 2}) == 'a_01_c_d_str_b_2'
 
 # https://stackoverflow.com/a/480227/4054250
 def uniquify(seq):
-    logging.debug('Before uniquification: %s', len(seq))
     seen = set()
     seen_add = seen.add
     res = [x for x in seq if not (x in seen or seen_add(x))]
-    logging.debug('After uniquification: %s', len(res))
     return res
