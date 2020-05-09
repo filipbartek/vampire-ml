@@ -40,11 +40,14 @@ class Result:
         return Result(data['time_elapsed'], data['status'], stdout, stderr, data['exit_code'])
 
 
-def run(args, timeout=None):
+def run(args, timeout=None, capture_stdout=True, capture_stderr=True):
     time_start = time.time()
     try:
         logging.debug(' '.join(args))
-        cp = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout, text=True)
+        cp = subprocess.run(args,
+                            stdout=(subprocess.PIPE if capture_stdout else subprocess.DEVNULL),
+                            stderr=(subprocess.PIPE if capture_stderr else subprocess.DEVNULL), timeout=timeout,
+                            text=True)
         time_elapsed = time.time() - time_start
         status = 'completed'
         stdout = cp.stdout
@@ -57,7 +60,7 @@ def run(args, timeout=None):
 
         def decode(b):
             if b is None:
-                return ''
+                return None
             if isinstance(b, bytes):
                 return b.decode('utf-8')
             return str(b)
