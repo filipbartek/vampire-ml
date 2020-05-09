@@ -470,7 +470,8 @@ class Configuration:
                                         [os.path.join(problem_dir, self.problem_path)]))
             if configuration_dir is not None:
                 open(os.path.join(configuration_dir, 'run.sh'), 'w').write(' '.join(args))
-            result = Result(process.run(args, timeout=self.timeout))
+            capture_stdout = 'mode' not in options or options['mode'] != 'clausify'
+            result = Result(process.run(args, timeout=self.timeout, capture_stdout=capture_stdout))
             if self.is_clausify and result.exit_code == 0:
                 result.symbols = load_symbols(options['symbols_csv_output'])
                 result.clauses = load_clauses(options['clauses_json_output'])
