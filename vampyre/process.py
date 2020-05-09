@@ -29,8 +29,14 @@ class Result:
     @staticmethod
     def load(path):
         data = json.load(open(os.path.join(path, 'result.json')))
-        stdout = open(os.path.join(path, 'stdout.txt')).read()
-        stderr = open(os.path.join(path, 'stderr.txt')).read()
+        try:
+            stdout = open(os.path.join(path, 'stdout.txt')).read()
+        except FileNotFoundError:
+            stdout = None
+        try:
+            stderr = open(os.path.join(path, 'stderr.txt')).read()
+        except FileNotFoundError:
+            stderr = None
         return Result(data['time_elapsed'], data['status'], stdout, stderr, data['exit_code'])
 
 
