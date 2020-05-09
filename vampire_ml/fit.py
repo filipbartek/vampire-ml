@@ -463,12 +463,14 @@ def call(namespace):
                           error_score='raise', return_train_score=return_train_score)
         if namespace.precompute_exhaustive:
             # Precompute data for train set
-            fit_gs(gs, problems[problem_categories != 'test'], scorers, output=namespace.output, name='precompute_train')
+            fit_gs(gs, problems[problem_categories != 'test'], scorers, output=namespace.output,
+                   name='precompute_train')
 
             if run_generator_test is not None:
                 # Precompute data for test set
                 problem_preference_matrix_transformer.run_generator = run_generator_test
-                fit_gs(gs, problems[problem_categories != 'train'], scorers, output=namespace.output, name='precompute_test')
+                fit_gs(gs, problems[problem_categories != 'train'], scorers, output=namespace.output,
+                       name='precompute_test')
             return
         if namespace.precompute_only:
             return
