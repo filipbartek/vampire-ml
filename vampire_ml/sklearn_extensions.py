@@ -203,3 +203,16 @@ def get_feature_weights(estimator):
     if weights is None:
         raise RuntimeError('The estimator does not expose feature weights in `coef_` or `feature_importances_`.')
     return weights
+
+
+def get_hyperparameters(estimator):
+    res = {}
+    try:
+        res['alpha'] = estimator.alpha_
+    except AttributeError:
+        pass
+    try:
+        res['l1_ratio'] = estimator.l1_ratio_
+    except AttributeError:
+        pass
+    return res

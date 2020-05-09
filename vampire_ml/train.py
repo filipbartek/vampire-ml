@@ -16,6 +16,7 @@ from utils import memory
 from vampire_ml.sklearn_extensions import Flattener
 from vampire_ml.sklearn_extensions import StaticTransformer
 from vampire_ml.sklearn_extensions import get_feature_weights
+from vampire_ml.sklearn_extensions import get_hyperparameters
 
 
 @memory.cache
@@ -129,6 +130,7 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
                 return None
             # For each problem, we fit an independent copy of target transformer.
             scores = sklearn.base.clone(self.score_scaler).fit_transform(scores.reshape(-1, 1))[:, 0]
+            logging.debug('Fitting preference matrices for problem %s', problem)
             return {symbol_type: self.get_preference_matrix(precedence_matrix, scores) for
                     symbol_type, precedence_matrix in precedences.items()}
         except RuntimeError:
@@ -177,6 +179,9 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
             # Note: If fitting fails to converge, the coefficients are all zeros.
         # TODO: Consider using a sparse representation of the output.
         preference_matrix = preference_pipeline['flattener'].inverse_transform(score_predictor.coef_)[0]
+        logging.debug('%s / %s coefficients fitted to non-zero value.', np.count_nonzero(score_predictor.coef_),
+                      len(score_predictor.coef_))
+        logging.debug('Fitted hyperparameters: %s', get_hyperparameters(score_predictor))
         return preference_matrix
 
     @staticmethod
@@ -262,6 +267,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
                     reg.fit(symbol_pair_embeddings, target_preference_values)
                 logging.info(f'General {symbol_type} preference regressor: Fitted.')
+            logging.debug('Fitted hyperparameters: %s', get_hyperparameters(reg))
             with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
                 try:
                     logging.info(f'Feature weights: {get_feature_weights(reg)}')
@@ -334,8 +340,8 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     problem, symbol_type, preference_record.matrices[problem_i], n_samples)
                 symbol_pair_embeddings.append(symbol_pair_embedding)
                 target_preference_values.append(target_preference_value)
-            except RuntimeError as e:
-                warnings.warn(f'Failed to generate samples from problem {problem}. Cause: {e}')
+            except RuntimeError:
+                logging.debug(f'Failed to generate samples from problem {problem}.', exc_info=True)
         if len(symbol_pair_embeddings) == 0:
             assert len(target_preference_values) == 0
             return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
