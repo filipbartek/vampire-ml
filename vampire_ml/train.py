@@ -110,6 +110,9 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         logging.info(f'Estimating preference matrices for {len(problems)} problems')
         return Parallel(verbose=1)(delayed(self.transform_one)(problem) for problem in problems)
 
+    def predict_one(self, problem, symbol_type):
+        return self.transform_one(problem)[symbol_type]
+
     def transform_one(self, problem):
         if memory.recompute:
             preference_matrix_transformer_transform_one.call_and_shelve(self, problem).clear()
