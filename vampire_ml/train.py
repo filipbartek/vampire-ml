@@ -97,8 +97,8 @@ class PreferenceMatrixTransformer(BaseEstimator, StaticTransformer):
         :param run_generator: Run generator. Transforms problem into precedences and scores.
         :param score_scaler: Score scaler blueprint. Scales a batch of scores.
         :param score_predictor: Score predictor blueprint. Predicts score from symbol order matrix.
-        Must be a linear model exposing `coef_`. The same predictor is used for all symbol types
-        (predicates and functions).
+            Must be a linear model exposing `coef_`. The same predictor is used for all symbol types
+            (predicates and functions).
         """
         self.run_generator = run_generator
         self.score_scaler = score_scaler
