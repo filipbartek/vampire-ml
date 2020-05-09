@@ -51,7 +51,7 @@ if __name__ == '__main__':
     logging.info('Beginning.')
     logging.debug('Logging config file: %s', namespace.log_config)
     logging.info('Logging output file: %s', namespace.log_output)
-    logging.debug('Logging default level: %s', logging.getLogger().level)
+    logging.info('Logging default level: %s', logging.getLogger().level)
 
     logging.getLogger('matplotlib').setLevel(logging.INFO)
 
