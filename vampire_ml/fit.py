@@ -386,11 +386,13 @@ def call(namespace):
                     ]}])
             if 'weighting' in cases:
                 preference_predictor_param_grid.extend(
-                    [{'batch_generator__weighted_problems': [False, True], 'batch_generator__weighted_symbol_pairs': [False, True]}])
+                    [{'batch_generator__weighted_problems': [False, True],
+                      'batch_generator__weighted_symbol_pairs': [False, True]}])
             if 'pair_value_svr' in cases:
                 preference_predictor_param_grid.extend([
                     {'pair_value': [reg_svr_linear], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]},
-                    {'batch_generator__batch_size': [1000], 'pair_value': [reg_svr], 'pair_value__C': [0.1, 0.5, 1.0, 2.0]}
+                    {'batch_generator__batch_size': [1000], 'pair_value': [reg_svr],
+                     'pair_value__C': [0.1, 0.5, 1.0, 2.0]}
                 ])
             cv = StableShuffleSplit(n_splits=namespace.n_splits, train_size=namespace.train_size,
                                     test_size=namespace.test_size, random_state=0)
