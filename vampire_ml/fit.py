@@ -338,10 +338,12 @@ def call(namespace):
                                         RidgeClassifierCV()]
                 }
             ])
+        return_train_score = True
         if namespace.precompute_exhaustive:
             preference_predictor = problem_preference_matrix_transformer
             preference_predictor_param_grid = problem_preference_matrix_transformer_param_grid
             cv = StableShuffleSplit(n_splits=1, train_size=0, test_size=1.0, random_state=0)
+            return_train_score = False
         else:
             reg_linear = LinearRegression(copy_X=False)
             reg_lasso = LassoCV(copy_X=False)
@@ -458,7 +460,7 @@ def call(namespace):
                     if run_generator_test is not None:
                         run_generator_test.transform(problems[problem_selection_mask & indices_to_mask(test, n)])
         gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
-                          error_score='raise', return_train_score=True)
+                          error_score='raise', return_train_score=return_train_score)
         if namespace.precompute_exhaustive:
             # Precompute data for train set
             fit_gs(gs, problems[problem_categories != 'test'], scorers, output=namespace.output, name='precompute_train')
