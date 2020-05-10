@@ -465,7 +465,7 @@ def call(namespace):
                                                                                    ['problems', 'samples'],
                                                                                    ['saturation_iterations', 'success'],
                                                                                    ['strict', 'weak', 'mean']):
-                scorers[f'ordering.{symbol_type}.{aggregation}.{measure}.{comparison}'] = ScorerOrdering(
+                scorers[f'ord.{symbol_type[0]}.{aggregation[0]}.{measure[:3]}.{comparison[0]}'] = ScorerOrdering(
                     run_generator_test,
                     symbol_type,
                     aggregation=aggregation,
