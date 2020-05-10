@@ -115,12 +115,20 @@ class StableShuffleSplit(ShuffleSplit):
     def _iter_indices(self, X, y=None, groups=None):
         n_available_total = _num_samples(X)
         if groups is None:
-            n_available_train = n_available_total
-            n_available_test = n_available_total
+            available_train = np.ones(n_available_total, dtype=np.bool)
+            available_test = np.ones(n_available_total, dtype=np.bool)
         else:
             assert groups.shape == (n_available_total,)
-            n_available_train = np.count_nonzero(groups != 'test')
-            n_available_test = np.count_nonzero(groups != 'train')
+            if np.count_nonzero(groups == 'train') > 0:
+                available_train = groups == 'train'
+            else:
+                available_train = np.ones(n_available_total, dtype=np.bool)
+            if np.count_nonzero(groups == 'test') > 0:
+                available_test = groups == 'test'
+            else:
+                available_test = np.ones(n_available_total, dtype=np.bool)
+        n_available_train = np.count_nonzero(available_train)
+        n_available_test = np.count_nonzero(available_test)
         n_train = self.train_samples(n_available_train)
         n_test = self.test_samples(n_available_test)
         logging.info('Generating %s splits. Train: %s / %s. Test: %s / %s. Total: %s.', self.n_splits, n_train, n_available_train, n_test, n_available_test, n_available_total)
@@ -138,14 +146,10 @@ class StableShuffleSplit(ShuffleSplit):
         rng = check_random_state(self.random_state)
         for i in range(self.n_splits):
             permutation = rng.permutation(n_available_total).astype(self.dtype)
-            if groups is None:
-                ind_train = permutation[:n_train]
-                ind_test = permutation[:-n_test - 1:-1]
-            else:
-                ind_train = np.fromiter((p for p in permutation if groups[p] != 'test'), dtype=self.dtype,
-                                        count=n_train)
-                ind_test = np.fromiter((p for p in reversed(permutation) if groups[p] != 'train'), dtype=self.dtype,
-                                       count=n_test)
+            ind_train = np.fromiter((p for p in permutation if available_train[p]), dtype=self.dtype, count=n_train)
+            ind_train_set = set(ind_train)
+            ind_test = np.fromiter((p for p in reversed(permutation) if available_test[p] and p not in ind_train_set),
+                                   dtype=self.dtype, count=n_test)
             assert len(ind_train) == n_train
             assert len(ind_test) == n_test
             yield ind_train, ind_test
