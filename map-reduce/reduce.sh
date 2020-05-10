@@ -14,4 +14,4 @@ echo PROBLEMS=$PROBLEMS
 
 echo Parameters: "$@"
 
-$(realpath $VAMPIRE_ML/fit.sh) --problem-list $PROBLEMS "$@"
+$(realpath $VAMPIRE_ML/fit.sh) "$@"
