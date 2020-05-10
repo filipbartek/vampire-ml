@@ -114,6 +114,20 @@ def add_arguments(parser):
     parser.add_argument('--progress-postfix-refresh', type=int, default=0)
     parser.add_argument('--cases', nargs='+', choices=cases_all)
     parser.add_argument('--problems-dataframe', action='store_true')
+    parser.add_argument('--weighted-problems', type=str2bool, default=False)
+    parser.add_argument('--weighted-symbol-pairs', type=str2bool, default=True)
+
+
+# https://stackoverflow.com/a/43357954/4054250
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
 def split_size(s):
@@ -360,6 +374,8 @@ def call(namespace):
             reg_gbr = GradientBoostingRegressor(random_state=0)
             batch_generator_preference = BatchGeneratorPreference(problem_preference_matrix_transformer,
                                                                   batch_size=1000000,
+                                                                  weighted_problems=namespace.weighted_problems,
+                                                                  weighted_symbol_pairs=namespace.weighted_symbol_pairs,
                                                                   random_state=0)
             batch_generator_raw = BatchGeneratorRaw(run_generator_train, score_scaler_continuous, batch_size=1000000,
                                                     random_state=0)
