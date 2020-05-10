@@ -12,7 +12,6 @@ echo PROBLEMS=$PROBLEMS
 
 echo Parameters: "$@"
 
-if [ -n "${SKIP_MAP-}" ]; then echo "Skipping map step."
-else $(dirname $0)/map.sh "$@"; fi
+if [ -n "${DO_MAP-}" ]; then $(dirname $0)/map.sh "$@"; fi
 
 $(dirname $0)/reduce.sh "$@"
