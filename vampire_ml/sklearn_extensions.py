@@ -131,7 +131,8 @@ class StableShuffleSplit(ShuffleSplit):
         n_available_test = np.count_nonzero(available_test)
         n_train = self.train_samples(n_available_train)
         n_test = self.test_samples(n_available_test)
-        logging.info('Generating %s splits. Train: %s / %s. Test: %s / %s. Total: %s.', self.n_splits, n_train, n_available_train, n_test, n_available_test, n_available_total)
+        logging.info('Generating %s splits. Train: %s / %s. Test: %s / %s. Total: %s.', self.n_splits, n_train,
+                     n_available_train, n_test, n_available_test, n_available_total)
         if n_train + n_test > n_available_total:
             raise ValueError('Reduce test size or train size.')
         # We omit shuffling if all samples go into one output set with only one split.
