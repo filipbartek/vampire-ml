@@ -322,7 +322,8 @@ def call(namespace):
             'elasticnet': ElasticNetCV(l1_ratio=[.01, .1, .5, .9, 1], copy_X=False, random_state=0),
             'ridge': RidgeCV()
         }
-        score_predictor_default = score_predictors_continuous['elasticnet']
+        # ElasticNetCV converges to Lasso on most problems.
+        score_predictor_default = score_predictors_continuous['lasso']
         problem_preference_matrix_transformer = PreferenceMatrixTransformer(run_generator_train,
                                                                             score_scaler_continuous,
                                                                             score_predictor_default,
