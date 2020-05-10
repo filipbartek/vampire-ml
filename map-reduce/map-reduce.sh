@@ -4,7 +4,7 @@ set -euo pipefail
 
 export OUTPUT=${OUTPUT:-$(dirname $0)}
 export VAMPIRE_ML=${VAMPIRE_ML:-$(dirname $0)/..}
-export PROBLEMS=${PROBLEMS:-$VAMPIRE_ML/problems/cnf_fof.txt}
+export PROBLEMS=${PROBLEMS-$VAMPIRE_ML/problems/cnf_fof.txt}
 
 echo OUTPUT=$OUTPUT
 echo VAMPIRE_ML=$VAMPIRE_ML

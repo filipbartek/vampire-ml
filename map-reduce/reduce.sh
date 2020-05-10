@@ -5,7 +5,7 @@ set -euo pipefail
 export OUTPUT=${OUTPUT:-$(dirname $0)}
 export JOB_ID=${JOB_ID:-reduce}
 export VAMPIRE_ML=${VAMPIRE_ML:-$(dirname $0)/..}
-PROBLEMS=${PROBLEMS:-$VAMPIRE_ML/problems/cnf_fof.txt}
+export PROBLEMS=${PROBLEMS-$VAMPIRE_ML/problems/cnf_fof.txt}
 
 echo OUTPUT=$OUTPUT
 echo JOB_ID=$JOB_ID
