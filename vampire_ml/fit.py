@@ -31,6 +31,7 @@ from sklearn.model_selection import GridSearchCV
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
 
+import config
 import utils
 import vampyre
 from utils import ProgressBar
@@ -196,6 +197,8 @@ def call(namespace):
     utils.progress_bar.mininterval = namespace.progress_mininterval
     utils.progress_bar.postfix_enabled = namespace.progress_postfix
     utils.progress_bar.postfix_refresh = namespace.progress_postfix_refresh
+
+    config.output_dir = namespace.output
 
     problem_base_path = None
     try:

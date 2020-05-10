@@ -1,18 +1,22 @@
 import collections
 import logging
+import os
 import sys
 import warnings
 
 import numpy as np
+import pandas as pd
 import sklearn.base
 from joblib import Parallel, delayed
 from sklearn import pipeline
 from sklearn import preprocessing
 from sklearn.base import BaseEstimator, TransformerMixin
 
+import config
 import vampyre
 from utils import ProgressBar
 from utils import memory
+from vampire_ml.results import save_df
 from vampire_ml.sklearn_extensions import Flattener
 from vampire_ml.sklearn_extensions import StaticTransformer
 from vampire_ml.sklearn_extensions import get_feature_weights
@@ -252,6 +256,7 @@ class BatchGeneratorPreference(BaseEstimator):
         assert len(problems) == len(preference_record.matrices) == len(preference_record.weights)
         symbol_pair_embeddings = list()
         target_preference_values = list()
+        chosen_problems = list()
         assert np.all(preference_record.weights >= 0)
         if self.weighted_problems:
             if np.count_nonzero(preference_record.weights) == 0:
@@ -271,13 +276,27 @@ class BatchGeneratorPreference(BaseEstimator):
                     problem, symbol_type, preference_record.matrices[problem_i], n_samples)
                 symbol_pair_embeddings.append(symbol_pair_embedding)
                 target_preference_values.append(target_preference_value)
+                chosen_problems.append(problem)
             except RuntimeError:
                 logging.debug(f'Failed to generate samples from problem {problem}.', exc_info=True)
         if len(symbol_pair_embeddings) == 0:
             assert len(target_preference_values) == 0
             return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
                             dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
+        df = self.samples_dataframe(chosen_problems, symbol_pair_embeddings, target_preference_values, symbol_type)
+        save_df(df, os.path.join('batch', symbol_type), output_dir=config.output_dir, index=False)
         return np.concatenate(symbol_pair_embeddings), np.concatenate(target_preference_values)
+
+    def samples_dataframe(self, chosen_problems, symbol_pair_embeddings, target_preference_values, symbol_type):
+        data = {'problem_path': [], 'target': []}
+        column_names = vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type)
+        data.update({col: [] for col in column_names})
+        for problem, embeddings, targets in zip(chosen_problems, symbol_pair_embeddings, target_preference_values):
+            data['problem_path'].extend([problem.path] * len(targets))
+            data['target'].extend(targets)
+            for i, col in enumerate(column_names):
+                data[col].extend(embeddings[:, i])
+        return pd.DataFrame(data)
 
     def generate_sample_from_preference_matrix(self, problem, symbol_type, preference_matrix, n_samples):
         if preference_matrix is None:
