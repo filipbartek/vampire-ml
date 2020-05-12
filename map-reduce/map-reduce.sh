@@ -12,6 +12,6 @@ echo PROBLEMS=$PROBLEMS
 
 echo Parameters: "$@"
 
-if [ -n "${DO_MAP-}" ]; then $(dirname $0)/map.sh "$@"; fi
+if [ -n "${MAP_MAX_PROCS-}" ]; then $(dirname $0)/map.sh "$@"; fi
 
 $(dirname $0)/reduce.sh "$@"
