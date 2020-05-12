@@ -350,6 +350,11 @@ class Workspace:
     def get_configuration_path(self, configuration):
         m = hashlib.md5()
         m.update(configuration.tobytes())
+        if configuration.mode == 'clausify':
+            # Hack:
+            # The following Vampire version has updated clausify output.
+            # We salt the hash to recompute the previously cached results.
+            m.update(json.dumps({'vampire_version': '926154f2193d876feed0b34b9aa421b93aa5e69b'}).encode('utf-8'))
         assert self.path is not None
         return os.path.join(self.path, 'vampire_runs', configuration.problem_path, configuration.mode, m.hexdigest())
 
