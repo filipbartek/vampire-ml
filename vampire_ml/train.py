@@ -250,6 +250,10 @@ class BatchGeneratorPreference(BaseEstimator):
         return preferences
 
     def generate_batch(self, problems, symbol_type):
+        if len(problems) == 0:
+            warnings.warn('No problem to learn from.')
+            return np.empty((0, len(vampyre.vampire.Problem.get_symbol_pair_embedding_column_names(symbol_type))),
+                            dtype=vampyre.vampire.Problem.dtype_embedding), np.empty(0, dtype=np.float)
         logging.debug(f'General {symbol_type} preference regressor: Generating batch of {self.batch_size} samples...')
         preferences = self.get_preferences(problems)
         preference_record = preferences[symbol_type]
