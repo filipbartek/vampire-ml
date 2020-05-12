@@ -232,10 +232,7 @@ def call(namespace):
     except KeyError:
         warnings.warn('Set $TPTP to the path prefix for the include TPTP directive.')
 
-    problem_lists_all = uniquify(
-        itertools.chain(namespace.problem_list, namespace.train_problem_list, namespace.test_problem_list))
-    problem_patterns_all = uniquify(itertools.chain(namespace.problem, namespace.train_problem, namespace.test_problem))
-    problem_paths, problem_base_path = file_path_list.compose(problem_lists_all, problem_patterns_all,
+    problem_paths, problem_base_path = file_path_list.compose(namespace.problem_list, namespace.problem,
                                                               problem_base_path)
     problem_paths_train, _ = file_path_list.compose(namespace.train_problem_list, namespace.train_problem,
                                                     base_path=problem_base_path)
@@ -244,7 +241,7 @@ def call(namespace):
     problem_categories = np.asarray(list(
         map(partial(problem_category, problem_paths_train=problem_paths_train, problem_paths_test=problem_paths_test),
             problem_paths)))
-    problem_paths_selection, _ = file_path_list.compose(None, problem_patterns_all, problem_base_path)
+    problem_paths_selection, _ = file_path_list.compose(None, namespace.problem, problem_base_path)
     if len(problem_paths_selection) == 0:
         problem_selection_mask = np.ones(len(problem_paths), dtype=np.bool)
     else:
