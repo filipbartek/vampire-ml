@@ -11,6 +11,12 @@ set -euo pipefail
 
 . $(dirname $0)/env.sh
 
+# https://scikit-learn.org/stable/modules/computing.html#parallel-numpy-routines-from-numerical-libraries
+export MKL_NUM_THREADS=1
+export OPENBLAS_NUM_THREADS=1
+export BLIS_NUM_THREADS=1
+export OMP_NUM_THREADS=1
+
 if [ -n "${SLURM_ARRAY_JOB_ID-}" ] && [ -n "${SLURM_ARRAY_TASK_ID-}" ]; then
   JOB_ID=${JOB_ID-$SLURM_ARRAY_JOB_ID/$SLURM_ARRAY_TASK_ID}
 fi
