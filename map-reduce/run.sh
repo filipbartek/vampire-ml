@@ -10,11 +10,12 @@ nohup nice $(realpath $(dirname $0))/map-reduce.sh "$@" &>$OUTPUT/stdout.txt &
 
 # https://stackoverflow.com/a/17389526/4054250
 pid=$!
-echo pid: $pid
+echo "pid=$pid"
 echo $pid >$OUTPUT/pid.txt
 
-pgid=$(ps p $pid o pgid=)
-echo pgid: $pgid
+# We echo to get rid of leading whitespace.
+pgid=$(echo $(ps p $pid o pgid=))
+echo "pgid=$pgid"
 echo $pgid >$OUTPUT/pgid.txt
 
 echo "kill -- -$pgid" >$OUTPUT/kill.sh
