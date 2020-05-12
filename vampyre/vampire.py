@@ -163,9 +163,7 @@ class Problem:
 
     @staticmethod
     def get_symbol_embedding_column_names(symbol_type):
-        res = ['arity', 'usageCnt', 'unitUsageCnt', 'inGoal', 'inUnit']
-        if symbol_type == 'function':
-            res.append('skolem')
+        res = ['arity', 'usageCnt', 'unitUsageCnt', 'inGoal', 'inUnit', 'introduced']
         return res
 
     @functools.lru_cache(maxsize=2)
