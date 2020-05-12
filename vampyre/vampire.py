@@ -150,16 +150,12 @@ class Problem:
 
     @staticmethod
     def get_embedding_column_names():
-        return ['clauses_count']
+        return []
 
     @functools.lru_cache(maxsize=1)
     def get_embedding(self):
-        try:
-            clauses_count = len(self.get_clauses())
-        except TypeError:
-            clauses_count = 1024 * 1024
-            logging.warning(f'Failed to determine number of clauses. Defaulting to {clauses_count}.')
-        return np.asarray([clauses_count], dtype=self.dtype_embedding)
+        # TODO: Implement a problem embedding.
+        return np.empty((0,), dtype=self.dtype_embedding)
 
     @staticmethod
     def get_symbol_embedding_column_names(symbol_type):
