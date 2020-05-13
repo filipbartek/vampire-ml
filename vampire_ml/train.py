@@ -437,7 +437,7 @@ class PreferenceMatrixPredictor(BaseEstimator, TransformerMixin):
                     warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
                     reg.fit(symbol_pair_embeddings, target_preference_values)
                 logging.info(f'General {symbol_type} preference regressor: Fitted.')
-            logging.debug('Fitted hyperparameters: %s', get_hyperparameters(reg))
+            logging.info('Fitted hyperparameters: %s', get_hyperparameters(reg))
             with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
                 try:
                     logging.info(f'Feature weights: {get_feature_weights(reg)}')
