@@ -498,7 +498,8 @@ def call(namespace):
                     if run_generator_test is not None:
                         run_generator_test.transform(problems[problem_selection_mask & indices_to_mask(test, n)])
         logging.info('Cases: %s', cases)
-        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=namespace.refit_scorer, verbose=5,
+        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=namespace.refit_scorer,
+                          verbose=5,
                           error_score='raise', return_train_score=return_train_score)
         if namespace.precompute_exhaustive:
             # Precompute data for train set
