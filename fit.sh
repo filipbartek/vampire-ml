@@ -107,4 +107,4 @@ echo "$@" >"$OUTPUT_LOCAL/parameters.txt"
 echo "$problems" >"$OUTPUT_LOCAL/problems.txt"
 echo "${XARGS_COMMAND[@]}" >"$OUTPUT_LOCAL/xargs-command.sh"
 
-echo "$problems" | "${XARGS_COMMAND[@]}"
+echo "$problems" | "${XARGS_COMMAND[@]}" &>$OUTPUT_LOCAL/stdout.txt
