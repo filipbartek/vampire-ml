@@ -34,7 +34,8 @@ def save_df(df, base_name, output_dir=None, index=True):
     if output_dir is not None:
         os.makedirs(output_dir, exist_ok=True)
         path_common = os.path.join(output_dir, path_common)
-    os.makedirs(os.path.dirname(path_common), exist_ok=True)
+    if len(os.path.dirname(path_common)) > 0:
+        os.makedirs(os.path.dirname(path_common), exist_ok=True)
     df.to_pickle(f'{path_common}.pkl')
     df.to_csv(f'{path_common}.csv', index=index, header=df.columns.values)
     logging.info(f'DataFrame of length {len(df.index)} saved: {path_common}.{{pkl,csv}}')
