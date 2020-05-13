@@ -38,7 +38,6 @@ from utils import ProgressBar
 from utils import file_path_list
 from utils import indices_to_mask
 from utils import memory
-from utils import uniquify
 from vampire_ml import results
 from vampire_ml.precedence_generators import BestPrecedenceGenerator
 from vampire_ml.precedence_generators import GreedyPrecedenceGenerator
