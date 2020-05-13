@@ -117,6 +117,7 @@ def add_arguments(parser):
     parser.add_argument('--weighted-problems', type=str2bool, default=False)
     parser.add_argument('--weighted-symbol-pairs', type=str2bool, default=True)
     parser.add_argument('--train-score', type=str2bool, default=True)
+    parser.add_argument('--refit-scorer', default=False, help='Example: success.count')
 
 
 # https://stackoverflow.com/a/43357954/4054250
@@ -490,7 +491,7 @@ def call(namespace):
                     if run_generator_test is not None:
                         run_generator_test.transform(problems[problem_selection_mask & indices_to_mask(test, n)])
         logging.info('Cases: %s', cases)
-        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=False, verbose=5,
+        gs = GridSearchCV(precedence_estimator, param_grid, scoring=scorers, cv=cv, refit=namespace.refit_scorer, verbose=5,
                           error_score='raise', return_train_score=return_train_score)
         if namespace.precompute_exhaustive:
             # Precompute data for train set
@@ -507,6 +508,10 @@ def call(namespace):
             return
         fit_gs(gs, problems, scorers, groups=problem_categories, output=namespace.output, name='fit_cv_results')
         if 'explainer' in scorers:
+            try:
+                scorers['explainer'](gs.best_estimator_)
+            except AttributeError:
+                logging.debug('No best estimator was fitted.', exc_info=True)
             df = scorers['explainer'].get_dataframe()
             save_df(df, 'feature_weights', output_dir=namespace.output, index=True)
 
