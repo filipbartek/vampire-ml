@@ -28,6 +28,7 @@ from sklearn.linear_model import RidgeCV
 from sklearn.linear_model import RidgeClassifier
 from sklearn.linear_model import RidgeClassifierCV
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import ParameterGrid
 from sklearn.preprocessing import FunctionTransformer
 from sklearn.svm import LinearSVR, SVR
 
@@ -512,6 +513,7 @@ def fit_gs(gs, problems, scorers, groups=None, output=None, name=None):
     if len(problems) == 0:
         logging.info(f'{name}: Skipping fitting on an empty set of problems.')
         return
+    logging.info('Beginning grid search on %d parameter combinations.', len(ParameterGrid(gs.param_grid)))
     gs.fit(problems, groups=groups)
     df = pd.DataFrame(gs.cv_results_)
     if name is not None:
