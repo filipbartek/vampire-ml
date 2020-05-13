@@ -517,6 +517,7 @@ def call(namespace):
         fit_gs(gs, problems, scorers, groups=problem_categories, output=namespace.output, name='fit_cv_results')
         if 'explainer' in scorers:
             try:
+                logging.info('Final fit:')
                 scorers['explainer'](gs.best_estimator_)
             except AttributeError:
                 logging.debug('No best estimator was fitted.', exc_info=True)
