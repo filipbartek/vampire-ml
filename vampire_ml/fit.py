@@ -116,6 +116,7 @@ def add_arguments(parser):
     parser.add_argument('--problems-dataframe', action='store_true')
     parser.add_argument('--weighted-problems', type=str2bool, default=False)
     parser.add_argument('--weighted-symbol-pairs', type=str2bool, default=True)
+    parser.add_argument('--train-score', type=str2bool, default=True)
 
 
 # https://stackoverflow.com/a/43357954/4054250
@@ -356,7 +357,7 @@ def call(namespace):
                                         RidgeClassifierCV()]
                 }
             ])
-        return_train_score = True
+        return_train_score = namespace.train_score
         if namespace.precompute_exhaustive:
             preference_predictor = problem_preference_matrix_transformer
             preference_predictor_param_grid = problem_preference_matrix_transformer_param_grid
