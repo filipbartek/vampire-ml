@@ -268,12 +268,17 @@ class ScorerExplainer:
         for symbol_type in self.symbol_types:
             try:
                 weights = get_feature_weights(estimator['precedence']['preference'].pair_value_fitted_[symbol_type])
+                scale = np.abs(weights).sum()
+                if scale != 0:
+                    weights_normalized = weights / scale
+                else:
+                    weights_normalized = weights
                 with np.printoptions(suppress=True, precision=2, linewidth=sys.maxsize):
-                    logging.debug(f'{symbol_type} feature weights: {weights}')
+                    logging.info(f'{symbol_type} feature weights: {scale} * {weights_normalized}')
             except (TypeError, AttributeError, KeyError, RuntimeError):
                 logging.debug(f'Failed to extract {symbol_type} feature weights.', exc_info=True)
-                weights = None
-            self.weights[estimator][symbol_type] = weights
+                weights_normalized = None
+            self.weights[estimator][symbol_type] = weights_normalized
         return np.nan
 
     def get_dataframe(self):
