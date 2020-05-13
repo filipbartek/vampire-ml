@@ -261,7 +261,7 @@ class ScorerExplainer:
         self.symbol_types = symbol_types
         self.weights = dict()
 
-    def __call__(self, estimator, problems, y=None):
+    def __call__(self, estimator, problems=None, y=None):
         if estimator in self.weights:
             return np.nan
         self.weights[estimator] = dict()
