@@ -3,6 +3,7 @@
 import argparse
 import logging
 import logging.config
+import sys
 
 import joblib
 import numpy as np
@@ -49,6 +50,7 @@ if __name__ == '__main__':
     except KeyError:
         logging.warning('Failed to load log config file: %s', namespace.log_config)
     logging.info('Beginning.')
+    logging.info('Arguments: %s', sys.argv)
     logging.debug('Logging config file: %s', namespace.log_config)
     logging.info('Logging output file: %s', namespace.log_output)
     logging.info('Logging default level: %s', logging.getLogger().level)
