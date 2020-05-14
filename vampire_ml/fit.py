@@ -63,7 +63,7 @@ from vampire_ml.train import RunGenerator
 
 cases_all = ['preference_estimation', 'pair_value_regressors', 'pair_value_svr', 'weighting',
              'default_heuristic', 'random', 'best_encountered', 'default', 'heuristics', 'score_predictors',
-             'raw_scores', 'elasticnet', 'svr', 'gbr']
+             'raw_scores', 'elasticnet', 'svr', 'gbr', 'linear']
 
 cases_default = ['pair_value_regressors', 'default_heuristic', 'random', 'best_encountered', 'default', 'weighting',
                  'heuristics']
@@ -387,6 +387,8 @@ def call(namespace):
             if 'raw_scores' in cases:
                 preference_predictor_param_grid.extend([{'batch_generator': [batch_generator_raw],
                                                          'batch_generator__weighted_precedences': [False, True]}])
+            if 'linear' in cases:
+                preference_predictor_param_grid.extend([{'pair_value': [reg_linear]}])
             if 'elasticnet' in cases:
                 preference_predictor_param_grid.extend([{'pair_value': [reg_elasticnet]}])
             if 'svr' in cases:
