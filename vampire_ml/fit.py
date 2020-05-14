@@ -393,7 +393,7 @@ def call(namespace):
                 preference_predictor_param_grid.extend([{'pair_value': [reg_elasticnet]}])
             if 'svr' in cases:
                 preference_predictor_param_grid.extend(
-                    [{'batch_generator__batch_size': [1000], 'pair_value': [reg_svr]}])
+                    [{'batch_generator__batch_size': [1000, 1000000], 'pair_value': [reg_svr]}])
             if 'gbr' in cases:
                 preference_predictor_param_grid.extend([{'pair_value': [reg_gbr]}])
             if 'pair_value_regressors' in cases:
