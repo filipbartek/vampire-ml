@@ -1,11 +1,15 @@
 import logging
+import warnings
 
 import numpy as np
+import sklearn
 from sklearn.base import BaseEstimator
 from sklearn.base import RegressorMixin
 from sklearn.base import TransformerMixin
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model._base import LinearModel
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import r2_score
 from sklearn.model_selection import ShuffleSplit
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import _num_samples
@@ -45,15 +49,35 @@ class MeanRegression(RegressorMixin, LinearModel):
         return self
 
 
+class InterceptRegression(RegressorMixin, LinearModel):
+    def fit(self, X, y):
+        self.intercept_ = np.nanmean(y)
+        self.coef_ = np.zeros(X.shape[1], dtype=y.dtype)
+        return self
+
+
+class BayesRegression(RegressorMixin):
+    def fit(self, X, y):
+        self.values_ = {}
+        for row, indices in zip(*np.unique(X, return_inverse=True)):
+            self.values_[row] = np.mean(y[indices])
+        return self
+
+    def predict(self, X):
+        return [self.values_[row] for row in X]
+
+
 class QuantileImputer(SimpleImputer):
-    def __init__(self, missing_values=np.nan, copy=True, quantile=0.5, factor=1, divide_by_success_rate=False):
+    def __init__(self, missing_values=np.nan, copy=True, quantile=0.5, factor=1, divide_by_success_rate=False,
+                 default_fill_value=np.nan):
         super().__init__(missing_values=missing_values, strategy='constant', fill_value=np.nan, copy=copy)
         self.quantile = quantile
         self.factor = factor
         self.divide_by_success_rate = divide_by_success_rate
+        self.default_fill_value = default_fill_value
 
     def fit(self, X, y=None):
-        self.fill_value = np.nan
+        self.fill_value = self.default_fill_value
         if not np.isnan(X).all():
             self.fill_value = np.nanquantile(X, self.quantile) * self.factor
         if self.divide_by_success_rate:
@@ -91,11 +115,15 @@ class StableStandardScaler(StandardScaler):
     def fit(self, X, y=None):
         self.mean_ = None
         if self.with_mean:
-            self.mean_ = np.nan_to_num(np.nanmean(X, axis=0), copy=False, nan=0)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=RuntimeWarning)
+                self.mean_ = np.nan_to_num(np.nanmean(X, axis=0), copy=False, nan=0)
         self.var_ = None
         self.scale_ = None
         if self.with_std:
-            self.var_ = np.nan_to_num(np.nanvar(X, axis=0), copy=False, nan=1)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', category=RuntimeWarning)
+                self.var_ = np.nan_to_num(np.nanvar(X, axis=0), copy=False, nan=1)
             self.var_[np.isclose(0, self.var_)] = 1
             self.scale_ = np.sqrt(self.var_)
             assert not np.isclose(0, self.scale_).any()
@@ -221,3 +249,45 @@ def get_hyperparameters(estimator):
     except AttributeError:
         pass
     return res
+
+
+def fit(estimator, x, y, cross_validate):
+    assert len(x) == len(y)
+    record = {'sample_count': x.shape[0], 'feature_count': x.shape[1]}
+    if cross_validate is not None:
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
+            # Throws ValueError if y contains a nan.
+            scores = cross_validate(estimator, x, y)
+        for score_name, a in scores.items():
+            record['cv', score_name, 'mean'] = np.mean(a)
+            record['cv', score_name, 'std'] = np.std(a)
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', category=sklearn.exceptions.ConvergenceWarning)
+        # Throws ValueError if y contains a nan.
+        estimator.fit(x, y)
+        # Note: If fitting fails to converge, the coefficients are all zeros.
+        record.update(predictor_properties(estimator, x, y))
+    return record
+
+
+def predictor_properties(predictor, x, y_true):
+    assert len(x) == len(y_true)
+    data = {}
+    y_pred = predictor.predict(x)
+    data.update({('score', key): value for key, value in scores(y_true, y_pred).items()})
+    try:
+        data.update({('coef_', 'count'): len(predictor.coef_),
+                     ('coef_', 'nonzero'): np.count_nonzero(predictor.coef_)})
+    except AttributeError:
+        pass
+    for name in ['intercept_', 'n_iter_', 'alpha_', 'l1_ratio_']:
+        try:
+            data[name] = getattr(predictor, name)
+        except AttributeError:
+            pass
+    return data
+
+
+def scores(y_true, y_pred):
+    return {'mse': mean_squared_error(y_true, y_pred), 'r2': r2_score(y_true, y_pred)}

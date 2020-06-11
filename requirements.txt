@@ -5,6 +5,7 @@ joblib
 matplotlib
 memory-profiler
 methodtools
+networkx
 numpy
 ordered-set
 pandas
