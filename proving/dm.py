@@ -62,7 +62,7 @@ def main():
         if args.no_frequent_subgraphs:
             return
         assert 0 <= args.min_support <= 1
-        apr = Apriori(graphs.values(), minsup=int(len(graphs) * args.min_support))
+        apr = Apriori(graphs.values(), minsup=max(1, int(len(graphs) * args.min_support)))
         for i, (subgraph, support) in enumerate(apr.frequent_subgraphs_with_support()):
             if args.plot_frequent_subgraphs:
                 out_file = os.path.join(args.output, 'subgraphs', f'{i}_{support}.svg')
