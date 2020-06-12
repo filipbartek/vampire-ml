@@ -32,12 +32,16 @@ def main():
     parser.add_argument('--problem', action='append', default=[])
     parser.add_argument('--problem-list', action='append', default=[])
     parser.add_argument('--jobs', type=int, default=1)
-    parser.add_argument('--no-frequent-subgraphs', action='store_true')
-    parser.add_argument('--max-edges', type=int, default=100)
-    parser.add_argument('--min-support', type=float, default=0.5)
-    parser.add_argument('--plot-problem-graphs', action='store_true')
-    parser.add_argument('--plot-frequent-subgraphs', action='store_true')
     parser.add_argument('--max-problems', type=int)
+    parser.add_argument('--no-mining', action='store_true')
+    parser.add_argument('--mining-max-graphs', type=int)
+    parser.add_argument('--mining-max-graph-size', type=int, default=100)
+    parser.add_argument('--mining-min-subgraph-size', type=int, default=0)
+    parser.add_argument('--mining-max-subgraph-size', type=int)
+    parser.add_argument('--mining-min-support', type=float, default=0.5)
+    parser.add_argument('--mining-max-subgraphs-per-level', type=int)
+    parser.add_argument('--plot-mining-graphs', action='store_true')
+    parser.add_argument('--plot-frequent-subgraphs', action='store_true')
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -50,21 +54,50 @@ def main():
         logging.info('Problems: %s', len(problems))
         solver = Solver(timeout=20)
         graphs = problems_to_graphs(problems, solver, args.output)
+        # TODO: Sort graphs by size.
         logging.info('Graphs total: %s', len(graphs))
-        graphs = {k: v for k, v in graphs.items() if v.size() <= args.max_edges}
-        logging.info('Graphs with at most %d edges: %s', args.max_edges, len(graphs))
-        logging.info('Node counts: %s', [len(g) for g in graphs.values()])
-        logging.info('Edge counts: %s', [g.size() for g in graphs.values()])
-        if args.plot_problem_graphs:
-            plot_graphs_to_dir(graphs, os.path.join(args.output, 'problems'))
-        if args.no_frequent_subgraphs:
+        graphs_mining = {k: v for k, v in graphs.items() if v.size() <= args.mining_max_graph_size}
+        if args.mining_max_graphs is not None and len(graphs_mining) > args.mining_max_graphs:
+            indices = np.random.RandomState(1).choice(len(graphs_mining), size=args.mining_max_graphs, replace=False)
+            pairs = list(graphs_mining.items())
+            graphs_mining = dict(pairs[i] for i in indices)
+        if args.plot_mining_graphs:
+            plot_graphs_to_dir(graphs_mining, os.path.join(args.output, 'problems'))
+        if args.no_mining:
             return
-        assert 0 <= args.min_support <= 1
-        apr = Apriori(graphs.values(), minsup=max(1, int(len(graphs) * args.min_support)))
-        for i, (subgraph, support) in enumerate(apr.frequent_subgraphs_with_support()):
+        # TODO: Allow loading the subgraphs.
+        subgraphs_with_support = mine_frequent_subgraphs(graphs_mining,
+                                                         min_support=args.mining_min_support,
+                                                         max_subgraphs_per_level=args.mining_max_subgraphs_per_level,
+                                                         min_subgraph_size=args.mining_min_subgraph_size,
+                                                         max_subgraph_size=args.mining_max_subgraph_size)
+        subgraphs_out_dir = os.path.join(args.output, 'subgraphs')
+        for i, (subgraph, support) in enumerate(subgraphs_with_support):
+            nx.write_gpickle(subgraph, os.path.join(subgraphs_out_dir, f'{i}.gpickle'))
             if args.plot_frequent_subgraphs:
-                out_file = os.path.join(args.output, 'subgraphs', f'{i}_{support}.svg')
+                out_file = os.path.join(subgraphs_out_dir, f'{i}_{support}.svg')
                 plot_graph_to_file(subgraph, out_file)
+        #X = featurize(graphs.values(), tuple(zip(*subgraphs_with_support))[0])
+        #print(X)
+
+
+@memory.cache
+def mine_frequent_subgraphs(graphs, min_support, max_subgraphs_per_level, min_subgraph_size, max_subgraph_size):
+    logging.info('Graphs for mining: %s', len(graphs))
+    logging.info('Node counts: %s', [len(g) for g in graphs.values()])
+    logging.info('Edge counts: %s', [g.size() for g in graphs.values()])
+    assert 0 <= min_support <= 1
+    apr = Apriori(graphs.values(), minsup=max(1, int(len(graphs) * min_support)), max_width=max_subgraphs_per_level)
+    return list(apr.frequent_subgraphs_with_support(max_k=max_subgraph_size, min_k=min_subgraph_size))
+
+
+@memory.cache
+def featurize(graphs, subgraphs):
+    res = Parallel()(
+        delayed(subgraph_is_isomorphic)(graph, subgraph) for graph, subgraph in
+        tqdm(itertools.product(graphs, subgraphs), total=len(graphs) * len(subgraphs), unit='combination',
+             desc='Featurizing graphs'))
+    return np.asarray(res, dtype=np.bool).reshape((len(graphs), len(subgraphs)))
 
 
 class Apriori:
@@ -75,13 +108,14 @@ class Apriori:
         self.minsup = minsup
         self.max_width = max_width
 
-    def frequent_subgraphs_with_support(self, max_k=None):
+    def frequent_subgraphs_with_support(self, max_k=None, min_k=0):
+        assert min_k >= 0
         if max_k is None:
-            ks = itertools.count()
+            ks = itertools.count(min_k)
             if self.minsup <= 0:
                 warnings.warn('Will run forever.')
         else:
-            ks = range(max_k)
+            ks = range(min_k, max_k + 1)
         for k in ks:
             gs = self.frequent_subgraphs_k_with_support(k)
             if len(gs) == 0:
