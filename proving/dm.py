@@ -56,9 +56,7 @@ def main():
         logging.info('Node counts: %s', [len(g) for g in graphs.values()])
         logging.info('Edge counts: %s', [g.size() for g in graphs.values()])
         if args.plot_problem_graphs:
-            for problem, g in tqdm(graphs.items(), unit='graph', desc='Plotting problem graphs'):
-                out_file = os.path.join(args.output, 'problems', f'{problem_name(problem)}.svg')
-                plot_graph_to_file(g, out_file)
+            plot_graphs_to_dir(graphs, os.path.join(args.output, 'problems'))
         if args.no_frequent_subgraphs:
             return
         assert 0 <= args.min_support <= 1
@@ -275,6 +273,13 @@ def clausify_result_to_graph(clausify_result, expression_namer, name=None):
             g.add_node(symbol_node_id(symbol_type, i), type=symbol_type, label=expression_namer.symbol(symbol_type, i))
     TermVisitor(g, expression_namer).visit_clauses(clausify_result.clauses)
     return g
+
+
+def plot_graphs_to_dir(graphs, out_dir):
+    logging.info(f'Plotting problem graphs to {out_dir}.')
+    for problem, g in tqdm(graphs.items(), unit='graph', desc='Plotting problem graphs'):
+        out_file = os.path.join(out_dir, f'{problem_name(problem)}.svg')
+        plot_graph_to_file(g, out_file)
 
 
 def plot_graph_to_file(g, out_file):
