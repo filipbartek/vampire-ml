@@ -44,6 +44,8 @@ def compose(sublist_file_paths=None, glob_patterns=None, base_path=None):
         sublist_file_paths = []
     if glob_patterns is None:
         glob_patterns = []
+    if base_path is None:
+        base_path = config.problems_path()
     paths = OrderedSet(itertools.chain(paths_from_sublists(sublist_file_paths, base_path=base_path),
                                        paths_from_patterns(glob_patterns, base_path=base_path)))
     if base_path is None and len(paths) >= 1:
