@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import time
+import warnings
 
 import joblib
 import matplotlib.pyplot as plt
@@ -79,6 +80,8 @@ class Apriori:
     def frequent_subgraphs_with_support(self, max_k=None):
         if max_k is None:
             ks = itertools.count()
+            if self.minsup <= 0:
+                warnings.warn('Will run forever.')
         else:
             ks = range(max_k)
         for k in ks:
