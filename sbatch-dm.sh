@@ -7,4 +7,4 @@ set -euo pipefail
 
 . env.sh
 
-python -O -u proving/dm.py --jobs "$SLURM_CPUS_PER_TASK" "$@"
+python -O -u proving/dm.py "$@"
