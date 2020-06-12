@@ -298,7 +298,11 @@ def show_graph(g):
 def plot_graph(g, custom_node_labels=True):
     plt.figure(figsize=(12, 8))
     plt.title(g.name)
-    pos = nx.nx_agraph.graphviz_layout(g, prog='dot')
+    try:
+        pos = nx.nx_agraph.graphviz_layout(g, prog='dot')
+    except ImportError:
+        warnings.warn('Graphviz layout is not available.')
+        pos = nx.spring_layout(g)
     for node_type, node_color in node_color_dict.items():
         nodelist = [node_id for node_id, nt in g.nodes.data('type') if nt == node_type]
         nx.draw_networkx_nodes(g, pos, nodelist=nodelist, node_color=node_color,
