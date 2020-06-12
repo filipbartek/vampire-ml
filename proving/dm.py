@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import collections
 import functools
 import itertools
@@ -17,80 +18,105 @@ from networkx.algorithms.isomorphism import DiGraphMatcher
 from networkx.algorithms.isomorphism import categorical_node_match
 from tqdm import tqdm
 
+from proving import file_path_list
 from proving import utils
-from proving.file_path_list import paths_from_patterns
 from proving.memory import memory
 from proving.solver import Solver
 from vampire_ml.results import save_df
 
 
 def main():
-    with joblib.parallel_backend('loky', n_jobs=1):
-        # problems = [l.strip('\n') for l in open('data/sp-random-both-clauses/problems.txt').readlines()]
-        # problems = list(paths_from_patterns(('PUZ/*-*.p', 'PUZ/*+*.p')))
-        problems = list(paths_from_patterns(('**/*-*.p', '**/*+*.p')))
-        # problems = ['PUZ/PUZ001-1.p', 'PUZ/PUZ001-2.p', 'PUZ/PUZ001-3.p']
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--output', default='out/dm')
+    parser.add_argument('--problem', action='append', default=[])
+    parser.add_argument('--problem-list', action='append', default=[])
+    parser.add_argument('--jobs', type=int, default=1)
+    parser.add_argument('--no-frequent-subgraphs', action='store_true')
+    parser.add_argument('--max-edges', type=int, default=100)
+    parser.add_argument('--min-support', type=float, default=0.5)
+    parser.add_argument('--plot-problem-graphs', action='store_true')
+    parser.add_argument('--plot-frequent-subgraphs', action='store_true')
+    parser.add_argument('--max-problems', type=int)
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
+    logging.getLogger('matplotlib').setLevel(logging.INFO)
+
+    with joblib.parallel_backend('threading', n_jobs=args.jobs):
+        problems, _ = list(file_path_list.compose(args.problem_list, args.problem))
+        if args.max_problems is not None and len(problems) > args.max_problems:
+            problems = np.random.RandomState(0).choice(problems, size=args.max_problems, replace=False)
+        logging.info('Problems: %s', len(problems))
         solver = Solver(timeout=20)
-        time_start = time.time()
-        graphs = problems_to_graphs(problems, solver)
-        logging.debug('Time taken: %s', time.time() - time_start)
-        return
-        graphs = {k: v for k, v in graphs.items() if v.size() <= 100}
+        graphs = problems_to_graphs(problems, solver, args.output)
+        logging.info('Graphs total: %s', len(graphs))
+        graphs = {k: v for k, v in graphs.items() if v.size() <= args.max_edges}
+        logging.info('Graphs with at most %d edges: %s', args.max_edges, len(graphs))
         logging.info('Node counts: %s', [len(g) for g in graphs.values()])
         logging.info('Edge counts: %s', [g.size() for g in graphs.values()])
-        apr = Apriori(graphs.values(), minsup=len(graphs) // 2)
-        for i, subgraph in enumerate(apr.apriori()):
-            out_file = os.path.join('out/dm/subgraphs', f'{i}.svg')
-            plot_graph_to_file(subgraph, out_file)
+        if args.plot_problem_graphs:
+            for problem, g in tqdm(graphs.items(), unit='graph', desc='Plotting problem graphs'):
+                out_file = os.path.join(args.output, 'problems', f'{problem_name(problem)}.svg')
+                plot_graph_to_file(g, out_file)
+        if args.no_frequent_subgraphs:
+            return
+        apr = Apriori(graphs.values(), minsup=int(len(graphs) * args.min_support))
+        for i, (subgraph, support) in enumerate(apr.frequent_subgraphs_with_support()):
+            if args.plot_frequent_subgraphs:
+                out_file = os.path.join(args.output, 'subgraphs', f'{i}_{support}.svg')
+                plot_graph_to_file(subgraph, out_file)
 
 
 class Apriori:
+    """Edge-based join growth"""
+
     def __init__(self, graphs, minsup=1, max_width=None):
         self.graphs = graphs
         self.minsup = minsup
         self.max_width = max_width
-        self.rng = np.random.RandomState(0)
 
-    def apriori(self, max_k=None):
+    def frequent_subgraphs_with_support(self, max_k=None):
         if max_k is None:
             ks = itertools.count()
         else:
             ks = range(max_k)
         for k in ks:
-            gs = self.apriori_k(k)
+            gs = self.frequent_subgraphs_k_with_support(k)
             if len(gs) == 0:
                 break
             for g in gs:
                 yield g
 
     @functools.lru_cache(maxsize=2)
-    def apriori_k(self, k):
-        """Edge-based join growth"""
+    def frequent_subgraphs_k_with_support(self, k):
         assert k >= 0
         logging.info(f'k = {k}:')
         if k == 0:
-            res = self.apriori_0()
+            res = self.all_graphs_0()
         elif k == 1:
-            res = self.apriori_1()
+            res = self.all_graphs_1()
         else:
             buckets = collections.defaultdict(list)
-            for core in tqdm(self.apriori_k(k - 2), unit='core', desc=f'Generating subgraphs for k = {k}'):
+            for core in tqdm(self.frequent_subgraphs_k(k - 2), unit='core', desc=f'Generating subgraphs for k = {k}'):
                 assert core.size() == k - 2
-                for g in self.process_core(core, self.apriori_k(k - 1)):
+                for g in self.join_pairs_of_graphs(core, self.frequent_subgraphs_k(k - 1)):
                     assert g.size() == k
                     signature = self.signature(g)
                     if any(is_isomorphic(other, g) for other in buckets[signature]):
                         continue
                     buckets[signature].append(g)
             logging.info(f'Non-empty buckets: {len(buckets)}')
-            logging.info(f'Maximum bucket size: {max(len(v) for v in buckets.values())}')
             logging.info(f'Average bucket size: {sum(len(v) for v in buckets.values()) / len(buckets)}')
+            logging.info(f'Maximum bucket size: {max(len(v) for v in buckets.values())}')
             # TODO: Remove graphs from `graphs` that support 0 subgraphs.
             res = list(itertools.chain.from_iterable(buckets.values()))
         logging.info(f'Candidate subgraphs: {len(res)}')
-        res = self.filter_by_support(res)
+        res = self.filter_frequent_subgraphs(res)
         logging.info(f'Frequent subgraphs: {len(res)} / {self.max_width}')
         return res
+
+    def frequent_subgraphs_k(self, k):
+        return tuple(zip(*self.frequent_subgraphs_k_with_support(k)))[0]
 
     @staticmethod
     def signature(g):
@@ -99,9 +125,10 @@ class Apriori:
                 tuple(sorted(d for n, d in g.out_degree())))
 
     @staticmethod
-    def process_core(core, prev):
-        for i1 in range(len(prev)):
-            g1 = prev[i1]
+    def join_pairs_of_graphs(core, graphs):
+        for i1 in range(len(graphs)):
+            g1 = graphs[i1]
+            assert g1.size() == core.size() + 1
             for iso1 in subgraph_isomorphisms(g1, core):
                 assert set(core.nodes) == set(iso1.values())
                 assert len(set(g1.nodes) - set(iso1.keys())) <= 1
@@ -109,8 +136,9 @@ class Apriori:
                 assert ('new', 0) not in iso1.values()
                 g1_common = nx.relabel_nodes(g1, lambda x: iso1.get(x, ('new', 0)))
                 assert set(core.edges) <= set(g1_common.edges)
-                for i2 in range(i1, len(prev)):
-                    g2 = prev[i2]
+                for i2 in range(i1, len(graphs)):
+                    g2 = graphs[i2]
+                    assert g2.size() == g1.size()
                     for iso2 in subgraph_isomorphisms(g2, core):
                         assert set(core.nodes) == set(iso2.values())
                         assert len(set(g2.nodes) - set(iso2.keys())) <= 1
@@ -121,7 +149,7 @@ class Apriori:
                         g = nx.compose(g1_common, g2_common)
                         yield nx.convert_node_labels_to_integers(g)
 
-    def apriori_1(self):
+    def all_graphs_1(self):
         subgraphs = []
         for nt in itertools.product(node_types, repeat=2):
             g = empty_graph()
@@ -134,21 +162,22 @@ class Apriori:
             subgraphs.append(g)
         return subgraphs
 
-    def apriori_0(self):
+    def all_graphs_0(self):
         return [trivial_graph(node_type) for node_type in node_types]
 
-    def filter_by_support(self, subgraphs):
-        supports = collections.Counter()
-        for g in tqdm(self.graphs, unit='graph', desc='Calculating support'):
-            for subgraph in subgraphs:
-                if subgraph_is_isomorphic(g, subgraph):
-                    supports[subgraph] += 1
+    def filter_frequent_subgraphs(self, subgraphs):
+        support_counts = Parallel()(delayed(self.subgraph_support)(subgraph) for subgraph in
+                                    tqdm(subgraphs, unit='subgraph', desc='Calculating support'))
+        supports = collections.Counter(dict(zip(subgraphs, support_counts)))
         for subgraph, support in list(supports.items()):
             if support < self.minsup:
                 del supports[subgraph]
         if len(supports) == 0:
             return []
-        return tuple(zip(*supports.most_common(self.max_width)))[0]
+        return supports.most_common(self.max_width)
+
+    def subgraph_support(self, subgraph):
+        return sum(subgraph_is_isomorphic(g, subgraph) for g in self.graphs)
 
 
 def is_subgraph_isomorphism(g1, g2, iso):
@@ -198,7 +227,7 @@ def problem_name(path):
     return path.replace('/', '_')
 
 
-def problems_to_graphs(problems, solver):
+def problems_to_graphs(problems, solver, output):
     graphs = {}
     records = []
     results = Parallel()(delayed(problem_to_graph)(problem, solver) for problem in
@@ -208,7 +237,7 @@ def problems_to_graphs(problems, solver):
             graphs[problem] = g
         records.append(record)
     df_problems = utils.dataframe_from_records(records, 'problem')
-    save_df(df_problems, 'problems', 'out/dm')
+    save_df(df_problems, 'problems', output)
     return graphs
 
 
@@ -232,11 +261,6 @@ def problem_to_graph(problem, solver):
     g = clausify_result_to_graph(clausify_result, expression_namer, name=problem)
     time_elapsed = time.time() - time_start
     record.update({'graph_nodes': len(g), 'graph_edges': g.size(), 'time_graph': time_elapsed})
-    if False and len(g) <= 100:
-        out_file = os.path.join('out/dm', f'{problem_name(problem)}.svg')
-        time_start = time.time()
-        plot_graph_to_file(g, out_file)
-        record['time_plot'] = time.time() - time_start
     return g, record
 
 
@@ -266,51 +290,32 @@ def plot_graph(g, custom_node_labels=True):
     plt.figure(figsize=(12, 8))
     plt.title(g.name)
     pos = nx.nx_agraph.graphviz_layout(g, prog='dot')
-    node_colors = [node_color(node[1]) for node in g.nodes.data('type')]
-    nx.draw_networkx_nodes(g, pos, node_color=node_colors, cmap='Pastel1', vmin=min(node_color_dict.values()),
-                           vmax=max(node_color_dict.values()))
+    for node_type, node_color in node_color_dict.items():
+        nodelist = [node_id for node_id, nt in g.nodes.data('type') if nt == node_type]
+        nx.draw_networkx_nodes(g, pos, nodelist=nodelist, node_color=node_color,
+                               vmin=min(node_color_dict.values()), vmax=max(node_color_dict.values()), label=node_type)
     node_labels = None
     if custom_node_labels:
         node_labels = {k: node_label(v) for k, v in g.nodes.data()}
     nx.draw_networkx_labels(g, pos, font_size=8, labels=node_labels)
     edge_colors = [edge_color(e[2]) for e in g.edges(data=True)]
     nx.draw_networkx_edges(g, pos, edge_color=edge_colors)
+    plt.legend()
 
 
-"""
-Possible edges:
-- root -> clause
-- clause -> atom [polarity=0]
-- clause -> atom [polarity=1]
-- atom -> equality
-- atom -> predicate
-- With argument ordering:
-    - atom -> argument
-    - argument -> argument
-    - argument -> term
-    - argument -> variable
-- term -> function
-"""
 node_types = [
     'root',
     'clause',
-    'argument',
     'atom',
     'equality',
-    'predicate',
     'term',
+    'argument',
+    'predicate',
     'function',
     'variable'
 ]
 
-node_color_dict = {node_type: i for i, node_type in enumerate(node_types)}
-
-
-def node_color(node_type):
-    try:
-        return node_color_dict[node_type]
-    except KeyError:
-        return None
+node_color_dict = {node_type: f'C{i}' for i, node_type in enumerate(node_types)}
 
 
 def node_label(attributes):
@@ -441,7 +446,4 @@ class ExpressionNamer:
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
-    # logging.basicConfig(level=logging.DEBUG)
-    logging.getLogger('matplotlib').setLevel(logging.INFO)
     main()
