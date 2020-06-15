@@ -19,4 +19,8 @@ export TPTP_PROBLEMS=$TPTP/Problems
 if [ -n "${MODULESHOME-}" ]; then module load Python; fi
 if [ -e "$VAMPIRE_ML_VENV" ]; then . "$VAMPIRE_ML_VENV/bin/activate"; fi
 
-export PYTHON_PATH="$PYTHON_PATH:$VAMPIRE_ML"
+if [ -n ${PYTHONPATH-} ]; then
+  export PYTHONPATH="$VAMPIRE_ML:$PYTHONPATH"
+else
+  export PYTHONPATH=${VAMPIRE_ML}
+fi
