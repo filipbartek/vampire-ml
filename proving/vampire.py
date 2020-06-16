@@ -157,8 +157,9 @@ class OptionManager:
 
 
 def load_clauses(file):
-    file_size = os.path.getsize(file)
-    log.debug(f'Loading {file} of size {file_size}.')
+    # Throws FileNotFoundError if `file` does not exist.
+    log.debug(f'Loading {file} of size {os.path.getsize(file)}.')
+    # Throws json.JSONDecodeError if the content is malformed.
     return json.load(open(file))
 
 

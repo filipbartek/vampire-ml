@@ -18,6 +18,7 @@ def symbols_of_type(symbols, symbol_type):
 
 
 def load(file):
+    # Throws FileNotFoundError if `file` does not exist.
     log.debug(f'Loading {file} of size {os.path.getsize(file)}.')
     # The column 'name' may contain single quoted strings.
     # See http://www.tptp.org/TPTP/SyntaxBNF.html
