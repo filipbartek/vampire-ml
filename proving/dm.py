@@ -127,7 +127,6 @@ class Apriori:
     @functools.lru_cache(maxsize=2)
     def frequent_subgraphs_k_with_support(self, k):
         assert k >= 0
-        logging.info(f'k = {k}:')
         if k == 0:
             res = self.all_graphs_0()
         elif k == 1:
@@ -142,14 +141,14 @@ class Apriori:
                     if any(is_isomorphic(other, g) for other in buckets[signature]):
                         continue
                     buckets[signature].append(g)
-            logging.info(f'Non-empty buckets: {len(buckets)}')
-            logging.info(f'Average bucket size: {sum(len(v) for v in buckets.values()) / len(buckets)}')
-            logging.info(f'Maximum bucket size: {max(len(v) for v in buckets.values())}')
+            logging.debug(f'k = {k}: Non-empty buckets: {len(buckets)}')
+            logging.debug(f'k = {k}: Average bucket size: {sum(len(v) for v in buckets.values()) / len(buckets)}')
+            logging.debug(f'k = {k}: Maximum bucket size: {max(len(v) for v in buckets.values())}')
             # TODO: Remove graphs from `graphs` that support 0 subgraphs.
             res = list(itertools.chain.from_iterable(buckets.values()))
-        logging.info(f'Candidate subgraphs: {len(res)}')
+        logging.info(f'k = {k}: Candidate subgraphs: {len(res)}')
         res = self.filter_frequent_subgraphs(res)
-        logging.info(f'Frequent subgraphs: {len(res)} / {self.max_width}')
+        logging.info(f'k = {k}: Frequent subgraphs: {len(res)} / {self.max_width}')
         return res
 
     def frequent_subgraphs_k(self, k):
