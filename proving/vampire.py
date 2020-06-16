@@ -50,9 +50,15 @@ def call(problem, options=None, timeout=None, precedences=None, get_symbols=Fals
         args_instantiated = option_manager.args()
         result = process.run(args_instantiated, timeout=timeout, capture_stdout=get_stdout, capture_stderr=get_stderr)
         if get_symbols:
-            result_symbols = option_manager.symbols()
+            try:
+                result_symbols = option_manager.symbols()
+            except FileNotFoundError:
+                pass
         if get_clauses:
-            clauses = option_manager.clauses()
+            try:
+                clauses = option_manager.clauses()
+            except (FileNotFoundError, json.JSONDecodeError):
+                pass
     return Result(result, result_symbols, clauses)
 
 
