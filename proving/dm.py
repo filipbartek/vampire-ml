@@ -14,6 +14,7 @@ import joblib
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+import pandas as pd
 from joblib import Parallel, delayed
 from networkx.algorithms.isomorphism import DiGraphMatcher
 from networkx.algorithms.isomorphism import categorical_node_match
@@ -35,12 +36,14 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-problems', type=int)
     parser.add_argument('--no-mining', action='store_true')
+    parser.add_argument('--no-featurization', action='store_true')
     parser.add_argument('--mining-max-graphs', type=int)
-    parser.add_argument('--mining-max-graph-size', type=int, default=100)
+    parser.add_argument('--mining-max-graph-size', type=int)
     parser.add_argument('--mining-min-subgraph-size', type=int, default=0)
     parser.add_argument('--mining-max-subgraph-size', type=int)
     parser.add_argument('--mining-min-support', type=float, default=0.5)
     parser.add_argument('--mining-max-subgraphs-per-level', type=int)
+    parser.add_argument('--featurization-max-graph-size', type=int)
     parser.add_argument('--plot-mining-graphs', action='store_true')
     parser.add_argument('--plot-frequent-subgraphs', action='store_true')
     args = parser.parse_args()
@@ -48,56 +51,106 @@ def main():
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
     logging.getLogger('matplotlib').setLevel(logging.INFO)
 
+    dtypes = col_dtypes.copy()
+
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         problems, _ = list(file_path_list.compose(args.problem_list, args.problem))
         if args.max_problems is not None and len(problems) > args.max_problems:
             problems = np.random.RandomState(0).choice(problems, size=args.max_problems, replace=False)
         logging.info('Problems: %s', len(problems))
         solver = Solver(timeout=20)
-        graphs = problems_to_graphs(problems, solver, args.output)
-        # TODO: Sort graphs by size.
-        logging.info('Graphs total: %s', len(graphs))
-        graphs_mining = {k: v for k, v in graphs.items() if v.size() <= args.mining_max_graph_size}
-        if args.mining_max_graphs is not None and len(graphs_mining) > args.mining_max_graphs:
-            indices = np.random.RandomState(1).choice(len(graphs_mining), size=args.mining_max_graphs, replace=False)
-            pairs = list(graphs_mining.items())
-            graphs_mining = dict(pairs[i] for i in indices)
+        graphs, records = zip(*problems_to_graphs(problems, solver))
+        assert len(problems) == len(graphs) == len(records)
+        all_graph_indices = [i for i, g in enumerate(graphs) if g is not None]
+        logging.info('Graphs total: %s', len(all_graph_indices))
+        all_graph_indices = sorted(all_graph_indices, key=lambda i: graphs[i].size(), reverse=True)
+        mining_indices = all_graph_indices
+        if args.mining_max_graph_size is not None:
+            mining_indices = [i for i in mining_indices if graphs[i].size() <= args.mining_max_graph_size]
+        if args.mining_max_graphs is not None and len(mining_indices) > args.mining_max_graphs:
+            mining_indices = np.asarray(mining_indices, dtype=np.uint)[np.sort(np.random.RandomState(1).choice(len(mining_indices), size=args.mining_max_graphs, replace=False))]
+        mining_graphs = [graphs[i] for i in mining_indices]
         if args.plot_mining_graphs:
-            plot_graphs_to_dir(graphs_mining, os.path.join(args.output, 'problems'))
+            plot_graphs_to_dir(mining_graphs, os.path.join(args.output, 'problems'))
         if args.no_mining:
+            save_df(utils.dataframe_from_records(records, 'problem', dtypes=dtypes), 'problems', args.output)
             return
         # TODO: Allow loading the subgraphs.
-        subgraphs_with_support = mine_frequent_subgraphs(graphs_mining,
+        subgraphs_with_support = mine_frequent_subgraphs(mining_graphs,
                                                          min_support=args.mining_min_support,
                                                          max_subgraphs_per_level=args.mining_max_subgraphs_per_level,
                                                          min_subgraph_size=args.mining_min_subgraph_size,
                                                          max_subgraph_size=args.mining_max_subgraph_size)
         subgraphs_out_dir = os.path.join(args.output, 'subgraphs')
-        for i, (subgraph, support) in enumerate(subgraphs_with_support):
+        os.makedirs(subgraphs_out_dir, exist_ok=True)
+        for i, (subgraph, support) in enumerate(
+                tqdm(subgraphs_with_support, unit='subgraph', desc='Saving frequent subgraphs')):
             nx.write_gpickle(subgraph, os.path.join(subgraphs_out_dir, f'{i}.gpickle'))
             if args.plot_frequent_subgraphs:
                 out_file = os.path.join(subgraphs_out_dir, f'{i}_{support}.svg')
                 plot_graph_to_file(subgraph, out_file)
-        #X = featurize(graphs.values(), tuple(zip(*subgraphs_with_support))[0])
-        #print(X)
+        if args.no_featurization:
+            save_df(utils.dataframe_from_records(records, 'problem', dtypes=dtypes), 'problems', args.output)
+            return
+        featurization_indices = all_graph_indices
+        if args.featurization_max_graph_size is not None:
+            featurization_indices = [i for i in all_graph_indices if
+                                     graphs[i].size() <= args.featurization_max_graph_size]
+        logging.info('Problem graphs to featurize: %s', len(featurization_indices))
+        featurization_graphs = [graphs[i] for i in featurization_indices]
+        subgraphs = tuple(zip(*subgraphs_with_support))[0]
+        feature_matrix = subgraph_matrix(featurization_graphs, subgraphs)
+        for i, feature_vector in zip(featurization_indices, feature_matrix):
+            records[i].update({('subgraph', k): int(feature_vector[k]) for k in range(len(feature_vector))})
+        subgraph_cols = [('subgraph', k) for k in range(len(subgraphs))]
+        dtypes.update({col: pd.UInt8Dtype() for col in subgraph_cols})
+        df = utils.dataframe_from_records(records, 'problem', dtypes=dtypes)
+        save_df(df, 'problems', args.output)
+        df_featurized = utils.dataframe_from_records((records[i] for i in featurization_indices), 'problem',
+                                                     dtypes=dtypes)
+        df_featurized.to_csv(os.path.join(args.output, 'vectors.tsv'), sep='\t', columns=subgraph_cols, header=False,
+                             index=False)
+        df_featurized.to_csv(os.path.join(args.output, 'metadata.tsv'), sep='\t',
+                             columns=(col for col in col_dtypes.keys() if col != 'problem'))
+
+
+col_dtypes = {'problem': 'object',
+              'clausify_returncode': pd.CategoricalDtype(),
+              'clausify_time': np.float,
+              'domain': pd.CategoricalDtype(),
+              'number': pd.UInt16Dtype(),
+              'form': pd.CategoricalDtype(),
+              'version': pd.UInt8Dtype(),
+              'size_parameters': 'object',
+              'domain_full': pd.CategoricalDtype(),
+              'source': pd.CategoricalDtype(),
+              'status': pd.CategoricalDtype(),
+              'rating': np.float,
+              'spc': pd.CategoricalDtype(),
+              'clauses': pd.UInt32Dtype(),
+              'predicates': pd.UInt32Dtype(),
+              'functions': pd.UInt32Dtype(),
+              'graph_nodes': pd.UInt32Dtype(),
+              'graph_edges': pd.UInt32Dtype(),
+              'graph_time': np.float}
 
 
 @memory.cache
 def mine_frequent_subgraphs(graphs, min_support, max_subgraphs_per_level, min_subgraph_size, max_subgraph_size):
-    logging.info('Graphs for mining: %s', len(graphs))
-    logging.info('Node counts: %s', [len(g) for g in graphs.values()])
-    logging.info('Edge counts: %s', [g.size() for g in graphs.values()])
+    logging.info('Graphs to mine from: %s', len(graphs))
+    logging.debug('Node counts: %s', [len(g) for g in graphs])
+    logging.debug('Edge counts: %s', [g.size() for g in graphs])
     assert 0 <= min_support <= 1
-    apr = Apriori(graphs.values(), minsup=max(1, int(len(graphs) * min_support)), max_width=max_subgraphs_per_level)
+    apr = Apriori(graphs, minsup=max(1, int(len(graphs) * min_support)), max_width=max_subgraphs_per_level)
     return list(apr.frequent_subgraphs_with_support(max_k=max_subgraph_size, min_k=min_subgraph_size))
 
 
 @memory.cache
-def featurize(graphs, subgraphs):
-    res = Parallel()(
-        delayed(subgraph_is_isomorphic)(graph, subgraph) for graph, subgraph in
-        tqdm(itertools.product(graphs, subgraphs), total=len(graphs) * len(subgraphs), unit='combination',
-             desc='Featurizing graphs'))
+def subgraph_matrix(graphs, subgraphs):
+    logging.info(
+        f'Calculating incidences of {len(subgraphs)} subgraphs in {len(graphs)} graphs ({len(graphs) * len(subgraphs)} pairs)...')
+    res = Parallel(verbose=1)(
+        delayed(subgraph_is_isomorphic)(graph, subgraph) for graph, subgraph in itertools.product(graphs, subgraphs))
     return np.asarray(res, dtype=np.bool).reshape((len(graphs), len(subgraphs)))
 
 
@@ -105,7 +158,7 @@ class Apriori:
     """Edge-based join growth"""
 
     def __init__(self, graphs, minsup=1, max_width=None):
-        self.graphs = graphs
+        self.graphs = sorted(graphs, key=lambda g: g.size(), reverse=True)
         self.minsup = minsup
         self.max_width = max_width
 
@@ -202,8 +255,8 @@ class Apriori:
         return [trivial_graph(node_type) for node_type in node_types]
 
     def filter_frequent_subgraphs(self, subgraphs):
-        support_counts = Parallel()(delayed(self.subgraph_support)(subgraph) for subgraph in
-                                    tqdm(subgraphs, unit='subgraph', desc='Calculating support'))
+        support_counts = self.get_supports(subgraphs)
+        assert len(support_counts) == len(subgraphs)
         supports = collections.Counter(dict(zip(subgraphs, support_counts)))
         for subgraph, support in list(supports.items()):
             if support < self.minsup:
@@ -212,8 +265,11 @@ class Apriori:
             return []
         return supports.most_common(self.max_width)
 
-    def subgraph_support(self, subgraph):
-        return sum(subgraph_is_isomorphic(g, subgraph) for g in self.graphs)
+    def get_supports(self, subgraphs):
+        incidence_matrix = subgraph_matrix(self.graphs, subgraphs)
+        logging.info('Graphs that support at least one subgraph: %d / %d',
+                     np.count_nonzero(np.sum(incidence_matrix, axis=1)), len(self.graphs))
+        return np.sum(incidence_matrix, axis=0)
 
 
 def is_subgraph_isomorphism(g1, g2, iso):
@@ -263,18 +319,9 @@ def problem_name(path):
     return path.replace('/', '_')
 
 
-def problems_to_graphs(problems, solver, output):
-    graphs = {}
-    records = []
-    results = Parallel()(delayed(problem_to_graph)(problem, solver) for problem in
-                         tqdm(problems, unit='problem', desc='Generating problem graphs'))
-    for problem, (g, record) in zip(problems, results):
-        if g is not None:
-            graphs[problem] = g
-        records.append(record)
-    df_problems = utils.dataframe_from_records(records, 'problem')
-    save_df(df_problems, 'problems', output)
-    return graphs
+def problems_to_graphs(problems, solver):
+    logging.info(f'Generating graph representations of {len(problems)} problems...')
+    return Parallel(verbose=10)(delayed(problem_to_graph)(problem, solver) for problem in problems)
 
 
 @memory.cache
@@ -311,9 +358,9 @@ def clausify_result_to_graph(clausify_result, expression_namer, name=None):
 
 
 def plot_graphs_to_dir(graphs, out_dir):
-    logging.info(f'Plotting problem graphs to {out_dir}.')
-    for problem, g in tqdm(graphs.items(), unit='graph', desc='Plotting problem graphs'):
-        out_file = os.path.join(out_dir, f'{problem_name(problem)}.svg')
+    logging.info(f'Plotting graphs to {out_dir}.')
+    for g in tqdm(graphs, unit='graph', desc='Plotting graphs'):
+        out_file = os.path.join(out_dir, f'{problem_name(g.name)}.svg')
         plot_graph_to_file(g, out_file)
 
 
