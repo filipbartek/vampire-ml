@@ -23,6 +23,7 @@ from proving import file_path_list
 from proving import utils
 from proving.memory import memory
 from proving.solver import Solver
+from proving import tptp
 from vampire_ml.results import save_df
 
 
@@ -285,6 +286,7 @@ def problem_to_graph(problem, solver):
     record = {'problem': problem,
               'clausify_returncode': clausify_result.returncode,
               'clausify_time': time_elapsed}
+    record.update(tptp.problem_properties(problem))
     if clausify_result.returncode != 0:
         return None, record
     symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in
