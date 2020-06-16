@@ -297,7 +297,7 @@ def problem_to_graph(problem, solver):
     time_start = time.time()
     g = clausify_result_to_graph(clausify_result, expression_namer, name=problem)
     time_elapsed = time.time() - time_start
-    record.update({'graph_nodes': len(g), 'graph_edges': g.size(), 'time_graph': time_elapsed})
+    record.update({'graph_nodes': len(g), 'graph_edges': g.size(), 'graph_time': time_elapsed})
     return g, record
 
 
