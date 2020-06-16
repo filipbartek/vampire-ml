@@ -16,10 +16,12 @@ def instance_str(instance):
     return f'{instance.__class__.__name__}({params})'
 
 
-def dataframe_from_records(records, index_keys):
+def dataframe_from_records(records, index_keys, dtypes=None):
     if len(records) == 0:
         return None
-    return pd.DataFrame.from_records(records).set_index(index_keys)
+    if dtypes is None:
+        dtypes = {}
+    return pd.DataFrame.from_records(records).astype(dtypes).set_index(index_keys)
 
 
 def array_stats(a):
