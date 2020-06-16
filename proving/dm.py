@@ -20,10 +20,10 @@ from networkx.algorithms.isomorphism import categorical_node_match
 from tqdm import tqdm
 
 from proving import file_path_list
+from proving import tptp
 from proving import utils
 from proving.memory import memory
 from proving.solver import Solver
-from proving import tptp
 from vampire_ml.results import save_df
 
 
