@@ -58,9 +58,10 @@ def main():
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         problems, _ = list(file_path_list.compose(args.problem_list, args.problem))
+        logging.info('Problems available: %s', len(problems))
         if args.max_problems is not None and len(problems) > args.max_problems:
             problems = np.random.RandomState(0).choice(problems, size=args.max_problems, replace=False)
-        logging.info('Problems: %s', len(problems))
+        logging.info('Problems under consideration: %s', len(problems))
         solver = Solver(timeout=20)
         graphs, records = zip(*problems_to_graphs(problems, solver))
         assert len(problems) == len(graphs) == len(records)
