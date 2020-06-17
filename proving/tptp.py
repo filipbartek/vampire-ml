@@ -15,6 +15,8 @@ def problem_name_properties(problem):
     m = re.search(
         r'^(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*)\.p$',
         os.path.basename(problem))
+    if m is None:
+        return {}
     return {'domain': m['domain'],
             'number': int(m['number']),
             'form': m['form'],
@@ -28,10 +30,15 @@ def problem_header_properties(content):
         'domain_full': re_search(r'^% Domain   : (.*)$', content),
         'source': re_search(r'^% Source   : (.*)$', content),
         'status': re_search(r'^% Status   : (.*)$', content),
-        'rating': float(re_search(r'^% Rating   : (\d\.\d\d) (v\d\.\d\.\d)\b', content)),
+        'rating': re_search(r'^% Rating   : (\d\.\d\d) (v\d\.\d\.\d)\b', content, cast=float),
         'spc': re_search(r'^% SPC      : (.*)$', content)
     }
 
 
-def re_search(pattern, string):
-    return re.search(pattern, string, re.MULTILINE)[1]
+def re_search(pattern, string, cast=None):
+    m = re.search(pattern, string, re.MULTILINE)
+    if m is None:
+        return None
+    if cast is not None:
+        return cast(m[1])
+    return m[1]
