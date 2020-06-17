@@ -18,6 +18,8 @@ import pandas as pd
 from joblib import Parallel, delayed
 from networkx.algorithms.isomorphism import DiGraphMatcher
 from networkx.algorithms.isomorphism import categorical_node_match
+from sklearn.manifold import Isomap
+from sklearn_extra.cluster import KMedoids
 from tqdm import tqdm
 
 from proving import file_path_list
@@ -41,7 +43,8 @@ def main():
     parser.add_argument('--mining-max-graph-size', type=int)
     parser.add_argument('--mining-min-subgraph-size', type=int, default=0)
     parser.add_argument('--mining-max-subgraph-size', type=int)
-    parser.add_argument('--mining-min-support', type=float, default=0.5)
+    parser.add_argument('--mining-min-support', type=float, default=0.25)
+    parser.add_argument('--mining-max-support', type=float, default=0.75)
     parser.add_argument('--mining-max-subgraphs-per-level', type=int)
     parser.add_argument('--featurization-max-graph-size', type=int)
     parser.add_argument('--plot-mining-graphs', action='store_true')
@@ -68,7 +71,8 @@ def main():
         if args.mining_max_graph_size is not None:
             mining_indices = [i for i in mining_indices if graphs[i].size() <= args.mining_max_graph_size]
         if args.mining_max_graphs is not None and len(mining_indices) > args.mining_max_graphs:
-            mining_indices = np.asarray(mining_indices, dtype=np.uint)[np.sort(np.random.RandomState(1).choice(len(mining_indices), size=args.mining_max_graphs, replace=False))]
+            mining_indices = np.asarray(mining_indices, dtype=np.uint)[np.sort(
+                np.random.RandomState(1).choice(len(mining_indices), size=args.mining_max_graphs, replace=False))]
         mining_graphs = [graphs[i] for i in mining_indices]
         if args.plot_mining_graphs:
             plot_graphs_to_dir(mining_graphs, os.path.join(args.output, 'problems'))
@@ -78,16 +82,23 @@ def main():
         # TODO: Allow loading the subgraphs.
         subgraphs_with_support = mine_frequent_subgraphs(mining_graphs,
                                                          min_support=args.mining_min_support,
+                                                         max_support=args.mining_max_support,
                                                          max_subgraphs_per_level=args.mining_max_subgraphs_per_level,
                                                          min_subgraph_size=args.mining_min_subgraph_size,
                                                          max_subgraph_size=args.mining_max_subgraph_size)
+        save_df(utils.dataframe_from_records(
+            [{'id': i,
+              'edges': subgraph.size(),
+              'nodes': len(subgraph),
+              'support': support} for i, (subgraph, support) in
+             enumerate(subgraphs_with_support)], 'id'), 'subgraphs', args.output)
         subgraphs_out_dir = os.path.join(args.output, 'subgraphs')
         os.makedirs(subgraphs_out_dir, exist_ok=True)
         for i, (subgraph, support) in enumerate(
                 tqdm(subgraphs_with_support, unit='subgraph', desc='Saving frequent subgraphs')):
             nx.write_gpickle(subgraph, os.path.join(subgraphs_out_dir, f'{i}.gpickle'))
             if args.plot_frequent_subgraphs:
-                out_file = os.path.join(subgraphs_out_dir, f'{i}_{support}.svg')
+                out_file = os.path.join(subgraphs_out_dir, f'{i}.svg')
                 plot_graph_to_file(subgraph, out_file)
         if args.no_featurization:
             save_df(utils.dataframe_from_records(records, 'problem', dtypes=dtypes), 'problems', args.output)
@@ -96,14 +107,58 @@ def main():
         if args.featurization_max_graph_size is not None:
             featurization_indices = [i for i in all_graph_indices if
                                      graphs[i].size() <= args.featurization_max_graph_size]
+        featurization_indices = np.asarray(featurization_indices, dtype=np.uint)
         logging.info('Problem graphs to featurize: %s', len(featurization_indices))
         featurization_graphs = [graphs[i] for i in featurization_indices]
         subgraphs = tuple(zip(*subgraphs_with_support))[0]
         feature_matrix = subgraph_matrix(featurization_graphs, subgraphs)
-        for i, feature_vector in zip(featurization_indices, feature_matrix):
-            records[i].update({('subgraph', k): int(feature_vector[k]) for k in range(len(feature_vector))})
+        for record_i, feature_vector in zip(featurization_indices, feature_matrix):
+            records[record_i].update({('subgraph', k): int(feature_vector[k]) for k in range(len(feature_vector))})
         subgraph_cols = [('subgraph', k) for k in range(len(subgraphs))]
         dtypes.update({col: pd.UInt8Dtype() for col in subgraph_cols})
+
+        center_indices = set()
+        for metric in ('cosine', 'l1'):
+            pos = Isomap(n_neighbors=10, metric=metric, p=1).fit_transform(feature_matrix)
+            for n_clusters in (2, 3):
+                kmedoids = KMedoids(n_clusters=n_clusters, metric=metric, init='k-medoids++', random_state=0)
+                labels = kmedoids.fit_predict(feature_matrix)
+                center_indices.update(kmedoids.medoid_indices_)
+                for local_i, (record_i, label) in enumerate(zip(featurization_indices, labels)):
+                    records[record_i][('kmedoids', metric, n_clusters, 'label')] = label
+                    for center_label, center_vector in enumerate(kmedoids.cluster_centers_):
+                        records[record_i][('kmedoids', metric, n_clusters, 'center', center_label)] = int(
+                            np.array_equal(feature_matrix[local_i], center_vector))
+                dtypes[('kmedoids', metric, n_clusters, 'label')] = pd.UInt8Dtype()
+                dtypes.update(
+                    {('kmedoids', metric, n_clusters, 'center', center_label): pd.UInt8Dtype() for center_label in
+                     range(n_clusters)})
+                for depvar in ['form', 'source', 'status', 'rating', 'spc']:
+                    plt.figure()
+                    plt.title(f'metric={metric}, n_clusters={n_clusters}, depvar={depvar}')
+                    values = np.asarray([records[i][depvar] for i in featurization_indices])
+                    if depvar == 'rating':
+                        depvar_map = values
+                        cmap = 'copper'
+                    else:
+                        depvar_labels, depvar_map = np.unique(values, return_inverse=True)
+                        cmap = 'Set1'
+                    cluster_plots = {}
+                    for label in range(n_clusters):
+                        cluster_mask = labels == label
+                        cur_pos = pos[cluster_mask]
+                        c = depvar_map[cluster_mask]
+                        marker = ['o', 's', '^'][label]
+                        cluster_plots[label] = plt.scatter(cur_pos[:, 0], cur_pos[:, 1], marker=marker, label=label,
+                                                           c=c, cmap=cmap)
+                    plt.legend(title='Clusters')
+                    out_file = os.path.join(args.output, 'manifolds', f'{metric}_{n_clusters}_{depvar}.svg')
+                    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+                    plt.savefig(out_file, bbox_inches='tight')
+                    plt.close()
+        plot_graphs_to_dir((graphs[featurization_indices[i]] for i in center_indices),
+                           os.path.join(args.output, 'problems'))
+
         df = utils.dataframe_from_records(records, 'problem', dtypes=dtypes)
         save_df(df, 'problems', args.output)
         df_featurized = utils.dataframe_from_records((records[i] for i in featurization_indices), 'problem',
@@ -136,12 +191,20 @@ col_dtypes = {'problem': 'object',
 
 
 @memory.cache
-def mine_frequent_subgraphs(graphs, min_support, max_subgraphs_per_level, min_subgraph_size, max_subgraph_size):
+def mine_frequent_subgraphs(graphs, min_support, max_support, max_subgraphs_per_level, min_subgraph_size,
+                            max_subgraph_size):
     logging.info('Graphs to mine from: %s', len(graphs))
     logging.debug('Node counts: %s', [len(g) for g in graphs])
     logging.debug('Edge counts: %s', [g.size() for g in graphs])
     assert 0 <= min_support <= 1
-    apr = Apriori(graphs, minsup=max(1, int(len(graphs) * min_support)), max_width=max_subgraphs_per_level)
+    min_support = max(1, int(len(graphs) * min_support))
+    if max_support is not None:
+        assert 0 <= max_support <= 1
+        max_support = int(len(graphs) * max_support)
+    apr = Apriori(graphs,
+                  min_support=min_support,
+                  max_support=max_support,
+                  max_width=max_subgraphs_per_level)
     return list(apr.frequent_subgraphs_with_support(max_k=max_subgraph_size, min_k=min_subgraph_size))
 
 
@@ -157,16 +220,17 @@ def subgraph_matrix(graphs, subgraphs):
 class Apriori:
     """Edge-based join growth"""
 
-    def __init__(self, graphs, minsup=1, max_width=None):
+    def __init__(self, graphs, min_support=1, max_support=None, max_width=None):
         self.graphs = sorted(graphs, key=lambda g: g.size(), reverse=True)
-        self.minsup = minsup
+        self.min_support = min_support
+        self.max_support = max_support
         self.max_width = max_width
 
-    def frequent_subgraphs_with_support(self, max_k=None, min_k=0):
+    def frequent_subgraphs_with_support(self, max_k=None, min_k=0, only_maximal=True):
         assert min_k >= 0
         if max_k is None:
             ks = itertools.count(min_k)
-            if self.minsup <= 0:
+            if self.min_support <= 0:
                 warnings.warn('Will run forever.')
         else:
             ks = range(min_k, max_k + 1)
@@ -174,10 +238,17 @@ class Apriori:
             gs = self.frequent_subgraphs_k_with_support(k)
             if len(gs) == 0:
                 break
-            for g in gs:
-                yield g
+            if only_maximal and (max_k is None or k < max_k):
+                incidence_matrix = subgraph_matrix(self.frequent_subgraphs_k(k + 1), [g[0] for g in gs])
+                mask = np.sum(incidence_matrix, axis=0)
+            else:
+                mask = np.ones(len(gs), dtype=np.bool)
+            for i, g in enumerate(gs):
+                assert g[1] >= self.min_support
+                if g[1] <= self.max_support and mask[i] == 0:
+                    yield g
 
-    @functools.lru_cache(maxsize=2)
+    @functools.lru_cache(maxsize=3)
     def frequent_subgraphs_k_with_support(self, k):
         assert k >= 0
         if k == 0:
@@ -205,7 +276,7 @@ class Apriori:
         return res
 
     def frequent_subgraphs_k(self, k):
-        return tuple(zip(*self.frequent_subgraphs_k_with_support(k)))[0]
+        return [g[0] for g in self.frequent_subgraphs_k_with_support(k)]
 
     @staticmethod
     def signature(g):
@@ -259,7 +330,7 @@ class Apriori:
         assert len(support_counts) == len(subgraphs)
         supports = collections.Counter(dict(zip(subgraphs, support_counts)))
         for subgraph, support in list(supports.items()):
-            if support < self.minsup:
+            if support < self.min_support:
                 del supports[subgraph]
         if len(supports) == 0:
             return []
@@ -333,7 +404,7 @@ def problem_to_graph(problem, solver):
               'clausify_returncode': clausify_result.returncode,
               'clausify_time': time_elapsed}
     record.update(tptp.problem_properties(problem))
-    if clausify_result.returncode != 0:
+    if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
         return None, record
     symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in
                ('predicate', 'function')}
