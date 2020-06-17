@@ -26,13 +26,25 @@ def problem_name_properties(problem):
 
 def problem_header_properties(content):
     # http://www.tptp.org/TPTP/TR/TPTPTR.shtml#HeaderSection
-    return {
+    res = {
         'domain_full': re_search(r'^% Domain   : (.*)$', content),
         'source': re_search(r'^% Source   : (.*)$', content),
         'status': re_search(r'^% Status   : (.*)$', content),
         'rating': re_search(r'^% Rating   : (\d\.\d\d) (v\d\.\d\.\d)\b', content, cast=float),
         'spc': re_search(r'^% SPC      : (.*)$', content)
     }
+    res.update(atoms(content))
+    return res
+
+
+def atoms(content):
+    m = re.search(r'^% +Number of atoms +: +(?P<atoms>\d+) \( *(?P<atoms_equality>\d+) equality\)$',
+                  content, re.MULTILINE)
+    if m is None:
+        return {}
+    res = {k: int(v) for k, v in m.groupdict().items()}
+    res['equality_present'] = res['atoms_equality'] != 0
+    return res
 
 
 def re_search(pattern, string, cast=None):
