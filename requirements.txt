@@ -13,5 +13,6 @@ pyyaml
 scipy
 seaborn
 scikit-learn
+scikit-learn-extra
 tensorflow
 tqdm
