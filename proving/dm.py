@@ -15,9 +15,11 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import pandas as pd
+import sklearn.metrics
 from joblib import Parallel, delayed
 from networkx.algorithms.isomorphism import DiGraphMatcher
-from networkx.algorithms.isomorphism import categorical_node_match
+from networkx.algorithms.isomorphism import categorical_node_match, categorical_edge_match
+from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.manifold import Isomap
 from sklearn_extra.cluster import KMedoids
 from tqdm import tqdm
@@ -44,8 +46,9 @@ def main():
     parser.add_argument('--mining-min-subgraph-size', type=int, default=0)
     parser.add_argument('--mining-max-subgraph-size', type=int)
     parser.add_argument('--mining-min-support', type=float, default=0.25)
-    parser.add_argument('--mining-max-support', type=float, default=0.75)
+    parser.add_argument('--mining-max-support', type=float, default=1.00)
     parser.add_argument('--mining-max-subgraphs-per-level', type=int)
+    parser.add_argument('--mining-only-maximal-subgraphs', action='store_true')
     parser.add_argument('--featurization-max-graph-size', type=int)
     parser.add_argument('--plot-mining-graphs', action='store_true')
     parser.add_argument('--plot-frequent-subgraphs', action='store_true')
@@ -58,6 +61,7 @@ def main():
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         problems, _ = list(file_path_list.compose(args.problem_list, args.problem))
+        problems = np.asarray(problems)
         logging.info('Problems available: %s', len(problems))
         if args.max_problems is not None and len(problems) > args.max_problems:
             problems = np.random.RandomState(0).choice(problems, size=args.max_problems, replace=False)
@@ -87,7 +91,8 @@ def main():
                                                          max_support=args.mining_max_support,
                                                          max_subgraphs_per_level=args.mining_max_subgraphs_per_level,
                                                          min_subgraph_size=args.mining_min_subgraph_size,
-                                                         max_subgraph_size=args.mining_max_subgraph_size)
+                                                         max_subgraph_size=args.mining_max_subgraph_size,
+                                                         only_maximal=args.mining_only_maximal_subgraphs)
         save_df(utils.dataframe_from_records(
             [{'id': i,
               'edges': subgraph.size(),
@@ -116,49 +121,70 @@ def main():
         feature_matrix = subgraph_matrix(featurization_graphs, subgraphs)
         for record_i, feature_vector in zip(featurization_indices, feature_matrix):
             records[record_i].update({('subgraph', k): int(feature_vector[k]) for k in range(len(feature_vector))})
+        tfidf = TfidfTransformer(smooth_idf=False)
+        feature_matrix = tfidf.fit_transform(feature_matrix)
+        save_df(utils.dataframe_from_records(
+            [{'id': i,
+              'edges': subgraph.size(),
+              'nodes': len(subgraph),
+              'support': support,
+              'idf': tfidf.idf_[i]} for i, (subgraph, support) in
+             enumerate(subgraphs_with_support)], 'id'), 'subgraphs', args.output)
         subgraph_cols = [('subgraph', k) for k in range(len(subgraphs))]
         dtypes.update({col: pd.UInt8Dtype() for col in subgraph_cols})
 
+        logging.info('Clustering...')
         center_indices = set()
         for metric in ('cosine', 'l1'):
-            pos = Isomap(n_neighbors=10, metric=metric, p=1).fit_transform(feature_matrix)
+            positions = {n: get_positions(n, metric, feature_matrix) for n in (10, 15, 20, 30, 40)}
             for n_clusters in (2, 3):
                 kmedoids = KMedoids(n_clusters=n_clusters, metric=metric, init='k-medoids++', random_state=0)
                 labels = kmedoids.fit_predict(feature_matrix)
                 center_indices.update(kmedoids.medoid_indices_)
+                for label, i in enumerate(kmedoids.medoid_indices_):
+                    distances = sklearn.metrics.pairwise_distances(kmedoids.cluster_centers_[label], feature_matrix,
+                                                                   metric=metric).flatten()
+                    second = np.argpartition(distances, 2)[1]
+                    logging.info(
+                        f'metric={metric}, n_clusters={n_clusters}, label={label}, representative={problems[featurization_indices[i]]}, second={problems[featurization_indices[second]]}')
+                    center_indices.add(second)
                 for local_i, (record_i, label) in enumerate(zip(featurization_indices, labels)):
                     records[record_i][('kmedoids', metric, n_clusters, 'label')] = label
                     for center_label, center_vector in enumerate(kmedoids.cluster_centers_):
                         records[record_i][('kmedoids', metric, n_clusters, 'center', center_label)] = int(
-                            np.array_equal(feature_matrix[local_i], center_vector))
+                            (feature_matrix[local_i] != center_vector).nnz == 0)
                 dtypes[('kmedoids', metric, n_clusters, 'label')] = pd.UInt8Dtype()
                 dtypes.update(
                     {('kmedoids', metric, n_clusters, 'center', center_label): pd.UInt8Dtype() for center_label in
                      range(n_clusters)})
-                for depvar in ['form', 'source', 'status', 'rating', 'spc']:
+                for depvar, (n_neighbors, pos) in itertools.product(
+                        ('form', 'source', 'status', 'rating', 'spc', 'atoms', 'atoms_equality', 'equality_present'),
+                        positions.items()):
                     plt.figure()
-                    plt.title(f'metric={metric}, n_clusters={n_clusters}, depvar={depvar}')
+                    plt.title(f'metric={metric}, n_neighbors={n_neighbors}, n_clusters={n_clusters}, depvar={depvar}')
                     values = np.asarray([records[i][depvar] for i in featurization_indices])
-                    if depvar == 'rating':
+                    if depvar in {'rating', 'atoms', 'atoms_equality'}:
                         depvar_map = values
                         cmap = 'copper'
                     else:
                         depvar_labels, depvar_map = np.unique(values, return_inverse=True)
                         cmap = 'Set1'
-                    cluster_plots = {}
                     for label in range(n_clusters):
                         cluster_mask = labels == label
                         cur_pos = pos[cluster_mask]
                         c = depvar_map[cluster_mask]
                         marker = ['o', 's', '^'][label]
-                        cluster_plots[label] = plt.scatter(cur_pos[:, 0], cur_pos[:, 1], marker=marker, label=label,
-                                                           c=c, cmap=cmap)
+                        s = np.full(len(cur_pos), plt.rcParams['lines.markersize'] ** 2)
+                        representative_mask = np.arange(len(labels)) == kmedoids.medoid_indices_[label]
+                        s[representative_mask[cluster_mask]] = plt.rcParams['lines.markersize'] ** 2 * 4
+                        plt.scatter(cur_pos[:, 0], cur_pos[:, 1], marker=marker, label=label, c=c, cmap=cmap, s=s)
                     plt.legend(title='Clusters')
-                    out_file = os.path.join(args.output, 'manifolds', f'{metric}_{n_clusters}_{depvar}.svg')
+                    out_file = os.path.join(args.output, 'manifolds',
+                                            f'{metric}_{n_neighbors}_{depvar}_{n_clusters}.svg')
                     os.makedirs(os.path.dirname(out_file), exist_ok=True)
                     plt.savefig(out_file, bbox_inches='tight')
                     plt.close()
-        plot_graphs_to_dir((graphs[featurization_indices[i]] for i in center_indices),
+        plot_graphs_to_dir([graphs[featurization_indices[i]] for i in center_indices],
                            os.path.join(args.output, 'problems'))
 
         df = utils.dataframe_from_records(records, 'problem', dtypes=dtypes)
@@ -169,6 +195,10 @@ def main():
                              index=False)
         df_featurized.to_csv(os.path.join(args.output, 'metadata.tsv'), sep='\t',
                              columns=(col for col in col_dtypes.keys() if col != 'problem'))
+
+
+def get_positions(n_neighbors, metric, feature_matrix):
+    return Isomap(n_neighbors=n_neighbors, metric=metric, p=1).fit_transform(feature_matrix)
 
 
 col_dtypes = {'problem': 'object',
@@ -194,7 +224,7 @@ col_dtypes = {'problem': 'object',
 
 @memory.cache
 def mine_frequent_subgraphs(graphs, min_support, max_support, max_subgraphs_per_level, min_subgraph_size,
-                            max_subgraph_size):
+                            max_subgraph_size, only_maximal):
     logging.info('Graphs to mine from: %s', len(graphs))
     logging.debug('Node counts: %s', [len(g) for g in graphs])
     logging.debug('Edge counts: %s', [g.size() for g in graphs])
@@ -207,7 +237,8 @@ def mine_frequent_subgraphs(graphs, min_support, max_support, max_subgraphs_per_
                   min_support=min_support,
                   max_support=max_support,
                   max_width=max_subgraphs_per_level)
-    return list(apr.frequent_subgraphs_with_support(max_k=max_subgraph_size, min_k=min_subgraph_size))
+    return list(apr.frequent_subgraphs_with_support(max_k=max_subgraph_size, min_k=min_subgraph_size,
+                                                    only_maximal=only_maximal))
 
 
 @memory.cache
@@ -242,12 +273,12 @@ class Apriori:
                 break
             if only_maximal and (max_k is None or k < max_k):
                 incidence_matrix = subgraph_matrix(self.frequent_subgraphs_k(k + 1), [g[0] for g in gs])
-                mask = np.sum(incidence_matrix, axis=0)
+                mask = np.sum(incidence_matrix, axis=0) == 0
             else:
                 mask = np.ones(len(gs), dtype=np.bool)
             for i, g in enumerate(gs):
                 assert g[1] >= self.min_support
-                if g[1] <= self.max_support and mask[i] == 0:
+                if g[1] <= self.max_support and mask[i]:
                     yield g
 
     @functools.lru_cache(maxsize=3)
@@ -309,15 +340,22 @@ class Apriori:
                         g2_common = nx.relabel_nodes(g2, lambda x: iso2.get(x, ('new', 1)))
                         assert set(core.edges) <= set(g2_common.edges)
                         g = nx.compose(g1_common, g2_common)
+                        assert g.size() == core.size() + 2
                         yield nx.convert_node_labels_to_integers(g)
+                        if g1_common.nodes[('new', 0)]['type'] == g2_common.nodes[('new', 1)]['type']:
+                            g2_common = nx.relabel_nodes(g2, lambda x: iso2.get(x, ('new', 0)))
+                            gj = nx.compose(g1_common, g2_common)
+                            assert core.size() + 1 <= gj.size() <= core.size() + 2
+                            if gj.size() == core.size() + 2:
+                                yield nx.convert_node_labels_to_integers(gj)
 
     def all_graphs_1(self):
         subgraphs = []
-        for nt in itertools.product(node_types, repeat=2):
+        for type1, type2, attributes in edge_types:
             g = empty_graph()
-            g.add_node(0, type=nt[0])
-            g.add_node(1, type=nt[1])
-            g.add_edge(0, 1)
+            g.add_node(0, type=type1)
+            g.add_node(1, type=type2)
+            g.add_edge(0, 1, **attributes)
             assert all(not is_isomorphic(other, g) for other in subgraphs)
             assert g.size() == 1
             assert len(g) in {1, 2}
@@ -374,7 +412,9 @@ def subgraph_isomorphisms(big, small):
 
 
 def graph_matcher(g1, g2):
-    return DiGraphMatcher(g1, g2, node_match=categorical_node_match('type', None))
+    return DiGraphMatcher(g1, g2,
+                          node_match=categorical_node_match('type', None),
+                          edge_match=categorical_edge_match('polarity', None))
 
 
 def trivial_graph(node_type):
@@ -485,6 +525,21 @@ node_types = [
     'variable'
 ]
 
+edge_types = [('root', 'clause', {}),
+              ('clause', 'atom', {'polarity': 0}),
+              ('clause', 'atom', {'polarity': 1}),
+              ('clause', 'equality', {'polarity': 0}),
+              ('clause', 'equality', {'polarity': 1}),
+              ('atom', 'predicate', {}),
+              ('atom', 'argument', {}),
+              ('equality', 'predicate', {}),
+              ('equality', 'term', {}),
+              ('equaltiy', 'variable', {}),
+              ('term', 'argument', {}),
+              ('term', 'function', {}),
+              ('argument', 'term', {}),
+              ('argument', 'variable', {})]
+
 node_color_dict = {node_type: f'C{i}' for i, node_type in enumerate(node_types)}
 
 
@@ -496,7 +551,7 @@ def node_label(attributes):
 
 
 def edge_color(attributes):
-    if 'type' in attributes and attributes['type'] == 'clause_atom':
+    if 'polarity' in attributes:
         if attributes['polarity']:
             return 'red'
         else:
