@@ -63,7 +63,8 @@ def main():
             problems = np.random.RandomState(0).choice(problems, size=args.max_problems, replace=False)
         logging.info('Problems under consideration: %s', len(problems))
         solver = Solver(timeout=20)
-        graphs, records = zip(*problems_to_graphs(problems, solver))
+        assert args.featurization_max_graph_size is None or args.mining_max_graph_size is None or args.featurization_max_graph_size >= args.mining_max_graph_size
+        graphs, records = zip(*problems_to_graphs(problems, solver, max_size=args.featurization_max_graph_size))
         assert len(problems) == len(graphs) == len(records)
         all_graph_indices = [i for i, g in enumerate(graphs) if g is not None]
         logging.info('Graphs total: %s', len(all_graph_indices))
@@ -391,13 +392,13 @@ def problem_name(path):
     return path.replace('/', '_')
 
 
-def problems_to_graphs(problems, solver):
+def problems_to_graphs(problems, solver, max_size=None):
     logging.info(f'Generating graph representations of {len(problems)} problems...')
-    return Parallel(verbose=10)(delayed(problem_to_graph)(problem, solver) for problem in problems)
+    return Parallel(verbose=10)(delayed(problem_to_graph)(problem, solver, max_size) for problem in problems)
 
 
 @memory.cache
-def problem_to_graph(problem, solver):
+def problem_to_graph(problem, solver, max_size=None):
     time_start = time.time()
     clausify_result = solver.clausify(problem)
     time_elapsed = time.time() - time_start
@@ -417,6 +418,8 @@ def problem_to_graph(problem, solver):
     g = clausify_result_to_graph(clausify_result, expression_namer, name=problem)
     time_elapsed = time.time() - time_start
     record.update({'graph_nodes': len(g), 'graph_edges': g.size(), 'graph_time': time_elapsed})
+    if max_size is not None and g.size() > max_size:
+        g = None
     return g, record
 
 
