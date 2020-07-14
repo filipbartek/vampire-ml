@@ -39,3 +39,8 @@ def array_stats(a):
 
 def named_array_stats(a, array_name):
     return {(array_name, stat_name): value for stat_name, value in array_stats(a).items()}
+
+
+def join_dicts(dicts):
+    # https://stackoverflow.com/a/3495395/4054250
+    return {k: v for d in dicts for k, v in d.items()}
