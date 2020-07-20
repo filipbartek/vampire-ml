@@ -37,7 +37,12 @@ def load(file):
                            'inGoal': np.bool,
                            'inUnit': np.bool,
                            'skolem': np.bool,
-                           'inductionSkolem': np.bool
+                           'inductionSkolem': np.bool,
+                           'interpreted': np.bool,
+                           'introduced': np.bool,
+                           'stringConstant': np.bool,
+                           'numericConstant': np.bool,
+                           'interpretedNumber': np.bool
                        })
 
 
