@@ -44,3 +44,10 @@ def named_array_stats(a, array_name):
 def join_dicts(dicts):
     # https://stackoverflow.com/a/3495395/4054250
     return {k: v for d in dicts for k, v in d.items()}
+
+
+def invert_permutation(p):
+    # https://stackoverflow.com/a/25535723/4054250
+    s = np.empty(p.size, p.dtype)
+    s[p] = np.arange(p.size)
+    return s
