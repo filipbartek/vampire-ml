@@ -167,8 +167,9 @@ def load_question(question_path):
     n = len(p[0])
     assert p[0].shape == p[1].shape == (n,)
     p_inv = (utils.invert_permutation(p[0]), utils.invert_permutation(p[1]))
-    res = (p_inv[1].astype(dtype_tf_float) - p_inv[0]) * 2 / (n * (n + 1))
-    assert np.isclose(res.sum(), 0)
+    res = (p_inv[1].astype(np.int32) - p_inv[0].astype(np.int32)) * 2 / (n * (n + 1))
+    res = res.astype(dtype_tf_float)
+    assert np.isclose(0, res.sum(), atol=1e-06)
     logging.debug(f'n={n}, abs.sum={np.sum(np.abs(res))}, abs.std={np.std(np.abs(res))}, std={np.std(res)}')
     return res
 
