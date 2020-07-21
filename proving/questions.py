@@ -8,10 +8,12 @@ import os
 import re
 import warnings
 
+import joblib
 import numpy as np
 import pandas as pd
 import sklearn
 import tensorflow as tf
+from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -39,6 +41,7 @@ def main():
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--use-bias', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
+    parser.add_argument('--jobs', type=int, default=1)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -53,79 +56,80 @@ def main():
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
     tf.summary.experimental.set_step(0)
 
-    questions = get_problem_questions(args.question_dir)
-    problem_names = list(questions.keys())
-    logging.info(f'Number of problems: {len(problem_names)}')
-    signatures = get_problem_signatures(args.signature_dir, 'predicate', problem_names)
-    problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for
-                problem_name in problem_names}
-    with train_summary_writer.as_default():
-        tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
-        tf.summary.histogram('questions_per_problem', [len(d['questions']) for d in problems.values()])
-    problems_list = list(problems.items())
+    with joblib.parallel_backend('threading', n_jobs=args.jobs):
+        questions = get_problem_questions(args.question_dir)
+        problem_names = list(questions.keys())
+        logging.info(f'Number of problems: {len(problem_names)}')
+        signatures = get_problem_signatures(args.signature_dir, 'predicate', problem_names)
+        problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for
+                    problem_name in problem_names}
+        with train_summary_writer.as_default():
+            tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
+            tf.summary.histogram('questions_per_problem', [len(d['questions']) for d in problems.values()])
+        problems_list = list(problems.items())
 
-    if args.train_size == 1.0:
-        problems_train = problems_list
-        problems_test = []
-    else:
-        problems_train, problems_test = train_test_split(problems_list,
-                                                         test_size=args.test_size,
-                                                         train_size=args.train_size,
-                                                         random_state=0)
-    logging.info(f'Number of training problems: {len(problems_train)}')
-    logging.info(f'Number of test problems: {len(problems_test)}')
+        if args.train_size == 1.0:
+            problems_train = problems_list
+            problems_test = []
+        else:
+            problems_train, problems_test = train_test_split(problems_list,
+                                                             test_size=args.test_size,
+                                                             train_size=args.train_size,
+                                                             random_state=0)
+        logging.info(f'Number of training problems: {len(problems_train)}')
+        logging.info(f'Number of test problems: {len(problems_test)}')
 
-    x_train, sample_weight_train = problems_to_data(problems_train)
-    x_test, sample_weight_test = problems_to_data(problems_test)
+        x_train, sample_weight_train = problems_to_data(problems_train)
+        x_test, sample_weight_test = problems_to_data(problems_test)
 
-    k = 12
+        k = 12
 
-    loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
+        loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
-    optimizers = {
-        'sgd': keras.optimizers.SGD,
-        'adam': keras.optimizers.Adam,
-        'rmsprop': keras.optimizers.RMSprop
-    }
-    optimizer = optimizers[args.optimizer](learning_rate=args.learning_rate)
+        optimizers = {
+            'sgd': keras.optimizers.SGD,
+            'adam': keras.optimizers.Adam,
+            'rmsprop': keras.optimizers.RMSprop
+        }
+        optimizer = optimizers[args.optimizer](learning_rate=args.learning_rate)
 
-    records = []
+        records = []
 
-    try:
-        for w in tqdm(list(itertools.chain(np.eye(k), np.eye(k) * -1,
-                                           (np.random.normal(0, 1, k) for _ in range(args.random_weights)))),
-                      unit='weight', desc='Evaluating custom weights'):
-            if args.use_bias:
-                weights = [w.reshape(-1, 1), np.zeros(1)]
-            else:
-                weights = [w.reshape(-1, 1)]
-            model = get_model(k, args.use_bias, weights)
-            record = evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn)
-            records.append(record)
+        try:
+            for w in tqdm(list(itertools.chain(np.eye(k), np.eye(k) * -1,
+                                               (np.random.normal(0, 1, k) for _ in range(args.random_weights)))),
+                          unit='weight', desc='Evaluating custom weights'):
+                if args.use_bias:
+                    weights = [w.reshape(-1, 1), np.zeros(1)]
+                else:
+                    weights = [w.reshape(-1, 1)]
+                model = get_model(k, args.use_bias, weights)
+                record = evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn)
+                records.append(record)
 
-        for iteration_i in tqdm(range(args.iterations), unit='iteration', desc='Training repeatedly'):
-            model = get_model(k, args.use_bias)
-            if iteration_i == 0:
-                keras.utils.plot_model(model, 'model.png', show_shapes=True)
-            with tqdm(range(args.epochs), unit='epoch', desc='Training once') as t:
-                for epoch_i in t:
-                    tf.summary.experimental.set_step(epoch_i)
-                    if epoch_i % args.evaluation_period == 0:
-                        record = {
-                            'iteration': iteration_i,
-                            'epoch': epoch_i
-                        }
-                        record.update(evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn,
-                                               test_summary_writer, train_summary_writer))
-                        records.append(record)
-                    loss_value = train_step(model, x_train, sample_weight_train, loss_fn, optimizer)
-                    with train_summary_writer.as_default():
-                        tf.summary.scalar('loss', loss_value)
-                    t.set_postfix({'loss': loss_value.numpy()})
-    finally:
-        save_df(
-            utils.dataframe_from_records(records, dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
-            'measurements')
+            for iteration_i in tqdm(range(args.iterations), unit='iteration', desc='Training repeatedly'):
+                model = get_model(k, args.use_bias)
+                if iteration_i == 0:
+                    keras.utils.plot_model(model, 'model.png', show_shapes=True)
+                with tqdm(range(args.epochs), unit='epoch', desc='Training once') as t:
+                    for epoch_i in t:
+                        tf.summary.experimental.set_step(epoch_i)
+                        if epoch_i % args.evaluation_period == 0:
+                            record = {
+                                'iteration': iteration_i,
+                                'epoch': epoch_i
+                            }
+                            record.update(evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn,
+                                                   test_summary_writer, train_summary_writer))
+                            records.append(record)
+                        loss_value = train_step(model, x_train, sample_weight_train, loss_fn, optimizer)
+                        with train_summary_writer.as_default():
+                            tf.summary.scalar('loss', loss_value)
+                        t.set_postfix({'loss': loss_value.numpy()})
+        finally:
+            save_df(
+                utils.dataframe_from_records(records, dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
+                'measurements')
 
 
 def evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn, test_summary_writer=None,
@@ -216,15 +220,19 @@ def get_model(k, use_bias=False, weights=None):
 
 @memory.cache
 def get_problem_questions(question_dir):
-    questions = {}
-    for dir_entry in tqdm(os.scandir(question_dir), unit='question', desc='Loading questions'):
+    def load_question_dir_entry(dir_entry):
         m = re.search(
             r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
             dir_entry.name, re.MULTILINE)
         problem_name = m['problem_name']
+        return problem_name, load_question(dir_entry.path)
+
+    question_list = Parallel(verbose=1)(delayed(load_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
+    questions = {}
+    for problem_name, question in question_list:
         if problem_name not in questions:
             questions[problem_name] = []
-        questions[problem_name].append(load_question(dir_entry.path))
+        questions[problem_name].append(question)
     for problem_name in questions:
         questions[problem_name] = np.asarray(questions[problem_name])
     return questions
