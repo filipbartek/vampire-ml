@@ -92,9 +92,9 @@ def main():
     records = []
 
     try:
-        for w in tqdm(itertools.chain(np.eye(k), np.eye(k) * -1,
-                                      (np.random.normal(0, 1, k) for _ in range(args.random_weights))), unit='weight',
-                      desc='Evaluating custom weights'):
+        for w in tqdm(list(itertools.chain(np.eye(k), np.eye(k) * -1,
+                                           (np.random.normal(0, 1, k) for _ in range(args.random_weights)))),
+                      unit='weight', desc='Evaluating custom weights'):
             if args.use_bias:
                 weights = [w.reshape(-1, 1), np.zeros(1)]
             else:
