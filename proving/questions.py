@@ -234,10 +234,12 @@ def get_problem_questions(question_dir):
 def get_problem_signatures(symbols_dir_path, symbol_type, problems=None):
     if problems is not None:
         iterable = ((problem_name, os.path.join(symbols_dir_path, f'{problem_name}.sig')) for problem_name in problems)
+        total = len(problems)
     else:
         iterable = ((os.path.splitext(dir_entry.name)[0], dir_entry.path) for dir_entry in os.scandir(symbols_dir_path))
+        total = None
     signatures = {}
-    with tqdm(iterable, unit='problem', desc='Loading signatures') as t:
+    with tqdm(iterable, unit='problem', desc='Loading signatures', total=total) as t:
         for problem_name, signature_path in t:
             t.set_postfix_str(signature_path)
             try:
