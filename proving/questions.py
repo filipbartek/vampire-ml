@@ -6,6 +6,7 @@ import itertools
 import logging
 import os
 import re
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -52,7 +53,10 @@ def main():
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
     tf.summary.experimental.set_step(0)
 
-    problems = get_problem_questions(args.question_dir, args.signature_dir, 'predicate')
+    signatures = get_problem_signatures(args.signature_dir, 'predicate')
+    questions = get_problem_questions(args.question_dir)
+    problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for
+                problem_name in questions.keys()}
     logging.info(f'Number of problems: {len(problems)}')
     with train_summary_writer.as_default():
         tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
@@ -210,24 +214,38 @@ def get_model(k, use_bias=False, weights=None):
 
 
 @memory.cache
-def get_problem_questions(question_dir, symbols_dir_path, symbol_type):
-    problems = {}
+def get_problem_questions(question_dir):
+    questions = {}
     for dir_entry in tqdm(os.scandir(question_dir), unit='question', desc='Loading questions'):
         m = re.search(
             r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
             dir_entry.name, re.MULTILINE)
         problem_name = m['problem_name']
-        if problem_name not in problems:
-            sym_all = symbols.load(os.path.join(symbols_dir_path, f'{problem_name}.sig'))
-            sym_selected = symbols.symbols_of_type(sym_all, symbol_type)
-            problems[problem_name] = {
-                'symbol_embeddings': sym_selected.drop('name', axis='columns').astype(dtype_tf_float).values,
-                'questions': []
-            }
-        problems[problem_name]['questions'].append(load_question(dir_entry.path))
-    for problem_name in problems:
-        problems[problem_name]['questions'] = np.asarray(problems[problem_name]['questions'])
-    return problems
+        if problem_name not in questions:
+            questions[problem_name] = []
+        questions[problem_name].append(load_question(dir_entry.path))
+    for problem_name in questions:
+        questions[problem_name] = np.asarray(questions[problem_name])
+    return questions
+
+
+@memory.cache
+def get_problem_signatures(symbols_dir_path, symbol_type, problems=None):
+    if problems is not None:
+        iterable = ((problem_name, os.path.join(symbols_dir_path, f'{problem_name}.sig')) for problem_name in problems)
+    else:
+        iterable = ((os.path.splitext(dir_entry.name)[0], dir_entry.path) for dir_entry in os.scandir(symbols_dir_path))
+    signatures = {}
+    with tqdm(iterable, unit='problem', desc='Loading signatures') as t:
+        for problem_name, signature_path in t:
+            t.set_postfix_str(signature_path)
+            try:
+                sym_all = symbols.load(signature_path)
+                sym_selected = symbols.symbols_of_type(sym_all, symbol_type)
+                signatures[problem_name] = sym_selected.drop('name', axis='columns').astype(dtype_tf_float).values
+            except ValueError:
+                warnings.warn(f'Failed to load signature: {signature_path}')
+    return signatures
 
 
 def load_question(question_path):
