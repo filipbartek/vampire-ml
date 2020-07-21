@@ -3,11 +3,14 @@
 import argparse
 import datetime
 import glob
+import itertools
 import logging
 import os
 import re
 
 import numpy as np
+import pandas as pd
+import sklearn
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
@@ -17,39 +20,46 @@ from tqdm import tqdm
 from proving import symbols
 from proving import utils
 from proving.memory import memory
+from vampire_ml.results import save_df
+
+dtype_tf_float = np.float32
 
 
 def main():
-    rng = np.random.RandomState(0)
-
     parser = argparse.ArgumentParser()
     parser.add_argument('--question-pattern', required=True)
     parser.add_argument('--signature-dir', required=True)
     parser.add_argument('--log-dir', default='logs')
     parser.add_argument('--test-size', type=float)
     parser.add_argument('--train-size', type=float)
-    parser.add_argument('--batches', type=int, default=10)
-    parser.add_argument('--batch-size', type=int)
+    parser.add_argument('--iterations', type=int, default=1)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--evaluation-period', type=int, default=1)
+    parser.add_argument('--optimizer', default='sgd', choices=['sgd', 'adam', 'rmsprop'])
+    parser.add_argument('--learning-rate', type=float, default=0.001)
+    parser.add_argument('--use-bias', action='store_true')
+    parser.add_argument('--random-weights', type=int, default=0)
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
 
-    question_paths = glob.iglob(args.question_pattern, recursive=True)
-    question_paths = list(question_paths)
+    np.random.seed(0)
+    tf.random.set_seed(0)
+
+    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    train_log_dir = os.path.join(args.log_dir, current_time, 'train')
+    test_log_dir = os.path.join(args.log_dir, current_time, 'test')
+    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
+    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+    tf.summary.experimental.set_step(0)
+
+    question_paths = glob.glob(args.question_pattern, recursive=True)
     problems = get_problem_questions(question_paths, args.signature_dir, 'predicate')
-    print(len(problems))
+    logging.info(f'Number of problems: {len(problems)}')
+    with train_summary_writer.as_default():
+        tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
+        tf.summary.histogram('questions_per_problem', [len(d['questions']) for d in problems.values()])
     problems_list = list(problems.items())
-
-    k = 12
-
-    model = get_model(k)
-    loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
-    # model.compile(loss=loss_fn)
-    optimizer = keras.optimizers.SGD(learning_rate=1e-3)
-
-    # model.summary()
-    keras.utils.plot_model(model, 'model.svg', show_shapes=True)
 
     if args.train_size == 1.0:
         problems_train = problems_list
@@ -59,79 +69,145 @@ def main():
                                                          test_size=args.test_size,
                                                          train_size=args.train_size,
                                                          random_state=0)
-    print(f'Total problems: {len(problems_list)}. Training problems: {len(problems_train)}. Test problems: {len(problems_test)}.')
+    logging.info(f'Number of training problems: {len(problems_train)}')
+    logging.info(f'Number of test problems: {len(problems_test)}')
 
-    current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = os.path.join(args.log_dir, current_time, 'train')
-    test_log_dir = os.path.join(args.log_dir, current_time, 'test')
-    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+    x_train, sample_weight_train = problems_to_data(problems_train)
+    x_test, sample_weight_test = problems_to_data(problems_test)
 
-    for i in tqdm(range(args.batches), unit='batch', desc='Training'):
-        if i % args.evaluation_period == 0:
-            with test_summary_writer.as_default():
-                for name, value in evaluate(model, problems_test).items():
-                    tf.summary.scalar(name, value, step=i)
-            with train_summary_writer.as_default():
-                for name, value in evaluate(model, problems_train).items():
-                    tf.summary.scalar(name, value, step=i)
-        if args.batch_size is None:
-            batch = problems_train
-        else:
-            batch = [problems_train[j] for j in rng.choice(len(problems_train), args.batch_size, replace=False)]
+    k = 12
+
+    loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
+
+    optimizers = {
+        'sgd': keras.optimizers.SGD,
+        'adam': keras.optimizers.Adam,
+        'rmsprop': keras.optimizers.RMSprop
+    }
+    optimizer = optimizers[args.optimizer](learning_rate=args.learning_rate)
+
+    records = []
+
+    try:
+        for w in tqdm(itertools.chain(np.eye(k), np.eye(k) * -1,
+                                      (np.random.normal(0, 1, k) for _ in range(args.random_weights)))):
+            if args.use_bias:
+                weights = [w.reshape(-1, 1), np.zeros(1)]
+            else:
+                weights = [w.reshape(-1, 1)]
+            model = get_model(k, args.use_bias, weights)
+            record = evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn)
+            records.append(record)
+
+        for iteration_i in tqdm(range(args.iterations), unit='iteration', desc='Training repeatedly'):
+            model = get_model(k, args.use_bias)
+            if iteration_i == 0:
+                keras.utils.plot_model(model, 'model.png', show_shapes=True)
+            with tqdm(range(args.epochs), unit='epoch', desc='Training once') as t:
+                for epoch_i in t:
+                    tf.summary.experimental.set_step(epoch_i)
+                    if epoch_i % args.evaluation_period == 0:
+                        record = {
+                            'iteration': iteration_i,
+                            'epoch': epoch_i
+                        }
+                        record.update(evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn,
+                                               test_summary_writer, train_summary_writer))
+                        records.append(record)
+                    loss_value = train_step(model, x_train, sample_weight_train, loss_fn, optimizer)
+                    with train_summary_writer.as_default():
+                        tf.summary.scalar('loss', loss_value)
+                    t.set_postfix({'loss': loss_value.numpy()})
+    finally:
+        save_df(
+            utils.dataframe_from_records(records, dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
+            'measurements')
+
+
+def evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn, test_summary_writer=None,
+             train_summary_writer=None):
+    record = {}
+    weights = model.get_weights()
+    for weight_i, weight in enumerate(weights):
+        record[('weight', weight_i)] = np.squeeze(weight)
+        record[('weight_normalized', weight_i)] = np.squeeze(sklearn.preprocessing.normalize(weight, axis=0))
+    if train_summary_writer is not None:
         with train_summary_writer.as_default():
-            tf.summary.scalar('loss', train_on_problems(model, batch, loss_fn, optimizer), step=i)
+            tf.summary.text('weights', str(weights))
+    for name, value in test_step(model, x_test, sample_weight_test, loss_fn).items():
+        record[('test', name)] = value.numpy()
+        if test_summary_writer is not None:
+            with test_summary_writer.as_default():
+                tf.summary.scalar(name, value)
+    for name, value in test_step(model, x_train, sample_weight_train, loss_fn).items():
+        record[('train', name)] = value.numpy()
+        if train_summary_writer is not None:
+            with train_summary_writer.as_default():
+                tf.summary.scalar(name, value)
+    return record
 
 
-def train_on_problems(model, problems, loss_fn, optimizer):
-    # https://stackoverflow.com/a/62683800/4054250
-    total_loss = 0
-    accum_gradient = [tf.zeros_like(this_var) for this_var in model.trainable_variables]
-    for problem_name, d in tqdm(problems, unit='problem', desc='Training on a batch of problems', disable=len(problems) < 1000):
-        symbol_embeddings = d['symbol_embeddings']
-        questions = d['questions']
-        m = len(questions)
-        with tf.GradientTape() as tape:
-            logits = model({'symbol_embeddings': np.tile(symbol_embeddings, (m, 1, 1)),
-                            'ranking_difference': questions}, training=True)
-            loss_value = loss_fn(np.ones((m, 1)), logits)
-            # loss_value is average loss over samples (questions).
-        total_loss += loss_value
-        grads = tape.gradient(loss_value, model.trainable_weights)
-        accum_gradient = [(acum_grad+grad) for acum_grad, grad in zip(accum_gradient, grads)]
-    accum_gradient = [this_grad / len(problems) for this_grad in accum_gradient]
-    optimizer.apply_gradients(zip(accum_gradient, model.trainable_weights))
-    return total_loss / len(problems)
+def train_step(model, x, sample_weight, loss_fn, optimizer):
+    with tf.GradientTape() as tape:
+        logits = model(x, training=True)
+        loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
+        # loss_value is average loss over samples (questions).
+    grads = tape.gradient(loss_value, model.trainable_weights)
+    optimizer.apply_gradients(zip(grads, model.trainable_weights))
+    return loss_value
 
 
-def evaluate(model, problems):
+def test_step(model, x, sample_weight, loss_fn):
+    if x is None:
+        return {}
+    logits = model(x, training=False)
+    tf.summary.histogram('logits', logits)
+    tf.summary.histogram('probs', tf.sigmoid(logits))
+    res = {'loss': loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)}
     metrics = {
         'accuracy': keras.metrics.BinaryAccuracy(threshold=0),
         'crossentropy': keras.metrics.BinaryCrossentropy(from_logits=True)
     }
+    for name, metric in metrics.items():
+        metric.update_state(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
+        res[name] = metric.result()
+    return res
+
+
+def problems_to_data(problems):
+    if len(problems) == 0:
+        return None, None
+    x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'segment_ids': []}
+    sample_weight_list = []
+    question_i = 0
     for problem_name, d in problems:
         symbol_embeddings = d['symbol_embeddings']
-        n = symbol_embeddings.shape[0]
+        n = len(symbol_embeddings)
         questions = d['questions']
+        assert questions.dtype == np.float32
         m = len(questions)
-        assert questions.shape == (m, n)
-        logits = model({'symbol_embeddings': np.tile(symbol_embeddings, (m, 1, 1)),
-                        'ranking_difference': questions}, training=True)
-        for metric in metrics.values():
-            metric.update_state(np.ones((m, 1)), logits, sample_weight=1 / m)
-    return {k: v.result().numpy() for k, v in metrics.items()}
+        x_lists['symbol_embeddings'].append(np.tile(symbol_embeddings, (m, 1)))
+        x_lists['ranking_difference'].append(questions.reshape(m * n))
+        x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.uint32), n))
+        sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
+        question_i += m
+    x = {k: np.concatenate(v) for k, v in x_lists.items()}
+    sample_weight = np.concatenate(sample_weight_list)
+    return x, sample_weight
 
 
-dtype_tf_float = np.float32
-
-
-def get_model(k):
-    symbol_embeddings = keras.Input(shape=(None, k), name='symbol_embeddings')
-    symbol_costs = layers.Dense(1, name='symbol_costs')(symbol_embeddings)
-    symbol_costs = layers.Flatten()(symbol_costs)
-    ranking_difference = keras.Input(shape=(None,), name='ranking_difference')
-    precedence_pair_logit = layers.Dot(axes=1)([symbol_costs, ranking_difference])
-    return keras.Model(inputs=[symbol_embeddings, ranking_difference], outputs=precedence_pair_logit)
+def get_model(k, use_bias=False, weights=None):
+    symbol_embeddings = keras.Input(shape=k, name='symbol_embeddings')
+    symbol_costs_layer = layers.Dense(1, use_bias=use_bias, name='symbol_costs')
+    symbol_costs = symbol_costs_layer(symbol_embeddings)
+    if weights is not None:
+        symbol_costs_layer.set_weights(weights)
+    ranking_difference = keras.Input(shape=1, name='ranking_difference')
+    potentials = layers.multiply([symbol_costs, ranking_difference])
+    segment_ids = keras.Input(shape=1, name='segment_ids', dtype=tf.int32)
+    precedence_pair_logit = tf.math.segment_sum(keras.backend.flatten(potentials), keras.backend.flatten(segment_ids))
+    precedence_pair_logit = layers.Flatten()(precedence_pair_logit)
+    return keras.Model(inputs=[symbol_embeddings, ranking_difference, segment_ids], outputs=precedence_pair_logit)
 
 
 @memory.cache
