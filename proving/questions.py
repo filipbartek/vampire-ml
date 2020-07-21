@@ -53,8 +53,7 @@ def main():
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
     tf.summary.experimental.set_step(0)
 
-    question_paths = glob.glob(args.question_pattern, recursive=True)
-    problems = get_problem_questions(question_paths, args.signature_dir, 'predicate')
+    problems = get_problem_questions(args.question_pattern, args.signature_dir, 'predicate')
     logging.info(f'Number of problems: {len(problems)}')
     with train_summary_writer.as_default():
         tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
@@ -211,9 +210,9 @@ def get_model(k, use_bias=False, weights=None):
 
 
 @memory.cache
-def get_problem_questions(question_paths, symbols_dir_path, symbol_type):
+def get_problem_questions(question_pattern, symbols_dir_path, symbol_type):
     problems = {}
-    for question_path in tqdm(question_paths, unit='question', desc='Loading questions'):
+    for question_path in tqdm(glob.iglob(question_pattern, recursive=True), unit='question', desc='Loading questions'):
         question_file = os.path.basename(question_path)
         m = re.search(
             r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
