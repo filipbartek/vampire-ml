@@ -2,7 +2,6 @@
 
 import argparse
 import datetime
-import glob
 import itertools
 import logging
 import os
@@ -27,7 +26,7 @@ dtype_tf_float = np.float32
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--question-pattern', required=True)
+    parser.add_argument('--question-dir', required=True)
     parser.add_argument('--signature-dir', required=True)
     parser.add_argument('--log-dir', default='logs')
     parser.add_argument('--test-size', type=float)
@@ -53,7 +52,7 @@ def main():
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
     tf.summary.experimental.set_step(0)
 
-    problems = get_problem_questions(args.question_pattern, args.signature_dir, 'predicate')
+    problems = get_problem_questions(args.question_dir, args.signature_dir, 'predicate')
     logging.info(f'Number of problems: {len(problems)}')
     with train_summary_writer.as_default():
         tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
@@ -89,7 +88,8 @@ def main():
 
     try:
         for w in tqdm(itertools.chain(np.eye(k), np.eye(k) * -1,
-                                      (np.random.normal(0, 1, k) for _ in range(args.random_weights)))):
+                                      (np.random.normal(0, 1, k) for _ in range(args.random_weights))), unit='weight',
+                      desc='Evaluating custom weights'):
             if args.use_bias:
                 weights = [w.reshape(-1, 1), np.zeros(1)]
             else:
@@ -210,13 +210,12 @@ def get_model(k, use_bias=False, weights=None):
 
 
 @memory.cache
-def get_problem_questions(question_pattern, symbols_dir_path, symbol_type):
+def get_problem_questions(question_dir, symbols_dir_path, symbol_type):
     problems = {}
-    for question_path in tqdm(glob.iglob(question_pattern, recursive=True), unit='question', desc='Loading questions'):
-        question_file = os.path.basename(question_path)
+    for dir_entry in tqdm(os.scandir(question_dir), unit='question', desc='Loading questions'):
         m = re.search(
             r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
-            question_file, re.MULTILINE)
+            dir_entry.name, re.MULTILINE)
         problem_name = m['problem_name']
         if problem_name not in problems:
             sym_all = symbols.load(os.path.join(symbols_dir_path, f'{problem_name}.sig'))
@@ -225,7 +224,7 @@ def get_problem_questions(question_pattern, symbols_dir_path, symbol_type):
                 'symbol_embeddings': sym_selected.drop('name', axis='columns').astype(dtype_tf_float).values,
                 'questions': []
             }
-        problems[problem_name]['questions'].append(load_question(question_path))
+        problems[problem_name]['questions'].append(load_question(dir_entry.path))
     for problem_name in problems:
         problems[problem_name]['questions'] = np.asarray(problems[problem_name]['questions'])
     return problems
