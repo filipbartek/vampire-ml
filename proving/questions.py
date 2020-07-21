@@ -265,7 +265,7 @@ def load_question(question_path):
     res = (p_inv[1].astype(np.int32) - p_inv[0].astype(np.int32)) * 2 / (n * (n + 1))
     res = res.astype(dtype_tf_float)
     assert np.isclose(0, res.sum(), atol=1e-06)
-    logging.debug(f'n={n}, abs.sum={np.sum(np.abs(res))}, abs.std={np.std(np.abs(res))}, std={np.std(res)}')
+    #logging.debug(f'n={n}, abs.sum={np.sum(np.abs(res))}, abs.std={np.std(np.abs(res))}, std={np.std(res)}')
     return res
 
 
