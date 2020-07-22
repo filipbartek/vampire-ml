@@ -272,7 +272,7 @@ def get_model(k, use_bias=False, weights=None):
     return keras.Model(inputs=[symbol_embeddings, ranking_difference, segment_ids], outputs=precedence_pair_logit)
 
 
-@memory.cache(verbose=1)
+@memory.cache(verbose=2)
 def get_problem_questions(question_dir):
     def load_question_dir_entry(dir_entry):
         m = re.search(
@@ -293,7 +293,7 @@ def get_problem_questions(question_dir):
     return questions
 
 
-@memory.cache(verbose=1)
+@memory.cache(verbose=2)
 def get_problem_signatures(symbols_dir_path, symbol_type, problems=None):
     if problems is not None:
         iterable = ((problem_name, os.path.join(symbols_dir_path, f'{problem_name}.sig')) for problem_name in problems)
