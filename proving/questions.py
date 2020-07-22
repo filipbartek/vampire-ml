@@ -43,9 +43,13 @@ def main():
     parser.add_argument('--standard-weights', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
     parser.add_argument('--jobs', type=int, default=1)
+    parser.add_argument('--tf-log-device-placement', action='store_true')
+    parser.add_argument('--max-data-length', type=int, default=128 * 1024 * 1024)
+    parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
+    logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
+    tf.debugging.set_log_device_placement(args.tf_log_device_placement)
 
     np.random.seed(0)
     tf.random.set_seed(0)
@@ -82,8 +86,8 @@ def main():
         logging.info(f'Number of training problems: {len(problems_train)}')
         logging.info(f'Number of test problems: {len(problems_test)}')
 
-        x_train, sample_weight_train = problems_to_data(problems_train)
-        x_test, sample_weight_test = problems_to_data(problems_test)
+        data_train = problems_to_data(problems_train, args.max_data_length)
+        data_test = problems_to_data(problems_test, args.max_data_length)
 
         k = 12
 
@@ -110,7 +114,7 @@ def main():
                 else:
                     weights = [w.reshape(-1, 1)]
                 model = get_model(k, args.use_bias, weights)
-                record = evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn)
+                record = evaluate(model, data_test, data_train, loss_fn)
                 records.append(record)
 
             for iteration_i in tqdm(range(args.iterations), unit='iteration', desc='Training repeatedly'):
@@ -125,10 +129,10 @@ def main():
                                 'iteration': iteration_i,
                                 'epoch': epoch_i
                             }
-                            record.update(evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn,
+                            record.update(evaluate(model, data_test, data_train, loss_fn,
                                                    test_summary_writer, train_summary_writer))
                             records.append(record)
-                        loss_value = train_step(model, x_train, sample_weight_train, loss_fn, optimizer)
+                        loss_value = train_step(model, data_train, loss_fn, optimizer)
                         with train_summary_writer.as_default():
                             tf.summary.scalar('loss', loss_value)
                         t.set_postfix({'loss': loss_value.numpy()})
@@ -138,7 +142,7 @@ def main():
                     'measurements')
 
 
-def evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn, test_summary_writer=None,
+def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None,
              train_summary_writer=None):
     record = {}
     weights = model.get_weights()
@@ -148,12 +152,12 @@ def evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, lo
     if train_summary_writer is not None:
         with train_summary_writer.as_default():
             tf.summary.text('weights', str(weights))
-    for name, value in test_step(model, x_test, sample_weight_test, loss_fn).items():
+    for name, value in test_step(model, data_test, loss_fn).items():
         record[('test', name)] = value.numpy()
         if test_summary_writer is not None:
             with test_summary_writer.as_default():
                 tf.summary.scalar(name, value)
-    for name, value in test_step(model, x_train, sample_weight_train, loss_fn).items():
+    for name, value in test_step(model, data_train, loss_fn).items():
         record[('train', name)] = value.numpy()
         if train_summary_writer is not None:
             with train_summary_writer.as_default():
@@ -161,9 +165,11 @@ def evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, lo
     return record
 
 
-def train_step(model, x, sample_weight, loss_fn, optimizer):
+def train_step(model, data, loss_fn, optimizer):
+    xs, sample_weight = data
     with tf.GradientTape() as tape:
-        logits = model(x, training=True)
+        logits = tf.concat([model(x, training=True) for x in xs], axis=0)
+        assert len(logits) == len(sample_weight)
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
     grads = tape.gradient(loss_value, model.trainable_weights)
@@ -171,12 +177,14 @@ def train_step(model, x, sample_weight, loss_fn, optimizer):
     return loss_value
 
 
-def test_step(model, x, sample_weight, loss_fn):
-    if x is None:
+def test_step(model, data, loss_fn):
+    if data is None:
         return {}
-    logits = model(x, training=False)
+    xs, sample_weight = data
+    logits = tf.concat([model(x, training=False) for x in xs], axis=0)
     tf.summary.histogram('logits', logits)
     tf.summary.histogram('probs', tf.sigmoid(logits))
+    assert len(logits) == len(sample_weight)
     res = {'loss': loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)}
     metrics = {
         'accuracy': keras.metrics.BinaryAccuracy(threshold=0),
@@ -188,26 +196,50 @@ def test_step(model, x, sample_weight, loss_fn):
     return res
 
 
-def problems_to_data(problems):
+def problems_to_data(problems, max_len):
     if len(problems) == 0:
         return None, None
-    x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'segment_ids': []}
+    xs = []
+    x_lists = None
     sample_weight_list = []
     question_i = 0
+    cur_stored_len = 0
+
+    def create_batch(x_lists):
+        x = {k: np.concatenate(v) for k, v in x_lists.items()}
+        n_elements = len(x['symbol_embeddings'])
+        assert all(len(v) == n_elements for v in x.values())
+        logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
+                      sum(v.nbytes for v in x.values()),
+                      {k: v.shape for k, v in x.items()},
+                      {k: v.nbytes for k, v in x.items()})
+        return x
+
     for problem_name, d in problems:
         symbol_embeddings = d['symbol_embeddings']
         n = len(symbol_embeddings)
         questions = d['questions']
         assert questions.dtype == np.float32
         m = len(questions)
+        if max_len is not None and cur_stored_len + m * n > max_len:
+            assert cur_stored_len > 0
+            xs.append(create_batch(x_lists))
+            x_lists = None
+            question_i = 0
+            cur_stored_len = 0
+        if x_lists is None:
+            x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'segment_ids': []}
         x_lists['symbol_embeddings'].append(np.tile(symbol_embeddings, (m, 1)))
         x_lists['ranking_difference'].append(questions.reshape(m * n))
         x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.uint32), n))
+        assert sample_weight_list is not None
         sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
         question_i += m
-    x = {k: np.concatenate(v) for k, v in x_lists.items()}
+        cur_stored_len += m * n
+    if cur_stored_len > 0:
+        xs.append(create_batch(x_lists))
     sample_weight = np.concatenate(sample_weight_list)
-    return x, sample_weight
+    return xs, sample_weight
 
 
 def get_model(k, use_bias=False, weights=None):
