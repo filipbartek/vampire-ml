@@ -50,6 +50,8 @@ def main():
     np.random.seed(0)
     tf.random.set_seed(0)
 
+    logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
+
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     train_log_dir = os.path.join(args.log_dir, current_time, 'train')
     test_log_dir = os.path.join(args.log_dir, current_time, 'test')
