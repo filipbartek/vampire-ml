@@ -61,8 +61,8 @@ def main():
         problem_names = list(questions.keys())
         logging.info(f'Number of problems: {len(problem_names)}')
         signatures = get_problem_signatures(args.signature_dir, 'predicate', problem_names)
-        problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for
-                    problem_name in problem_names}
+        problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]}
+                    for problem_name in problem_names}
         with train_summary_writer.as_default():
             tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
             tf.summary.histogram('questions_per_problem', [len(d['questions']) for d in problems.values()])
