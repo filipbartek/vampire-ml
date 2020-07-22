@@ -5,6 +5,7 @@ import datetime
 import itertools
 import logging
 import os
+import pickle
 import re
 import warnings
 
@@ -31,6 +32,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--question-dir', required=True)
     parser.add_argument('--signature-dir', required=True)
+    parser.add_argument('--cache-file')
     parser.add_argument('--log-dir', default='logs')
     parser.add_argument('--test-size', type=float)
     parser.add_argument('--train-size', type=float)
@@ -64,12 +66,8 @@ def main():
     tf.summary.experimental.set_step(0)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        questions = get_problem_questions(args.question_dir)
-        problem_names = list(questions.keys())
-        logging.info(f'Number of problems: {len(problem_names)}')
-        signatures = get_problem_signatures(args.signature_dir, 'predicate', problem_names)
-        problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]}
-                    for problem_name in problem_names}
+        problems = get_problems(args.question_dir, args.signature_dir, args.cache_file)
+        logging.info(f'Number of problems: {len(problems)}')
         with train_summary_writer.as_default():
             tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
             tf.summary.histogram('questions_per_problem', [len(d['questions']) for d in problems.values()])
@@ -140,6 +138,24 @@ def main():
             save_df(utils.dataframe_from_records(records,
                                                  dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
                     'measurements')
+
+
+def get_problems(question_dir, signature_dir, cache_file):
+    if cache_file is not None:
+        try:
+            problems = pickle.load(open(cache_file, mode='rb'))
+            logging.info(f'Problems loaded from {cache_file}.')
+            return problems
+        except FileNotFoundError:
+            pass
+    questions = get_problem_questions(question_dir)
+    problem_names = list(questions.keys())
+    signatures = get_problem_signatures(signature_dir, 'predicate', problem_names)
+    problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for problem_name in problem_names}
+    if cache_file is not None:
+        pickle.dump(problems, open(cache_file, mode='wb'))
+        logging.info(f'Problems saved into {cache_file}.')
+    return problems
 
 
 def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None,
