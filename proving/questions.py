@@ -133,9 +133,9 @@ def main():
                             tf.summary.scalar('loss', loss_value)
                         t.set_postfix({'loss': loss_value.numpy()})
         finally:
-            save_df(
-                utils.dataframe_from_records(records, dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
-                'measurements')
+            save_df(utils.dataframe_from_records(records,
+                                                 dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
+                    'measurements')
 
 
 def evaluate(model, x_test, sample_weight_test, x_train, sample_weight_train, loss_fn, test_summary_writer=None,
@@ -233,7 +233,8 @@ def get_problem_questions(question_dir):
         problem_name = m['problem_name']
         return problem_name, load_question(dir_entry.path)
 
-    question_list = Parallel(verbose=1)(delayed(load_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
+    question_list = Parallel(verbose=1)(
+        delayed(load_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
     questions = {}
     for problem_name, question in question_list:
         if problem_name not in questions:
@@ -279,7 +280,7 @@ def load_question(question_path):
     res = (p_inv[1].astype(np.int32) - p_inv[0].astype(np.int32)) * 2 / (n * (n + 1))
     res = res.astype(dtype_tf_float)
     assert np.isclose(0, res.sum(), atol=1e-06)
-    #logging.debug(f'n={n}, abs.sum={np.sum(np.abs(res))}, abs.std={np.std(np.abs(res))}, std={np.std(res)}')
+    # logging.debug(f'n={n}, abs.sum={np.sum(np.abs(res))}, abs.std={np.std(np.abs(res))}, std={np.std(res)}')
     return res
 
 
