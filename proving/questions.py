@@ -37,7 +37,7 @@ def main():
     parser.add_argument('--iterations', type=int, default=1)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--evaluation-period', type=int, default=1)
-    parser.add_argument('--optimizer', default='sgd', choices=['sgd', 'adam', 'rmsprop'])
+    parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--use-bias', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
