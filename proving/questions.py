@@ -40,6 +40,7 @@ def main():
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--use-bias', action='store_true')
+    parser.add_argument('--standard-weights', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
     parser.add_argument('--jobs', type=int, default=1)
     args = parser.parse_args()
@@ -96,9 +97,12 @@ def main():
         records = []
 
         try:
-            for w in tqdm(list(itertools.chain(np.eye(k), np.eye(k) * -1,
-                                               (np.random.normal(0, 1, k) for _ in range(args.random_weights)))),
-                          unit='weight', desc='Evaluating custom weights'):
+            w_values = []
+            if args.standard_weights:
+                w_values.extend(itertools.chain(np.eye(k), np.eye(k) * -1))
+            rng = np.random.RandomState(0)
+            w_values.extend(rng.normal(0, 1, k) for _ in range(args.random_weights))
+            for w in tqdm(w_values, unit='weight', desc='Evaluating custom weights'):
                 if args.use_bias:
                     weights = [w.reshape(-1, 1), np.zeros(1)]
                 else:
