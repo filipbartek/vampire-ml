@@ -30,8 +30,8 @@ dtype_tf_float = np.float32
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--question-dir', required=True)
-    parser.add_argument('--signature-dir', required=True)
+    parser.add_argument('--question-dir')
+    parser.add_argument('--signature-dir')
     parser.add_argument('--cache-file')
     parser.add_argument('--log-dir', default='logs')
     parser.add_argument('--test-size', type=float)
