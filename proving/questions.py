@@ -116,7 +116,7 @@ def main():
 
 
 @memory.cache(ignore=['cache_file'], verbose=2)
-def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max_data_length):
+def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max_data_length, random_state=0):
     problems = get_problems(question_dir, signature_dir, cache_file)
     logging.info(f'Number of problems: {len(problems)}')
     problems_list = list(problems.items())
@@ -127,7 +127,7 @@ def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max
         problems_train, problems_test = train_test_split(problems_list,
                                                          test_size=test_size,
                                                          train_size=train_size,
-                                                         random_state=0)
+                                                         random_state=random_state)
     logging.info(f'Number of training problems: {len(problems_train)}')
     logging.info(f'Number of test problems: {len(problems_test)}')
     data_train = problems_to_data(problems_train, max_data_length)
