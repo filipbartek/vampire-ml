@@ -110,12 +110,8 @@ def main():
             rng = np.random.RandomState(0)
             w_values.extend(rng.normal(0, 1, k) for _ in range(args.random_weights))
             for w in tqdm(w_values, unit='weight', desc='Evaluating custom weights'):
-                if args.use_bias:
-                    weights = [w.reshape(-1, 1), np.zeros(1)]
-                else:
-                    weights = [w.reshape(-1, 1)]
-                model = get_model(k, args.use_bias, weights)
-                record = evaluate(model, data_test, data_train, loss_fn)
+                model = get_model(k, weights=[w.reshape(-1, 1)])
+                record = evaluate(model, data_test, data_train, loss_fn, extract_weights=True)
                 records.append(record)
 
             for iteration_i in tqdm(range(args.iterations), unit='iteration', desc='Training repeatedly'):
