@@ -65,6 +65,9 @@ def main():
     test_summary_writer = tf.summary.create_file_writer(test_log_dir)
     tf.summary.experimental.set_step(0)
 
+    with train_summary_writer.as_default():
+        tf.summary.text('args', str(args))
+
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         problems = get_problems(args.question_dir, args.signature_dir, args.cache_file)
         logging.info(f'Number of problems: {len(problems)}')
