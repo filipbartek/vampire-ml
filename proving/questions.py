@@ -69,8 +69,9 @@ def main():
         tf.summary.text('args', str(args))
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        data_train, data_test = get_data(args.question_dir, args.signature_dir, args.cache_file, args.train_size,
-                                         args.test_size, args.max_data_length)
+        problems_train, problems_test, data_train, data_test = get_data(args.question_dir, args.signature_dir,
+                                                                        args.cache_file, args.train_size,
+                                                                        args.test_size, args.max_data_length)
 
         k = 12
 
@@ -98,6 +99,7 @@ def main():
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
             keras.utils.plot_model(model, 'model.png', show_shapes=True)
+            rng = np.random.RandomState(0)
             with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
                 for epoch_i in t:
                     tf.summary.experimental.set_step(epoch_i)
@@ -107,7 +109,8 @@ def main():
                                                test_summary_writer, train_summary_writer,
                                                extract_weights=(args.hidden_units == 0)))
                         records.append(record)
-                    loss_value = train_step(model, data_train, loss_fn, optimizer)
+                    loss_value = train_step(model, problems_train, loss_fn, optimizer, rng,
+                                            maximum_batch_length=args.max_data_length)
                     with train_summary_writer.as_default():
                         tf.summary.scalar('loss', loss_value)
                     t.set_postfix({'loss': loss_value.numpy()})
@@ -132,7 +135,7 @@ def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max
     logging.info(f'Number of test problems: {len(problems_test)}')
     data_train = problems_to_data(problems_train, max_data_length)
     data_test = problems_to_data(problems_test, max_data_length)
-    return data_train, data_test
+    return problems_train, problems_test, data_train, data_test
 
 
 def get_problems(question_dir, signature_dir, cache_file):
@@ -178,11 +181,24 @@ def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None, tr
     return record
 
 
-def train_step(model, data, loss_fn, optimizer):
-    xs, sample_weight = data
+def train_step(model, problems, loss_fn, optimizer, rng, maximum_batch_length=None):
+    if maximum_batch_length is None:
+        problems_selected = problems
+    else:
+        problems_selected = []
+        data_stored = 0
+        perm = rng.permutation(len(problems))
+        for i in perm:
+            problem = problems[i]
+            if data_stored + problem[1]['questions'].size > maximum_batch_length:
+                break
+            problems_selected.append(problem)
+            data_stored += problem[1]['questions'].size
+    xs, sample_weight = problems_to_data(problems_selected, maximum_batch_length)
+    assert len(xs) == 1
+    x = xs[0]
     with tf.GradientTape() as tape:
-        logits = tf.concat([model(x, training=True) for x in tqdm(xs, unit='batch', desc='Training on batches')],
-                           axis=0)
+        logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
