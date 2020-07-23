@@ -254,6 +254,7 @@ def problems_to_data(problems, max_len):
     if cur_stored_len > 0:
         xs.append(create_batch(x_lists))
     sample_weight = np.concatenate(sample_weight_list)
+    logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
     return xs, sample_weight
 
 
