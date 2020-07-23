@@ -181,7 +181,8 @@ def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None, tr
 def train_step(model, data, loss_fn, optimizer):
     xs, sample_weight = data
     with tf.GradientTape() as tape:
-        logits = tf.concat([model(x, training=True) for x in xs], axis=0)
+        logits = tf.concat([model(x, training=True) for x in tqdm(xs, unit='batch', desc='Training on batches')],
+                           axis=0)
         assert len(logits) == len(sample_weight)
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
