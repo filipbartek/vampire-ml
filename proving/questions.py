@@ -36,12 +36,12 @@ def main():
     parser.add_argument('--log-dir', default='logs')
     parser.add_argument('--test-size', type=float)
     parser.add_argument('--train-size', type=float)
-    parser.add_argument('--iterations', type=int, default=1)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--evaluation-period', type=int, default=1)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--use-bias', action='store_true')
+    parser.add_argument('--hidden-units', type=int, default=0)
     parser.add_argument('--standard-weights', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
     parser.add_argument('--jobs', type=int, default=1)
@@ -114,29 +114,23 @@ def main():
                 record = evaluate(model, data_test, data_train, loss_fn, extract_weights=True)
                 records.append(record)
 
-            for iteration_i in tqdm(range(args.iterations), unit='iteration', desc='Training repeatedly'):
-                model = get_model(k, args.use_bias)
-                if iteration_i == 0:
-                    keras.utils.plot_model(model, 'model.png', show_shapes=True)
-                with tqdm(range(args.epochs), unit='epoch', desc='Training once') as t:
-                    for epoch_i in t:
-                        tf.summary.experimental.set_step(epoch_i)
-                        if epoch_i % args.evaluation_period == 0:
-                            record = {
-                                'iteration': iteration_i,
-                                'epoch': epoch_i
-                            }
-                            record.update(evaluate(model, data_test, data_train, loss_fn,
-                                                   test_summary_writer, train_summary_writer))
-                            records.append(record)
-                        loss_value = train_step(model, data_train, loss_fn, optimizer)
-                        with train_summary_writer.as_default():
-                            tf.summary.scalar('loss', loss_value)
-                        t.set_postfix({'loss': loss_value.numpy()})
+            model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
+            keras.utils.plot_model(model, 'model.png', show_shapes=True)
+            with tqdm(range(args.epochs), unit='epoch', desc='Training once') as t:
+                for epoch_i in t:
+                    tf.summary.experimental.set_step(epoch_i)
+                    if epoch_i % args.evaluation_period == 0:
+                        record = {'epoch': epoch_i}
+                        record.update(evaluate(model, data_test, data_train, loss_fn,
+                                               test_summary_writer, train_summary_writer,
+                                               extract_weights=(args.hidden_units == 0)))
+                        records.append(record)
+                    loss_value = train_step(model, data_train, loss_fn, optimizer)
+                    with train_summary_writer.as_default():
+                        tf.summary.scalar('loss', loss_value)
+                    t.set_postfix({'loss': loss_value.numpy()})
         finally:
-            save_df(utils.dataframe_from_records(records,
-                                                 dtypes={'iteration': pd.UInt32Dtype(), 'epoch': pd.UInt32Dtype()}),
-                    'measurements')
+            save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'questions')
 
 
 def get_problems(question_dir, signature_dir, cache_file):
@@ -157,16 +151,17 @@ def get_problems(question_dir, signature_dir, cache_file):
     return problems
 
 
-def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None,
-             train_summary_writer=None):
+def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None, train_summary_writer=None,
+             extract_weights=False):
     record = {}
-    weights = model.get_weights()
-    for weight_i, weight in enumerate(weights):
-        record[('weight', weight_i)] = np.squeeze(weight)
-        record[('weight_normalized', weight_i)] = np.squeeze(sklearn.preprocessing.normalize(weight, axis=0))
-    if train_summary_writer is not None:
-        with train_summary_writer.as_default():
-            tf.summary.text('weights', str(weights))
+    if extract_weights:
+        weights = model.get_layer('symbol_costs').get_weights()
+        for weight_i, weight in enumerate(weights):
+            record[('weight', weight_i)] = np.squeeze(weight)
+            record[('weight_normalized', weight_i)] = np.squeeze(sklearn.preprocessing.normalize(weight, axis=0))
+        if train_summary_writer is not None:
+            with train_summary_writer.as_default():
+                tf.summary.text('weights', str(weights))
     for name, value in test_step(model, data_test, loss_fn).items():
         record[('test', name)] = value.numpy()
         if test_summary_writer is not None:
@@ -258,10 +253,13 @@ def problems_to_data(problems, max_len):
     return xs, sample_weight
 
 
-def get_model(k, use_bias=False, weights=None):
+def get_model(k, weights=None, use_bias=False, hidden_units=0):
     symbol_embeddings = keras.Input(shape=k, name='symbol_embeddings')
+    x = symbol_embeddings
+    if hidden_units > 0:
+        x = layers.Dense(hidden_units, 'relu')(x)
     symbol_costs_layer = layers.Dense(1, use_bias=use_bias, name='symbol_costs')
-    symbol_costs = symbol_costs_layer(symbol_embeddings)
+    symbol_costs = symbol_costs_layer(x)
     if weights is not None:
         symbol_costs_layer.set_weights(weights)
     ranking_difference = keras.Input(shape=1, name='ranking_difference')
