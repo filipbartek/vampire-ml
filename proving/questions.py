@@ -98,7 +98,7 @@ def main():
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
             keras.utils.plot_model(model, 'model.png', show_shapes=True)
-            with tqdm(range(args.epochs), unit='epoch', desc='Training once') as t:
+            with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
                 for epoch_i in t:
                     tf.summary.experimental.set_step(epoch_i)
                     if epoch_i % args.evaluation_period == 0:
