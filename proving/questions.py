@@ -226,7 +226,7 @@ def problems_to_data(problems, max_len):
                       {k: v.nbytes for k, v in x.items()})
         return x
 
-    for problem_name, d in problems:
+    for problem_name, d in tqdm(problems, unit='problem', desc='Composing data batches'):
         symbol_embeddings = d['symbol_embeddings']
         n = len(symbol_embeddings)
         questions = d['questions']
