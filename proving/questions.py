@@ -69,26 +69,8 @@ def main():
         tf.summary.text('args', str(args))
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        problems = get_problems(args.question_dir, args.signature_dir, args.cache_file)
-        logging.info(f'Number of problems: {len(problems)}')
-        with train_summary_writer.as_default():
-            tf.summary.histogram('symbols_per_problem', [len(d['symbol_embeddings']) for d in problems.values()])
-            tf.summary.histogram('questions_per_problem', [len(d['questions']) for d in problems.values()])
-        problems_list = list(problems.items())
-
-        if args.train_size == 1.0:
-            problems_train = problems_list
-            problems_test = []
-        else:
-            problems_train, problems_test = train_test_split(problems_list,
-                                                             test_size=args.test_size,
-                                                             train_size=args.train_size,
-                                                             random_state=0)
-        logging.info(f'Number of training problems: {len(problems_train)}')
-        logging.info(f'Number of test problems: {len(problems_test)}')
-
-        data_train = problems_to_data(problems_train, args.max_data_length)
-        data_test = problems_to_data(problems_test, args.max_data_length)
+        data_train, data_test = get_data(args.question_dir, args.signature_dir, args.cache_file, args.train_size,
+                                         args.test_size, args.max_data_length)
 
         k = 12
 
@@ -131,6 +113,26 @@ def main():
                     t.set_postfix({'loss': loss_value.numpy()})
         finally:
             save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'questions')
+
+
+@memory.cache(ignore=['cache_file'], verbose=2)
+def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max_data_length):
+    problems = get_problems(question_dir, signature_dir, cache_file)
+    logging.info(f'Number of problems: {len(problems)}')
+    problems_list = list(problems.items())
+    if train_size == 1.0:
+        problems_train = problems_list
+        problems_test = []
+    else:
+        problems_train, problems_test = train_test_split(problems_list,
+                                                         test_size=test_size,
+                                                         train_size=train_size,
+                                                         random_state=0)
+    logging.info(f'Number of training problems: {len(problems_train)}')
+    logging.info(f'Number of test problems: {len(problems_test)}')
+    data_train = problems_to_data(problems_train, max_data_length)
+    data_test = problems_to_data(problems_test, max_data_length)
+    return data_train, data_test
 
 
 def get_problems(question_dir, signature_dir, cache_file):
