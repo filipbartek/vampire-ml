@@ -144,7 +144,8 @@ def get_problems(question_dir, signature_dir, cache_file):
     questions = get_problem_questions(question_dir)
     problem_names = list(questions.keys())
     signatures = get_problem_signatures(signature_dir, 'predicate', problem_names)
-    problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for problem_name in problem_names}
+    problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for
+                problem_name in problem_names}
     if cache_file is not None:
         pickle.dump(problems, open(cache_file, mode='wb'))
         logging.info(f'Problems saved into {cache_file}.')
