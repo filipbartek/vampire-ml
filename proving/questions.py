@@ -45,7 +45,7 @@ def main():
     parser.add_argument('--random-weights', type=int, default=0)
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--tf-log-device-placement', action='store_true')
-    parser.add_argument('--max-data-length', type=int, default=128 * 1024 * 1024)
+    parser.add_argument('--max-data-length', type=int, default=64 * 1024 * 1024)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
     args = parser.parse_args()
