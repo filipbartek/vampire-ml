@@ -145,6 +145,7 @@ def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max
 def get_problems(question_dir, signature_dir, cache_file):
     if cache_file is not None:
         try:
+            logging.info(f'Loading problems from {cache_file}...')
             problems = pickle.load(open(cache_file, mode='rb'))
             logging.info(f'Problems loaded from {cache_file}.')
             return problems
@@ -156,6 +157,7 @@ def get_problems(question_dir, signature_dir, cache_file):
     problems = {problem_name: {'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for
                 problem_name in problem_names}
     if cache_file is not None:
+        logging.info(f'Saving problems into {cache_file}...')
         pickle.dump(problems, open(cache_file, mode='wb'))
         logging.info(f'Problems saved into {cache_file}.')
     return problems
