@@ -48,6 +48,7 @@ def main():
     parser.add_argument('--tf-log-device-placement', action='store_true')
     parser.add_argument('--max-data-length', type=int, default=128 * 1024 * 1024)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
+    parser.add_argument('--plot-model')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -98,7 +99,8 @@ def main():
                 records.append(record)
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
-            keras.utils.plot_model(model, 'model.png', show_shapes=True)
+            if args.plot_model is not None:
+                keras.utils.plot_model(model, args.plot_model, show_shapes=True)
             rng = np.random.RandomState(0)
             with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
                 for epoch_i in t:
