@@ -2,7 +2,6 @@
 
 import argparse
 import datetime
-import itertools
 import logging
 import os
 import pickle
@@ -88,15 +87,17 @@ def main():
         records = []
 
         try:
-            w_values = []
+            w_values_list = []
             if args.standard_weights:
-                w_values.extend(itertools.chain(np.eye(k), np.eye(k) * -1))
-            rng = np.random.RandomState(0)
-            w_values.extend(rng.normal(0, 1, k) for _ in range(args.random_weights))
-            for w in tqdm(w_values, unit='weight', desc='Evaluating custom weights'):
-                model = get_model(k, weights=[w.reshape(-1, 1)])
-                record = evaluate(model, data_test, data_train, loss_fn, extract_weights=True)
-                records.append(record)
+                w_values_list.extend((np.eye(k), np.eye(k) * -1))
+            if args.random_weights > 0:
+                rng = np.random.RandomState(0)
+                w_values_list.append(rng.normal(0, 1, (args.random_weights, k)))
+            if len(w_values_list) > 0:
+                for w in tqdm(np.concatenate(w_values_list), unit='weight', desc='Evaluating custom weights'):
+                    model = get_model(k, weights=[w.reshape(-1, 1)])
+                    record = evaluate(model, data_test, data_train, loss_fn, extract_weights=True)
+                    records.append(record)
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
             if args.plot_model is not None:
