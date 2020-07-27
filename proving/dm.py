@@ -297,6 +297,8 @@ class Apriori:
                     signature = self.signature(g)
                     if any(is_isomorphic(other, g) for other in buckets[signature]):
                         continue
+                    # TODO: Prune: Only add g if all of its subgraphs of size k-1 are present in
+                    # frequent_subgraphs_k(k-1). Omit this pruning if self.max_support or self.max_width is not None.
                     buckets[signature].append(g)
             logging.debug(f'k = {k}: Non-empty buckets: {len(buckets)}')
             logging.debug(f'k = {k}: Average bucket size: {sum(len(v) for v in buckets.values()) / len(buckets)}')
