@@ -274,6 +274,7 @@ def problems_to_data(problems, max_len):
         cur_stored_len += m * n
     if cur_stored_len > 0:
         xs.append(create_batch(x_lists))
+    logging.debug(f'Number of batches: {len(xs)}')
     sample_weight = np.concatenate(sample_weight_list)
     logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
     return xs, sample_weight
