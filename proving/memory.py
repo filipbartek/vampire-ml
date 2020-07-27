@@ -3,5 +3,5 @@ import joblib
 
 from proving import config
 
-memory = joblib.Memory(location=appdirs.user_cache_dir(config.program_name(), version=config.program_version()),
-                       verbose=0)
+location = appdirs.user_cache_dir(config.program_name(), version=config.program_version())
+memory = joblib.Memory(location=location, verbose=0)
