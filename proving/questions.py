@@ -240,12 +240,13 @@ def problems_to_data(problems, max_len):
     x_lists = None
     sample_weight_list = []
     question_i = 0
+    symbol_i = 0
     cur_stored_len = 0
 
     def create_batch(x_lists):
         x = {k: np.concatenate(v) for k, v in x_lists.items()}
-        n_elements = len(x['symbol_embeddings'])
-        assert all(len(v) == n_elements for v in x.values())
+        assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
+        assert len(x['symbol_embeddings']) - 1 == np.max(x['question_symbols'])
         logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
                       sum(v.nbytes for v in x.values()),
                       {k: v.shape for k, v in x.items()},
@@ -263,16 +264,18 @@ def problems_to_data(problems, max_len):
             xs.append(create_batch(x_lists))
             x_lists = None
             question_i = 0
+            symbol_i = 0
             cur_stored_len = 0
         if x_lists is None:
-            x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'segment_ids': []}
-        x_lists['symbol_embeddings'].append(np.tile(symbol_embeddings, (m, 1)))
+            x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
+        x_lists['symbol_embeddings'].append(symbol_embeddings)
         x_lists['ranking_difference'].append(questions.reshape(m * n, 1))
-        x_lists['segment_ids'].append(
-            np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
+        x_lists['question_symbols'].append(np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m))
+        x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
         assert sample_weight_list is not None
         sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
         question_i += m
+        symbol_i += n
         cur_stored_len += m * n
     if cur_stored_len > 0:
         xs.append(create_batch(x_lists))
@@ -283,6 +286,7 @@ def problems_to_data(problems, max_len):
 
 
 def get_model(k, weights=None, use_bias=False, hidden_units=0):
+    # Row: problem -> symbol
     symbol_embeddings = keras.Input(shape=k, name='symbol_embeddings')
     x = symbol_embeddings
     if hidden_units > 0:
@@ -291,12 +295,16 @@ def get_model(k, weights=None, use_bias=False, hidden_units=0):
     symbol_costs = symbol_costs_layer(x)
     if weights is not None:
         symbol_costs_layer.set_weights(weights)
+    # Row: problem -> question -> symbol
     ranking_difference = keras.Input(shape=1, name='ranking_difference')
-    potentials = layers.multiply([symbol_costs, ranking_difference])
+    question_symbols = keras.Input(shape=1, name='question_symbols', dtype=tf.int32)
+    symbol_costs_tiled = tf.gather(symbol_costs, question_symbols)
+    potentials = layers.multiply([symbol_costs_tiled, ranking_difference])
     segment_ids = keras.Input(shape=1, name='segment_ids', dtype=tf.int32)
     precedence_pair_logit = tf.math.segment_sum(potentials, keras.backend.flatten(segment_ids))
     precedence_pair_logit = layers.Flatten()(precedence_pair_logit)
-    return keras.Model(inputs=[symbol_embeddings, ranking_difference, segment_ids], outputs=precedence_pair_logit)
+    return keras.Model(inputs=[symbol_embeddings, ranking_difference, question_symbols, segment_ids],
+                       outputs=precedence_pair_logit)
 
 
 @memory.cache(verbose=2)
