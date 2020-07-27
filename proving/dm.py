@@ -659,7 +659,7 @@ class ExpressionNamer:
         assert term_type in {'predicate', 'function', 'variable'}
         term_id = term['id']
         if term_type == 'variable':
-            return f'x{term_id}'
+            return self.variable(term_id)
         name = self.symbol(term_type, term_id)
         args_str = ','.join(self.term(arg) for arg in term['args'])
         return f'{name}({args_str})'
