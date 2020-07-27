@@ -211,7 +211,8 @@ def test_step(model, data, loss_fn):
     if data is None:
         return {}
     xs, sample_weight = data
-    logits = np.concatenate([model(x, training=False) for x in tqdm(xs, unit='batch', desc='Evaluating on batches')])
+    logits = np.concatenate(
+        [model(x, training=False).numpy() for x in tqdm(xs, unit='batch', desc='Evaluating on batches')])
     tf.summary.histogram('logits', logits)
     tf.summary.histogram('probs', tf.sigmoid(logits))
     assert len(logits) == len(sample_weight)
