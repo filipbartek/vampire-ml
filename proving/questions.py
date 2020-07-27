@@ -270,7 +270,7 @@ def problems_to_data(problems, max_len):
             x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
         x_lists['symbol_embeddings'].append(symbol_embeddings)
         x_lists['ranking_difference'].append(questions.reshape(m * n, 1))
-        x_lists['question_symbols'].append(np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m))
+        x_lists['question_symbols'].append(np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).reshape(m * n, 1))
         x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
         assert sample_weight_list is not None
         sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
