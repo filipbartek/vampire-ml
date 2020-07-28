@@ -142,6 +142,7 @@ def get_data(question_dir, signature_dir, cache_file, train_size, test_size, bat
     return problems_train, problems_test, data_train, data_test
 
 
+@memory.cache(ignore=['cache_file'], verbose=2)
 def get_problems(question_dir, signature_dir, cache_file):
     if cache_file is not None:
         try:
