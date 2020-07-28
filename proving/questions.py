@@ -205,6 +205,7 @@ def train_step(model, problems, loss_fn, optimizer, rng, maximum_batch_length=No
                 break
             problems_selected.append(problem)
             data_stored += problem[1]['questions'].size
+    assert len(problems_selected) > 0
     xs, sample_weight = problems_to_data(problems_selected, maximum_batch_length)
     assert len(xs) == 1
     x = xs[0]
@@ -258,7 +259,7 @@ def problems_to_data(problems, max_len):
                       {k: v.nbytes for k, v in x.items()})
         return x
 
-    for problem_name, d in tqdm(problems, unit='problem', desc='Composing data batches'):
+    for problem_name, d in problems:
         symbol_embeddings = d['symbol_embeddings']
         n = len(symbol_embeddings)
         questions = d['questions']
