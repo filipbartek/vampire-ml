@@ -1,4 +1,5 @@
 appdirs
+binpacking
 flatten-dict
 guppy3
 joblib

@@ -10,6 +10,7 @@ import pickle
 import re
 import warnings
 
+import binpacking
 import joblib
 import numpy as np
 import pandas as pd
@@ -73,7 +74,7 @@ def main():
         tf.summary.text('args', str(args))
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        batch_generator = BatchGenerator(args.max_data_length, args.max_questions_per_problem)
+        batch_generator = BatchGenerator(args.max_data_length)
         problems_train, problems_test, data_train, data_test = get_data(args.question_dir, args.signature_dir,
                                                                         args.cache_file, args.train_size,
                                                                         args.test_size, batch_generator,
@@ -226,9 +227,8 @@ def test_step(model, data, loss_fn):
 
 
 class BatchGenerator:
-    def __init__(self, max_batch_length, max_questions_per_problem):
+    def __init__(self, max_batch_length):
         self.max_batch_length = max_batch_length
-        self.max_questions_per_problem = max_questions_per_problem
 
     def get_batches(self, problems):
         if len(problems) == 0:
@@ -236,31 +236,18 @@ class BatchGenerator:
             return None
         xs = []
         sample_weight_list = []
-        cur_problems = []
-        cur_stored_len = 0
-        # TODO: Minimize batch count by filling the batch capacity more efficiently.
-        for d in problems:
-            n = len(d['symbol_embeddings'])
-            m = len(d['questions'])
-            if self.max_questions_per_problem is not None:
-                m = min(m, self.max_questions_per_problem)
-            if self.max_batch_length is not None and m * n > self.max_batch_length:
+        problem_sizes = {i: len(d['symbol_embeddings']) * len(d['questions']) for i, d in enumerate(problems)}
+        bins = binpacking.to_constant_volume(problem_sizes, self.max_batch_length)
+        for cur_bin in bins:
+            batch_size = sum(cur_bin.values())
+            if batch_size > self.max_batch_length:
+                assert len(cur_bin) == 1
                 raise RuntimeError(
-                    f'Problem with {n} symbols and {m} questions does not fit in a batch of size {self.max_batch_length}.')
-            if self.max_batch_length is not None and cur_stored_len + m * n > self.max_batch_length:
-                assert cur_stored_len > 0
-                x, sample_weight = self.get_batch(cur_problems)
-                xs.append(x)
-                sample_weight_list.append(sample_weight)
-                cur_problems = []
-                cur_stored_len = 0
-            cur_problems.append(d)
-            cur_stored_len += m * n
-        if cur_stored_len > 0:
-            x, sample_weight = self.get_batch(cur_problems)
+                    f'Failed to distribute problems in batches of size at most {self.max_batch_length}. Problem of size {batch_size} encountered.')
+            x, sample_weight = self.get_batch(problems[i] for i in cur_bin.keys())
             xs.append(x)
             sample_weight_list.append(sample_weight)
-        logging.debug(f'Number of batches: {len(xs)}')
+        logging.info(f'Number of batches: {len(xs)}')
         sample_weight = np.concatenate(sample_weight_list)
         logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
         return xs, sample_weight
@@ -275,9 +262,6 @@ class BatchGenerator:
             n = len(symbol_embeddings)
             questions = d['questions']
             assert questions.dtype == np.float32
-            if self.max_questions_per_problem is not None:
-                # TODO: Sample randomly.
-                questions = questions[:self.max_questions_per_problem]
             m = len(questions)
             if self.max_batch_length is not None and len(x_lists['ranking_difference']) + m * n > self.max_batch_length:
                 break
