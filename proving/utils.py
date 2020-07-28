@@ -22,6 +22,7 @@ def dataframe_from_records(records, index_keys=None, dtypes=None):
     df = pd.DataFrame.from_records(records)
     if len(df) == 0:
         return None
+    dtypes = {k: v for k, v in dtypes.items() if k in df}
     df = df.astype(dtypes)
     if index_keys is not None:
         df = df.set_index(index_keys)
