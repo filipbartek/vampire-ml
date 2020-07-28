@@ -307,7 +307,7 @@ def get_model(k, weights=None, use_bias=False, hidden_units=0):
     # Row: problem -> question -> symbol
     ranking_difference = keras.Input(shape=1, name='ranking_difference')
     question_symbols = keras.Input(shape=1, name='question_symbols', dtype=tf.int32)
-    symbol_costs_tiled = tf.gather(symbol_costs, question_symbols)
+    symbol_costs_tiled = layers.Flatten(name='symbol_costs_tiled')(tf.gather(symbol_costs, question_symbols))
     potentials = layers.multiply([symbol_costs_tiled, ranking_difference])
     segment_ids = keras.Input(shape=1, name='segment_ids', dtype=tf.int32)
     precedence_pair_logit = tf.math.segment_sum(potentials, keras.backend.flatten(segment_ids))
