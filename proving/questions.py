@@ -120,7 +120,7 @@ def main():
                         records.append(record)
                     loss_value = train_step(model, problems_train, loss_fn, optimizer, rng, batch_generator)
                     with train_summary_writer.as_default():
-                        tf.summary.scalar('loss', loss_value)
+                        tf.summary.scalar('batch_loss', loss_value)
                     t.set_postfix({'loss': loss_value.numpy()})
         finally:
             save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'questions')
