@@ -125,6 +125,11 @@ def main():
 @memory.cache(ignore=['cache_file'], verbose=2)
 def get_data(question_dir, signature_dir, cache_file, train_size, test_size, max_data_length, random_state=0):
     problems = get_problems(question_dir, signature_dir, cache_file)
+    for problem_name, problem in problems.items():
+        n = len(problem['symbol_embeddings'])
+        m = len(problem['questions'])
+        if m * n > max_data_length:
+            raise RuntimeError(f'Problem {problem_name} with {n} symbols and {m} questions does not fit in a batch of size {max_data_length}.')
     logging.info(f'Number of problems: {len(problems)}')
     problems_list = list(problems.items())
     if train_size == 1.0:
