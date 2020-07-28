@@ -311,7 +311,7 @@ def get_model(k, weights=None, use_bias=False, hidden_units=0):
     potentials = layers.multiply([symbol_costs_tiled, ranking_difference])
     segment_ids = keras.Input(shape=1, name='segment_ids', dtype=tf.int32)
     precedence_pair_logit = tf.math.segment_sum(potentials, keras.backend.flatten(segment_ids))
-    precedence_pair_logit = layers.Flatten()(precedence_pair_logit)
+    precedence_pair_logit = layers.Flatten(name='logits')(precedence_pair_logit)
     return keras.Model(inputs=[symbol_embeddings, ranking_difference, question_symbols, segment_ids],
                        outputs=precedence_pair_logit)
 
