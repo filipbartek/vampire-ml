@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
+import collections
 import datetime
+import itertools
 import logging
 import os
 import pickle
@@ -74,7 +76,8 @@ def main():
         batch_generator = BatchGenerator(args.max_data_length, args.max_questions_per_problem)
         problems_train, problems_test, data_train, data_test = get_data(args.question_dir, args.signature_dir,
                                                                         args.cache_file, args.train_size,
-                                                                        args.test_size, batch_generator)
+                                                                        args.test_size, batch_generator,
+                                                                        args.max_questions_per_problem)
 
         k = 12
 
@@ -124,8 +127,9 @@ def main():
 
 
 @memory.cache(ignore=['cache_file'], verbose=2)
-def get_data(question_dir, signature_dir, cache_file, train_size, test_size, batch_generator, random_state=0):
-    problems = get_problems(question_dir, signature_dir, cache_file)
+def get_data(question_dir, signature_dir, cache_file, train_size, test_size, batch_generator, max_questions_per_problem,
+             random_state=0):
+    problems = get_problems(question_dir, signature_dir, max_questions_per_problem, cache_file)
     logging.info(f'Number of problems: {len(problems)}')
     if train_size == 1.0:
         problems_train = problems
@@ -143,7 +147,7 @@ def get_data(question_dir, signature_dir, cache_file, train_size, test_size, bat
 
 
 @memory.cache(ignore=['cache_file'], verbose=2)
-def get_problems(question_dir, signature_dir, cache_file):
+def get_problems(question_dir, signature_dir, max_questions_per_problem, cache_file):
     if cache_file is not None:
         try:
             logging.info(f'Loading problems from {cache_file}...')
@@ -152,7 +156,7 @@ def get_problems(question_dir, signature_dir, cache_file):
             return problems
         except FileNotFoundError:
             pass
-    questions = get_problem_questions(question_dir)
+    questions = get_problem_questions(question_dir, max_questions_per_problem)
     problem_names = list(questions.keys())
     signatures = get_problem_signatures(signature_dir, 'predicate', problem_names)
     problems = [{'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for problem_name
@@ -321,23 +325,43 @@ def get_model(k, weights=None, use_bias=False, hidden_units=0):
 
 
 @memory.cache(verbose=2)
-def get_problem_questions(question_dir):
-    def load_question_dir_entry(dir_entry):
+def get_problem_questions(question_dir, max_questions_per_problem):
+    def parse_question_dir_entry(dir_entry):
         m = re.search(
             r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
             dir_entry.name, re.MULTILINE)
         problem_name = m['problem_name']
-        return problem_name, load_question(dir_entry.path)
+        return problem_name, dir_entry.path
 
-    question_list = Parallel(verbose=1)(
-        delayed(load_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
-    questions = {}
-    for problem_name, question in question_list:
-        if problem_name not in questions:
-            questions[problem_name] = []
+    # Parse paths
+    logging.info(f'Parsing question paths in directory {question_dir}...')
+    question_entry_list = Parallel(verbose=1)(
+        delayed(parse_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
+    logging.info(f'Question paths parsed. Number of questions: {len(question_entry_list)}')
+
+    # Filter problems with too many questions
+    question_paths = collections.defaultdict(list)
+    for problem_name, question_path in question_entry_list:
+        if max_questions_per_problem is None or len(question_paths[problem_name]) < max_questions_per_problem:
+            question_paths[problem_name].append(question_path)
+
+    # Load questions
+    queries = itertools.chain.from_iterable(question_paths.values())
+    logging.info('Loading questions...')
+    question_list = Parallel(verbose=1)(delayed(load_question)(question_path) for question_path in queries)
+    logging.info(f'Questions loaded. Number of questions: {len(question_list)}')
+
+    # Collect questions into a dictionary
+    problem_names = itertools.chain.from_iterable(
+        itertools.repeat(problem_name, len(vv)) for problem_name, vv in question_paths.items())
+    questions = collections.defaultdict(list)
+    for problem_name, question in zip(problem_names, question_list):
         questions[problem_name].append(question)
+
+    # Convert per-problem questions into an array
     for problem_name in questions:
         questions[problem_name] = np.asarray(questions[problem_name])
+
     return questions
 
 
