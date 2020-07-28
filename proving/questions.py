@@ -32,6 +32,7 @@ dtype_tf_float = np.float32
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('-o', '--output')
     parser.add_argument('--question-dir')
     parser.add_argument('--signature-dir')
     parser.add_argument('--cache-file')
@@ -108,7 +109,10 @@ def main():
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
             if args.plot_model is not None:
-                keras.utils.plot_model(model, args.plot_model, show_shapes=True)
+                p = args.plot_model
+                if args.output is not None:
+                    p = os.path.join(args.output, p)
+                keras.utils.plot_model(model, p, show_shapes=True)
             rng = np.random.RandomState(0)
             with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
                 for epoch_i in t:
@@ -124,7 +128,7 @@ def main():
                         tf.summary.scalar('batch_loss', loss_value)
                     t.set_postfix({'loss': loss_value.numpy()})
         finally:
-            save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'questions')
+            save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'evaluation', args.output)
 
 
 @memory.cache(ignore=['cache_file'], verbose=2)
