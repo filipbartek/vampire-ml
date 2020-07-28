@@ -240,55 +240,68 @@ def test_step(model, data, loss_fn):
 
 
 def problems_to_data(problems, max_len):
-    if len(problems) == 0:
-        return None, None
+    assert len(problems) > 0
     xs = []
-    x_lists = None
+    sample_weight_list = []
+    cur_problems = []
+    cur_stored_len = 0
+
+    # TODO: Minimize batch count by filling the batch capacity more efficiently.
+    for problem in problems:
+        symbol_embeddings = problem[1]['symbol_embeddings']
+        n = len(symbol_embeddings)
+        questions = problem[1]['questions']
+        m = len(questions)
+        if max_len is not None and cur_stored_len + m * n > max_len:
+            assert cur_stored_len > 0
+            x, sample_weight = problems_to_batch(cur_problems)
+            xs.append(x)
+            sample_weight_list.append(sample_weight)
+            cur_problems = []
+            cur_stored_len = 0
+        cur_problems.append(problem)
+        cur_stored_len += m * n
+    if cur_stored_len > 0:
+        x, sample_weight = problems_to_batch(cur_problems)
+        xs.append(x)
+        sample_weight_list.append(sample_weight)
+    logging.debug(f'Number of batches: {len(xs)}')
+    sample_weight = np.concatenate(sample_weight_list)
+    logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
+    return xs, sample_weight
+
+
+def problems_to_batch(problems):
+    assert len(problems) > 0
+    x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
     sample_weight_list = []
     question_i = 0
     symbol_i = 0
-    cur_stored_len = 0
-
-    def create_batch(x_lists):
-        x = {k: np.concatenate(v) for k, v in x_lists.items()}
-        assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
-        assert len(x['symbol_embeddings']) - 1 == np.max(x['question_symbols'])
-        logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
-                      sum(v.nbytes for v in x.values()),
-                      {k: v.shape for k, v in x.items()},
-                      {k: v.nbytes for k, v in x.items()})
-        return x
-
     for problem_name, d in problems:
         symbol_embeddings = d['symbol_embeddings']
         n = len(symbol_embeddings)
         questions = d['questions']
         assert questions.dtype == np.float32
         m = len(questions)
-        if max_len is not None and cur_stored_len + m * n > max_len:
-            assert cur_stored_len > 0
-            xs.append(create_batch(x_lists))
-            x_lists = None
-            question_i = 0
-            symbol_i = 0
-            cur_stored_len = 0
-        if x_lists is None:
-            x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
         x_lists['symbol_embeddings'].append(symbol_embeddings)
         x_lists['ranking_difference'].append(questions.reshape(m * n, 1))
-        x_lists['question_symbols'].append(np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).reshape(m * n, 1))
-        x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
-        assert sample_weight_list is not None
+        x_lists['question_symbols'].append(
+            np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).reshape(m * n, 1))
+        x_lists['segment_ids'].append(
+            np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
         sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
         question_i += m
         symbol_i += n
-        cur_stored_len += m * n
-    if cur_stored_len > 0:
-        xs.append(create_batch(x_lists))
-    logging.debug(f'Number of batches: {len(xs)}')
+    x = {k: np.concatenate(v) for k, v in x_lists.items()}
+    assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
+    assert symbol_i == len(x['symbol_embeddings']) == np.max(x['question_symbols']) + 1
+    logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
+                  sum(v.nbytes for v in x.values()),
+                  {k: v.shape for k, v in x.items()},
+                  {k: v.nbytes for k, v in x.items()})
     sample_weight = np.concatenate(sample_weight_list)
     logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
-    return xs, sample_weight
+    return x, sample_weight
 
 
 def get_model(k, weights=None, use_bias=False, hidden_units=0):
