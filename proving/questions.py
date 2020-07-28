@@ -226,6 +226,9 @@ class BatchGenerator:
         self.max_questions_per_problem = max_questions_per_problem
 
     def get_batches(self, problems):
+        if len(problems) == 0:
+            # This happens namely when the user sets test set size to 0.
+            return None
         xs = []
         sample_weight_list = []
         cur_problems = []
