@@ -127,6 +127,13 @@ def main():
                     with train_summary_writer.as_default():
                         tf.summary.scalar('batch_loss', loss_value)
                     t.set_postfix({'loss': loss_value.numpy()})
+                epoch_i = args.epochs
+                tf.summary.experimental.set_step(epoch_i)
+                record = {'epoch': epoch_i}
+                record.update(evaluate(model, data_test, data_train, loss_fn,
+                                       test_summary_writer, train_summary_writer,
+                                       extract_weights=(args.hidden_units == 0)))
+                records.append(record)
         finally:
             save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'evaluation', args.output)
 
