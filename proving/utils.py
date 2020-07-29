@@ -1,3 +1,4 @@
+import os
 import warnings
 
 import numpy as np
@@ -52,3 +53,9 @@ def invert_permutation(p):
     s = np.empty(p.size, p.dtype)
     s[p] = np.arange(p.size)
     return s
+
+
+def path_join(dirname, base):
+    if dirname is None:
+        return base
+    return os.path.join(dirname, base)

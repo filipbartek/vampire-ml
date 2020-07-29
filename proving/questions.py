@@ -12,8 +12,11 @@ import warnings
 
 import binpacking
 import joblib
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy
+import seaborn as sns
 import sklearn
 import tensorflow as tf
 from joblib import Parallel, delayed
@@ -28,6 +31,13 @@ from proving.memory import memory
 from vampire_ml.results import save_df
 
 dtype_tf_float = np.float32
+
+metrics = {
+    'accuracy': keras.metrics.BinaryAccuracy(threshold=0),
+    'crossentropy': keras.metrics.BinaryCrossentropy(from_logits=True)
+}
+
+metric_names = ['loss'] + list(metrics.keys())
 
 
 def main():
@@ -48,7 +58,6 @@ def main():
     parser.add_argument('--standard-weights', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
     parser.add_argument('--jobs', type=int, default=1)
-    parser.add_argument('--tf-log-device-placement', action='store_true')
     parser.add_argument('--max-data-length', type=int, default=64 * 1024 * 1024)
     parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
@@ -56,7 +65,6 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
-    tf.debugging.set_log_device_placement(args.tf_log_device_placement)
 
     np.random.seed(0)
     tf.random.set_seed(0)
@@ -65,21 +73,18 @@ def main():
     logging.debug('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    train_log_dir = os.path.join(args.log_dir, current_time, 'train')
-    test_log_dir = os.path.join(args.log_dir, current_time, 'test')
-    train_summary_writer = tf.summary.create_file_writer(train_log_dir)
-    test_summary_writer = tf.summary.create_file_writer(test_log_dir)
+    subset_names = ('train', 'test')
+    summary_writers = {name: tf.summary.create_file_writer(os.path.join(args.log_dir, current_time, name)) for name in
+                       subset_names}
     tf.summary.experimental.set_step(0)
 
-    with train_summary_writer.as_default():
+    with summary_writers['train'].as_default():
         tf.summary.text('args', str(args))
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         batch_generator = BatchGenerator(args.max_data_length)
-        problems_train, problems_test, data_train, data_test = get_data(args.question_dir, args.signature_dir,
-                                                                        args.cache_file, args.train_size,
-                                                                        args.test_size, batch_generator,
-                                                                        args.max_questions_per_problem)
+        problems, datasets = get_data(args.question_dir, args.signature_dir, args.cache_file, args.train_size,
+                                      args.test_size, batch_generator, args.max_questions_per_problem)
 
         k = 12
 
@@ -95,66 +100,98 @@ def main():
         records = []
 
         try:
-            w_values_list = []
             if args.standard_weights:
-                w_values_list.extend((np.eye(k), np.eye(k) * -1))
+                w_values = np.concatenate([np.eye(k), np.eye(k) * -1])
+                for i, w in enumerate(tqdm(w_values, unit='weight', desc='Evaluating standard weights')):
+                    model = get_model(k, weights=[w.reshape(-1, 1)])
+                    record = {'type': 'standard', 'step': i}
+                    record.update(evaluate(model, datasets, loss_fn, extract_weights=True))
+                    records.append(record)
+
             if args.random_weights > 0:
                 rng = np.random.RandomState(0)
-                w_values_list.append(rng.normal(0, 1, (args.random_weights, k)))
-            if len(w_values_list) > 0:
-                for w in tqdm(np.concatenate(w_values_list), unit='weight', desc='Evaluating custom weights'):
+                w_values = rng.normal(0, 1, (args.random_weights, k))
+                records_random = []
+                for i, w in enumerate(tqdm(w_values, unit='weight', desc='Evaluating random weights')):
                     model = get_model(k, weights=[w.reshape(-1, 1)])
-                    record = evaluate(model, data_test, data_train, loss_fn, extract_weights=True)
-                    records.append(record)
+                    record = {'type': 'random', 'step': i}
+                    record.update(evaluate(model, datasets, loss_fn, extract_weights=True))
+                    records_random.append(record)
+                df_random = utils.dataframe_from_records(records_random,
+                                                         dtypes={'type': 'category', 'step': pd.UInt32Dtype()})
+                columns = {}
+                for phase, summary_writer in summary_writers.items():
+                    with summary_writer.as_default():
+                        for metric in metric_names:
+                            key = (phase, metric)
+                            if key not in df_random:
+                                continue
+                            values = df_random[key]
+                            columns[f'{phase}.{metric}'] = values
+                            if metric == 'accuracy':
+                                columns[f'{phase}.{metric}.logit'] = scipy.special.logit(values)
+                            tf.summary.histogram(f'random.{metric}', values)
+                            tf.summary.text(f'random.{metric}', f'mean={np.mean(values)}, std={np.std(values)}')
+                            logging.info(f'random.{phase}.{metric}: mean={np.mean(values)}, std={np.std(values)}')
+                plt.figure()
+                sns.pairplot(pd.DataFrame(columns))
+                plt.savefig(utils.path_join(args.output, 'random.png'))
+                plt.close()
+                records.extend(records_random)
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
             if args.plot_model is not None:
-                p = args.plot_model
-                if args.output is not None:
-                    p = os.path.join(args.output, p)
-                keras.utils.plot_model(model, p, show_shapes=True)
+                keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model), show_shapes=True)
             rng = np.random.RandomState(0)
             with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
-                for epoch_i in t:
-                    tf.summary.experimental.set_step(epoch_i)
-                    if epoch_i % args.evaluation_period == 0:
-                        record = {'epoch': epoch_i}
-                        record.update(evaluate(model, data_test, data_train, loss_fn,
-                                               test_summary_writer, train_summary_writer,
+                for i in t:
+                    tf.summary.experimental.set_step(i)
+                    if i % args.evaluation_period == 0:
+                        record = {'type': 'training', 'step': i}
+                        record.update(evaluate(model, datasets, loss_fn, summary_writers,
                                                extract_weights=(args.hidden_units == 0)))
                         records.append(record)
-                    with train_summary_writer.as_default():
-                        loss_value = train_step(model, problems_train, loss_fn, optimizer, rng, batch_generator)
+                    with summary_writers['train'].as_default():
+                        loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng, batch_generator)
                     t.set_postfix({'loss': loss_value.numpy()})
-                epoch_i = args.epochs
-                tf.summary.experimental.set_step(epoch_i)
-                record = {'epoch': epoch_i}
-                record.update(evaluate(model, data_test, data_train, loss_fn,
-                                       test_summary_writer, train_summary_writer,
-                                       extract_weights=(args.hidden_units == 0)))
-                records.append(record)
+            i = args.epochs
+            tf.summary.experimental.set_step(i)
+            record = {'type': 'training', 'step': i}
+            record.update(evaluate(model, datasets, loss_fn, summary_writers, extract_weights=(args.hidden_units == 0)))
+            records.append(record)
         finally:
-            save_df(utils.dataframe_from_records(records, dtypes={'epoch': pd.UInt32Dtype()}), 'evaluation', args.output)
+            save_df(utils.dataframe_from_records(records, dtypes={'type': 'category', 'step': pd.UInt32Dtype()}),
+                    'evaluation', args.output)
 
 
 @memory.cache(ignore=['cache_file'], verbose=2)
 def get_data(question_dir, signature_dir, cache_file, train_size, test_size, batch_generator, max_questions_per_problem,
              random_state=0):
-    problems = get_problems(question_dir, signature_dir, max_questions_per_problem, cache_file)
-    logging.info(f'Number of problems: {len(problems)}')
-    if train_size == 1.0:
-        problems_train = problems
-        problems_test = []
+    problems_all = get_problems(question_dir, signature_dir, max_questions_per_problem, cache_file)
+    logging.info(f'Number of problems: {len(problems_all)}')
+    if train_size == 1.0 or test_size == 0.0:
+        problems = {
+            'train': problems_all,
+            'test': []
+        }
+    elif test_size == 1.0 or train_size == 0.0:
+        problems = {
+            'test': problems_all,
+            'train': []
+        }
     else:
-        problems_train, problems_test = train_test_split(problems,
+        problems_train, problems_test = train_test_split(problems_all,
                                                          test_size=test_size,
                                                          train_size=train_size,
                                                          random_state=random_state)
-    logging.info(f'Number of training problems: {len(problems_train)}')
-    logging.info(f'Number of test problems: {len(problems_test)}')
-    data_train = batch_generator.get_batches(problems_train)
-    data_test = batch_generator.get_batches(problems_test)
-    return problems_train, problems_test, data_train, data_test
+        problems = {
+            'train': problems_train,
+            'test': problems_test
+        }
+    logging.info(f'Number of training problems: %d', len(problems['train']))
+    logging.info(f'Number of test problems: %d', len(problems['test']))
+    data = {name: batch_generator.get_batches(problems[name]) for name in ('train', 'test')}
+    return problems, data
 
 
 @memory.cache(ignore=['cache_file'], verbose=2)
@@ -179,36 +216,31 @@ def get_problems(question_dir, signature_dir, max_questions_per_problem, cache_f
     return problems
 
 
-def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None, train_summary_writer=None,
-             extract_weights=False):
+def evaluate(model, datasets, loss_fn, summary_writers=None, extract_weights=False):
     record = {}
     if extract_weights:
         weights = model.get_layer('symbol_costs').get_weights()
         for weight_i, weight in enumerate(weights):
             record[('weight', weight_i)] = np.squeeze(weight)
             record[('weight_normalized', weight_i)] = np.squeeze(sklearn.preprocessing.normalize(weight, axis=0))
-        if train_summary_writer is not None:
-            with train_summary_writer.as_default():
+        if summary_writers is not None:
+            with summary_writers['train'].as_default():
                 tf.summary.text('weights', str(weights))
-    for name, value in test_step(model, data_test, loss_fn).items():
-        record[('test', name)] = value.numpy()
-        if test_summary_writer is not None:
-            with test_summary_writer.as_default():
-                tf.summary.scalar(name, value)
-    for name, value in test_step(model, data_train, loss_fn).items():
-        record[('train', name)] = value.numpy()
-        if train_summary_writer is not None:
-            with train_summary_writer.as_default():
-                tf.summary.scalar(name, value)
+    for dataset_name, dataset in datasets.items():
+        for name, value in test_step(model, dataset, loss_fn).items():
+            record[(dataset_name, name)] = value.numpy()
+            if summary_writers is not None:
+                with summary_writers[dataset_name].as_default():
+                    tf.summary.scalar(name, value)
     return record
 
 
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
     problems_selected = (problems[i] for i in rng.permutation(len(problems)))
     x, sample_weight = batch_generator.get_batch(problems_selected)
-    tf.summary.scalar('batch.symbol_embeddings.len', len(x['symbol_embeddings']))
-    tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
-    tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
+    # tf.summary.scalar('batch.symbol_embeddings.len', len(x['symbol_embeddings']))
+    # tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
+    # tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
@@ -229,13 +261,10 @@ def test_step(model, data, loss_fn):
     tf.summary.histogram('probs', tf.sigmoid(logits))
     assert len(logits) == len(sample_weight)
     res = {'loss': loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)}
-    metrics = {
-        'accuracy': keras.metrics.BinaryAccuracy(threshold=0),
-        'crossentropy': keras.metrics.BinaryCrossentropy(from_logits=True)
-    }
     for name, metric in metrics.items():
         metric.update_state(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
         res[name] = metric.result()
+        metric.reset_states()
     return res
 
 
