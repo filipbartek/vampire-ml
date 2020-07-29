@@ -60,6 +60,7 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-data-length', type=int, default=64 * 1024 * 1024)
     parser.add_argument('--max-questions-per-problem', type=int)
+    parser.add_argument('--max-batch-size', type=int)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
     args = parser.parse_args()
@@ -144,6 +145,10 @@ def main():
                 keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model, makedir=True),
                                        show_shapes=True)
             rng = np.random.RandomState(0)
+            if args.max_batch_size is None:
+                batch_generator_train = batch_generator
+            else:
+                batch_generator_train = BatchGenerator(min(args.max_batch_size, args.max_data_length))
             with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
                 for i in t:
                     tf.summary.experimental.set_step(i)
@@ -153,7 +158,8 @@ def main():
                                                extract_weights=(args.hidden_units == 0)))
                         records.append(record)
                     with summary_writers['train'].as_default():
-                        loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng, batch_generator)
+                        loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng,
+                                                batch_generator_train)
                     t.set_postfix({'loss': loss_value.numpy()})
             i = args.epochs
             tf.summary.experimental.set_step(i)
@@ -237,8 +243,7 @@ def evaluate(model, datasets, loss_fn, summary_writers=None, extract_weights=Fal
 
 
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
-    problems_selected = (problems[i] for i in rng.permutation(len(problems)))
-    x, sample_weight = batch_generator.get_batch(problems_selected)
+    x, sample_weight = batch_generator.get_batch_random(problems, rng)
     # tf.summary.scalar('batch.symbol_embeddings.len', len(x['symbol_embeddings']))
     # tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
     # tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
@@ -315,6 +320,52 @@ class BatchGenerator:
             x_lists['segment_ids'].append(
                 np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
             sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
+            question_i += m
+            symbol_i += n
+        x = {k: np.concatenate(v) for k, v in x_lists.items()}
+        assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
+        assert symbol_i == len(x['symbol_embeddings']) == np.max(x['question_symbols']) + 1
+        logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
+                      sum(v.nbytes for v in x.values()),
+                      {k: v.shape for k, v in x.items()},
+                      {k: v.nbytes for k, v in x.items()})
+        sample_weight = np.concatenate(sample_weight_list)
+        logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
+        return x, sample_weight
+
+    def get_batch_random(self, problems, rng):
+        question_ids = list(itertools.chain.from_iterable(
+            ((problem_i, question_i) for question_i in range(len(problems[problem_i]['questions']))) for problem_i in
+            range(len(problems))))
+        perm = rng.permutation(question_ids)
+        selected_ids = collections.defaultdict(list)
+        total_size = 0
+        assert all(len(problem['symbol_embeddings']) <= self.max_batch_length for problem in problems)
+        for problem_i, question_i in perm:
+            cur_size = len(problems[problem_i]['symbol_embeddings'])
+            if total_size + cur_size > self.max_batch_length:
+                break
+            selected_ids[problem_i].append(question_i)
+            total_size += cur_size
+        assert total_size > 0
+        x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
+        sample_weight_list = []
+        question_i = 0
+        symbol_i = 0
+        for problem_i, question_ids in selected_ids.items():
+            d = problems[problem_i]
+            symbol_embeddings = d['symbol_embeddings']
+            n = len(symbol_embeddings)
+            questions = d['questions'][question_ids]
+            assert questions.dtype == np.float32
+            m = len(questions)
+            x_lists['symbol_embeddings'].append(symbol_embeddings)
+            x_lists['ranking_difference'].append(questions.reshape(m * n, 1))
+            x_lists['question_symbols'].append(
+                np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).reshape(m * n, 1))
+            x_lists['segment_ids'].append(
+                np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
+            sample_weight_list.append(np.full(m, 1 / len(d['questions']), dtype=dtype_tf_float))
             question_i += m
             symbol_i += n
         x = {k: np.concatenate(v) for k, v in x_lists.items()}
