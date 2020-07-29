@@ -55,7 +55,9 @@ def invert_permutation(p):
     return s
 
 
-def path_join(dirname, base):
+def path_join(dirname, base, makedir=False):
     if dirname is None:
         return base
+    if makedir:
+        os.makedirs(dirname, exist_ok=True)
     return os.path.join(dirname, base)

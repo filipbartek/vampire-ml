@@ -135,13 +135,14 @@ def main():
                             logging.info(f'random.{phase}.{metric}: mean={np.mean(values)}, std={np.std(values)}')
                 plt.figure()
                 sns.pairplot(pd.DataFrame(columns))
-                plt.savefig(utils.path_join(args.output, 'random.png'))
+                plt.savefig(utils.path_join(args.output, 'random.png', makedir=True))
                 plt.close()
                 records.extend(records_random)
 
             model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
             if args.plot_model is not None:
-                keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model), show_shapes=True)
+                keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model, makedir=True),
+                                       show_shapes=True)
             rng = np.random.RandomState(0)
             with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
                 for i in t:
