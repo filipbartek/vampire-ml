@@ -123,9 +123,8 @@ def main():
                                                test_summary_writer, train_summary_writer,
                                                extract_weights=(args.hidden_units == 0)))
                         records.append(record)
-                    loss_value = train_step(model, problems_train, loss_fn, optimizer, rng, batch_generator)
                     with train_summary_writer.as_default():
-                        tf.summary.scalar('batch_loss', loss_value)
+                        loss_value = train_step(model, problems_train, loss_fn, optimizer, rng, batch_generator)
                     t.set_postfix({'loss': loss_value.numpy()})
                 epoch_i = args.epochs
                 tf.summary.experimental.set_step(epoch_i)
@@ -207,11 +206,15 @@ def evaluate(model, data_test, data_train, loss_fn, test_summary_writer=None, tr
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
     problems_selected = (problems[i] for i in rng.permutation(len(problems)))
     x, sample_weight = batch_generator.get_batch(problems_selected)
+    tf.summary.scalar('batch.symbol_embeddings.len', len(x['symbol_embeddings']))
+    tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
+    tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
+    tf.summary.scalar('batch.loss', loss_value)
     grads = tape.gradient(loss_value, model.trainable_weights)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
     return loss_value
