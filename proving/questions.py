@@ -129,8 +129,6 @@ def main():
                                 continue
                             values = df_random[key]
                             columns[f'{phase}.{metric}'] = values
-                            if metric == 'accuracy':
-                                columns[f'{phase}.{metric}.logit'] = scipy.special.logit(values)
                             tf.summary.histogram(f'random.{metric}', values)
                             tf.summary.text(f'random.{metric}', f'mean={np.mean(values)}, std={np.std(values)}')
                             logging.info(f'random.{phase}.{metric}: mean={np.mean(values)}, std={np.std(values)}')
