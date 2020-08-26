@@ -68,6 +68,7 @@ def main():
     parser.add_argument('--max-batch-size', type=int)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
+    parser.add_argument('--profile', action='store_true')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -112,6 +113,8 @@ def main():
 
         records = []
 
+        if args.profile:
+            tf.profiler.experimental.start(args.log_dir)
         try:
             model = SymbolPreferenceGCN('predicate', graphifier.canonical_etypes, graphifier.ntypes)
             if args.plot_model is not None:
@@ -141,6 +144,8 @@ def main():
             record.update(evaluate(model, eval_datasets, loss_fn, summary_writers))
             records.append(record)
         finally:
+            if args.profile:
+                tf.profiler.experimental.stop()
             save_df(utils.dataframe_from_records(records, dtypes={'type': 'category', 'step': pd.UInt32Dtype()}),
                     'evaluation', args.output)
 
