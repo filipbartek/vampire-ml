@@ -80,6 +80,7 @@ def main():
 
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     subset_names = ('train', 'test')
+    logging.info(f'Log directory: {os.path.join(args.log_dir, current_time)}')
     summary_writers = {name: tf.summary.create_file_writer(os.path.join(args.log_dir, current_time, name)) for name in
                        subset_names}
     tf.summary.experimental.set_step(0)
