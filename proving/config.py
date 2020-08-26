@@ -1,4 +1,5 @@
 import os
+import re
 
 
 def program_name():
@@ -33,6 +34,11 @@ def problems_path():
 
 
 def full_problem_path(problem):
+    m = re.search(
+        r'\b(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))\b',
+        problem)
+    if m is not None and problem == m['problem_name']:
+        problem = os.path.join(m['problem_domain'], f'{problem}.p')
     try:
         return os.path.join(problems_path(), problem)
     except TypeError:
