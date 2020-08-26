@@ -11,15 +11,13 @@ import re
 import warnings
 
 import binpacking
+import dgl
 import joblib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import scipy
-import seaborn as sns
-import sklearn
 import tensorflow as tf
 from joblib import Parallel, delayed
+from ordered_set import OrderedSet
 from sklearn.model_selection import train_test_split
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -27,7 +25,11 @@ from tqdm import tqdm
 
 from proving import symbols
 from proving import utils
+from proving.graphifier import Graphifier
+from proving.heterographconv import HeteroGCN
 from proving.memory import memory
+from proving.solver import Solver
+from proving.utils import number_of_nodes
 from vampire_ml.results import save_df
 
 dtype_tf_float = np.float32
@@ -51,6 +53,7 @@ def main():
     parser.add_argument('--train-size', type=float)
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--evaluation-period', type=int, default=1)
+    parser.add_argument('--evaluate-on-training-set', action='store_true')
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--use-bias', action='store_true')
@@ -58,8 +61,10 @@ def main():
     parser.add_argument('--standard-weights', action='store_true')
     parser.add_argument('--random-weights', type=int, default=0)
     parser.add_argument('--jobs', type=int, default=1)
-    parser.add_argument('--max-data-length', type=int, default=64 * 1024 * 1024)
+    parser.add_argument('--max-data-length', type=int, default=100000)
+    parser.add_argument('--max-problems', type=int)
     parser.add_argument('--max-questions-per-problem', type=int)
+    parser.add_argument('--max-problem-size', type=int)
     parser.add_argument('--max-batch-size', type=int)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
@@ -84,10 +89,16 @@ def main():
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         batch_generator = BatchGenerator(args.max_data_length)
-        problems, datasets = get_data(args.question_dir, args.signature_dir, args.cache_file, args.train_size,
-                                      args.test_size, batch_generator, args.max_questions_per_problem)
-
-        k = 12
+        solver = Solver(timeout=20)
+        graphifier = Graphifier(solver, max_number_of_nodes=args.max_problem_size)
+        if args.evaluate_on_training_set:
+            eval_dataset_names = ('test', 'train')
+        else:
+            eval_dataset_names = ('test',)
+        problems, eval_datasets = get_data(args.question_dir, graphifier, args.cache_file, args.train_size,
+                                           args.test_size, batch_generator, max_problems=args.max_problems,
+                                           max_questions_per_problem=args.max_questions_per_problem,
+                                           output_dir=args.output, datasets=eval_dataset_names)
 
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -101,44 +112,7 @@ def main():
         records = []
 
         try:
-            if args.standard_weights:
-                w_values = np.concatenate([np.eye(k), np.eye(k) * -1])
-                for i, w in enumerate(tqdm(w_values, unit='weight', desc='Evaluating standard weights')):
-                    model = get_model(k, weights=[w.reshape(-1, 1)])
-                    record = {'type': 'standard', 'step': i}
-                    record.update(evaluate(model, datasets, loss_fn, extract_weights=True))
-                    records.append(record)
-
-            if args.random_weights > 0:
-                rng = np.random.RandomState(0)
-                w_values = rng.normal(0, 1, (args.random_weights, k))
-                records_random = []
-                for i, w in enumerate(tqdm(w_values, unit='weight', desc='Evaluating random weights')):
-                    model = get_model(k, weights=[w.reshape(-1, 1)])
-                    record = {'type': 'random', 'step': i}
-                    record.update(evaluate(model, datasets, loss_fn, extract_weights=True))
-                    records_random.append(record)
-                df_random = utils.dataframe_from_records(records_random,
-                                                         dtypes={'type': 'category', 'step': pd.UInt32Dtype()})
-                columns = {}
-                for phase, summary_writer in summary_writers.items():
-                    with summary_writer.as_default():
-                        for metric in metric_names:
-                            key = (phase, metric)
-                            if key not in df_random:
-                                continue
-                            values = df_random[key]
-                            columns[f'{phase}.{metric}'] = values
-                            tf.summary.histogram(f'random.{metric}', values)
-                            tf.summary.text(f'random.{metric}', f'mean={np.mean(values)}, std={np.std(values)}')
-                            logging.info(f'random.{phase}.{metric}: mean={np.mean(values)}, std={np.std(values)}')
-                plt.figure()
-                sns.pairplot(pd.DataFrame(columns))
-                plt.savefig(utils.path_join(args.output, 'random.png', makedir=True))
-                plt.close()
-                records.extend(records_random)
-
-            model = get_model(k, use_bias=args.use_bias, hidden_units=args.hidden_units)
+            model = SymbolPreferenceGCN('predicate', graphifier.canonical_etypes, graphifier.ntypes)
             if args.plot_model is not None:
                 keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model, makedir=True),
                                        show_shapes=True)
@@ -151,56 +125,86 @@ def main():
                 for i in t:
                     tf.summary.experimental.set_step(i)
                     if i % args.evaluation_period == 0:
-                        record = {'type': 'training', 'step': i}
-                        record.update(evaluate(model, datasets, loss_fn, summary_writers,
-                                               extract_weights=(args.hidden_units == 0)))
-                        records.append(record)
-                    with summary_writers['train'].as_default():
-                        loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng,
-                                                batch_generator_train)
-                    t.set_postfix({'loss': loss_value.numpy()})
+                        with tf.profiler.experimental.Trace('test', step_num=i, _r=1):
+                            record = {'type': 'training', 'step': i}
+                            record.update(evaluate(model, eval_datasets, loss_fn, summary_writers))
+                            records.append(record)
+                    with tf.profiler.experimental.Trace('train', step_num=i, _r=1):
+                        with summary_writers['train'].as_default():
+                            loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng,
+                                                    batch_generator_train)
+                        t.set_postfix({'loss': loss_value.numpy()})
             i = args.epochs
             tf.summary.experimental.set_step(i)
             record = {'type': 'training', 'step': i}
-            record.update(evaluate(model, datasets, loss_fn, summary_writers, extract_weights=(args.hidden_units == 0)))
+            record.update(evaluate(model, eval_datasets, loss_fn, summary_writers))
             records.append(record)
         finally:
             save_df(utils.dataframe_from_records(records, dtypes={'type': 'category', 'step': pd.UInt32Dtype()}),
                     'evaluation', args.output)
 
 
-@memory.cache(ignore=['cache_file'], verbose=2)
-def get_data(question_dir, signature_dir, cache_file, train_size, test_size, batch_generator, max_questions_per_problem,
-             random_state=0):
-    problems_all = get_problems(question_dir, signature_dir, max_questions_per_problem, cache_file)
-    logging.info(f'Number of problems: {len(problems_all)}')
+class SymbolPreferenceGCN(keras.Model):
+    def __init__(self, symbol_type, canonical_etypes, ntypes, num_layers=4):
+        super().__init__()
+        self.symbol_type = symbol_type
+        edge_layer_sizes = {canonical_etype: 64 for canonical_etype in canonical_etypes}
+        node_layer_sizes = {ntype: 64 for ntype in ntypes}
+        self.hetero_gcn = HeteroGCN(edge_layer_sizes, node_layer_sizes, num_layers, False, [symbol_type])
+        self.cost_model = layers.Dense(1, activation='relu')
+
+    def call(self, x):
+        graph = x['batch_graph']
+        # Row: problem -> symbol
+        symbol_embeddings = self.hetero_gcn(graph)[self.symbol_type]
+        symbol_costs = tf.squeeze(self.cost_model(symbol_embeddings))
+        # Row: problem -> question -> symbol
+        question_symbols = x['question_symbols']
+        symbol_costs_tiled = tf.gather(symbol_costs, question_symbols)
+        ranking_difference = x['ranking_difference']
+        potentials = tf.multiply(symbol_costs_tiled, ranking_difference)
+        segment_ids = x['segment_ids']
+        # Row: problem -> question
+        precedence_pair_logit = tf.math.segment_sum(potentials, segment_ids)
+        return precedence_pair_logit
+
+
+@memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
+def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_generator, max_problems,
+             max_questions_per_problem, random_state=0, output_dir=None, datasets=None):
+    problems_all = get_problems(question_dir, graphifier, max_problems, max_questions_per_problem,
+                                np.random.RandomState(random_state), cache_file, output_dir)
+    logging.info(f'Number of problems graphified: {len(problems_all)}')
+
     if train_size == 1.0 or test_size == 0.0:
         problems = {
-            'train': problems_all,
+            'train': list(problems_all.values()),
             'test': []
         }
     elif test_size == 1.0 or train_size == 0.0:
         problems = {
-            'test': problems_all,
+            'test': list(problems_all.values()),
             'train': []
         }
     else:
-        problems_train, problems_test = train_test_split(problems_all,
+        problems_train, problems_test = train_test_split(list(problems_all.keys()),
                                                          test_size=test_size,
                                                          train_size=train_size,
                                                          random_state=random_state)
         problems = {
-            'train': problems_train,
-            'test': problems_test
+            'train': [problems_all[k] for k in problems_train],
+            'test': [problems_all[k] for k in problems_test]
         }
     logging.info(f'Number of training problems: %d', len(problems['train']))
     logging.info(f'Number of test problems: %d', len(problems['test']))
-    data = {name: batch_generator.get_batches(problems[name]) for name in ('train', 'test')}
+    if datasets is None:
+        datasets = ('test', 'train')
+    data = {name: batch_generator.get_batches(problems[name]) for name in datasets}
     return problems, data
 
 
-@memory.cache(ignore=['cache_file'], verbose=2)
-def get_problems(question_dir, signature_dir, max_questions_per_problem, cache_file):
+@memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
+def get_problems(question_dir, graphifier, max_problems, max_questions_per_problem, rng, cache_file, output_dir):
     if cache_file is not None:
         try:
             logging.info(f'Loading problems from {cache_file}...')
@@ -209,11 +213,15 @@ def get_problems(question_dir, signature_dir, max_questions_per_problem, cache_f
             return problems
         except FileNotFoundError:
             pass
-    questions = get_problem_questions(question_dir, max_questions_per_problem)
+    questions = get_problem_questions(question_dir, rng, max_problems=max_problems,
+                                      max_questions_per_problem=max_questions_per_problem)
     problem_names = list(questions.keys())
-    signatures = get_problem_signatures(signature_dir, 'predicate', problem_names)
-    problems = [{'questions': questions[problem_name], 'symbol_embeddings': signatures[problem_name]} for problem_name
-                in problem_names]
+    graphs_records = graphifier.problems_to_graphs(problem_names)
+    graphs, records = zip(*graphs_records)
+    if output_dir is not None:
+        save_df(utils.dataframe_from_records(records), 'graphs', output_dir)
+    problems = {problem_name: {'graph': graphs[i], 'questions': questions[problem_name]} for
+                i, problem_name in enumerate(problem_names) if graphs[i] is not None}
     if cache_file is not None:
         logging.info(f'Saving problems into {cache_file}...')
         pickle.dump(problems, open(cache_file, mode='wb'))
@@ -221,16 +229,8 @@ def get_problems(question_dir, signature_dir, max_questions_per_problem, cache_f
     return problems
 
 
-def evaluate(model, datasets, loss_fn, summary_writers=None, extract_weights=False):
+def evaluate(model, datasets, loss_fn, summary_writers=None):
     record = {}
-    if extract_weights:
-        weights = model.get_layer('symbol_costs').get_weights()
-        for weight_i, weight in enumerate(weights):
-            record[('weight', weight_i)] = np.squeeze(weight)
-            record[('weight_normalized', weight_i)] = np.squeeze(sklearn.preprocessing.normalize(weight, axis=0))
-        if summary_writers is not None:
-            with summary_writers['train'].as_default():
-                tf.summary.text('weights', str(weights))
     for dataset_name, dataset in datasets.items():
         for name, value in test_step(model, dataset, loss_fn).items():
             record[(dataset_name, name)] = value.numpy()
@@ -248,7 +248,8 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
-        loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
+        loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
+                             sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
     tf.summary.scalar('batch.loss', loss_value)
     grads = tape.gradient(loss_value, model.trainable_weights)
@@ -259,14 +260,19 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
 def test_step(model, data, loss_fn):
     if data is None:
         return {}
-    xs, sample_weight = data
-    logits = np.concatenate([model(x, training=False).numpy() for x in xs])
+    xs = data['xs']
+    sample_weight = data['sample_weight']
+    logits = np.concatenate(
+        [model(x, training=False).numpy() for x in tqdm(xs, unit='batch', desc='Evaluating', disable=len(xs) < 10)])
     tf.summary.histogram('logits', logits)
     tf.summary.histogram('probs', tf.sigmoid(logits))
     assert len(logits) == len(sample_weight)
-    res = {'loss': loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)}
+    # BinaryCrossentropy requires that there is at least one non-batch dimension.
+    res = {'loss': loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
+                           sample_weight=sample_weight)}
     for name, metric in metrics.items():
-        metric.update_state(np.ones((len(sample_weight), 1), dtype=np.bool), logits, sample_weight=sample_weight)
+        metric.update_state(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
+                            sample_weight=sample_weight)
         res[name] = metric.result()
         metric.reset_states()
     return res
@@ -276,60 +282,36 @@ class BatchGenerator:
     def __init__(self, max_batch_length):
         self.max_batch_length = max_batch_length
 
+    @classmethod
+    def problem_size(cls, d, n_questions=None):
+        g = d['graph']
+        if n_questions is None:
+            n_questions = len(d['questions'])
+        assert n_questions <= len(d['questions'])
+        return number_of_nodes(g) + d['questions'].shape[1] * n_questions
+
     def get_batches(self, problems):
         if len(problems) == 0:
             # This happens namely when the user sets test set size to 0.
             return None
         xs = []
         sample_weight_list = []
-        problem_sizes = {i: len(d['symbol_embeddings']) * len(d['questions']) for i, d in enumerate(problems)}
+        problem_sizes = dict(enumerate(map(self.problem_size, problems)))
+        max_size = max(problem_sizes.values())
+        logging.info(f'Maximum problem size: {max_size}')
+        if max_size > self.max_batch_length:
+            raise RuntimeError(
+                f'Failed to distribute problems in batches of size at most {self.max_batch_length}. Problem of size {max_size} encountered.')
         bins = binpacking.to_constant_volume(problem_sizes, self.max_batch_length)
+        logging.info(f'Number of batches: {len(bins)}')
         for cur_bin in bins:
             batch_size = sum(cur_bin.values())
-            if batch_size > self.max_batch_length:
-                assert len(cur_bin) == 1
-                raise RuntimeError(
-                    f'Failed to distribute problems in batches of size at most {self.max_batch_length}. Problem of size {batch_size} encountered.')
-            x, sample_weight = self.get_batch(problems[i] for i in cur_bin.keys())
+            assert batch_size <= self.max_batch_length
+            x, sample_weight = self._get_batch(problems[i] for i in cur_bin.keys())
             xs.append(x)
             sample_weight_list.append(sample_weight)
-        logging.info(f'Number of batches: {len(xs)}')
         sample_weight = np.concatenate(sample_weight_list)
-        logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
-        return xs, sample_weight
-
-    def get_batch(self, problems):
-        x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
-        sample_weight_list = []
-        question_i = 0
-        symbol_i = 0
-        for d in problems:
-            symbol_embeddings = d['symbol_embeddings']
-            n = len(symbol_embeddings)
-            questions = d['questions']
-            assert questions.dtype == np.float32
-            m = len(questions)
-            if self.max_batch_length is not None and len(x_lists['ranking_difference']) + m * n > self.max_batch_length:
-                break
-            x_lists['symbol_embeddings'].append(symbol_embeddings)
-            x_lists['ranking_difference'].append(questions.reshape(m * n, 1))
-            x_lists['question_symbols'].append(
-                np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).reshape(m * n, 1))
-            x_lists['segment_ids'].append(
-                np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
-            sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
-            question_i += m
-            symbol_i += n
-        x = {k: np.concatenate(v) for k, v in x_lists.items()}
-        assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
-        assert symbol_i == len(x['symbol_embeddings']) == np.max(x['question_symbols']) + 1
-        logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
-                      sum(v.nbytes for v in x.values()),
-                      {k: v.shape for k, v in x.items()},
-                      {k: v.nbytes for k, v in x.items()})
-        sample_weight = np.concatenate(sample_weight_list)
-        logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
-        return x, sample_weight
+        return {'xs': xs, 'sample_weight': sample_weight}
 
     def get_batch_random(self, problems, rng):
         question_ids = list(itertools.chain.from_iterable(
@@ -338,43 +320,58 @@ class BatchGenerator:
         perm = rng.permutation(question_ids)
         selected_ids = collections.defaultdict(list)
         total_size = 0
-        assert all(len(problem['symbol_embeddings']) <= self.max_batch_length for problem in problems)
         for problem_i, question_i in perm:
-            cur_size = len(problems[problem_i]['symbol_embeddings'])
+            d = problems[problem_i]
+            if problem_i in selected_ids:
+                cur_graph_size = 0
+            else:
+                cur_graph_size = number_of_nodes(d['graph'])
+            cur_size = cur_graph_size + d['questions'].shape[1]
+            if cur_size > self.max_batch_length:
+                raise RuntimeError(f'A question of size {cur_size} does not fit into a batch.')
             if total_size + cur_size > self.max_batch_length:
                 break
             selected_ids[problem_i].append(question_i)
             total_size += cur_size
-        assert total_size > 0
-        x_lists = {'symbol_embeddings': [], 'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
+        return self._get_batch((problems[i] for i in selected_ids), selected_ids.values())
+
+    def _get_batch(self, problems, question_ids=None):
+        """Does not ensure that the batch is sufficiently small."""
+        graphs = []
+        x_lists = {'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
         sample_weight_list = []
         question_i = 0
         symbol_i = 0
-        for problem_i, question_ids in selected_ids.items():
-            d = problems[problem_i]
-            symbol_embeddings = d['symbol_embeddings']
-            n = len(symbol_embeddings)
-            questions = d['questions'][question_ids]
+        if question_ids is None:
+            question_ids = itertools.repeat(None)
+        total_size = 0
+        for d, qids in zip(problems, question_ids):
+            graphs.append(d['graph'])
+            if qids is None:
+                # We take all the questions for this problem.
+                questions = d['questions']
+            else:
+                questions = d['questions'][qids]
             assert questions.dtype == np.float32
-            m = len(questions)
-            x_lists['symbol_embeddings'].append(symbol_embeddings)
-            x_lists['ranking_difference'].append(questions.reshape(m * n, 1))
-            x_lists['question_symbols'].append(
-                np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).reshape(m * n, 1))
-            x_lists['segment_ids'].append(
-                np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).reshape(m * n, 1))
-            sample_weight_list.append(np.full(m, 1 / len(d['questions']), dtype=dtype_tf_float))
+            m, n = questions.shape
+            x_lists['ranking_difference'].append(questions.flatten())
+            x_lists['question_symbols'].append(np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).flatten())
+            x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).flatten())
+            sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
             question_i += m
             symbol_i += n
+            total_size += self.problem_size(d, len(questions))
+        assert total_size <= self.max_batch_length
         x = {k: np.concatenate(v) for k, v in x_lists.items()}
         assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
-        assert symbol_i == len(x['symbol_embeddings']) == np.max(x['question_symbols']) + 1
-        logging.debug(f'Created batch. Total size in bytes: %d. Shapes: %s. Sizes in bytes: %s.',
-                      sum(v.nbytes for v in x.values()),
-                      {k: v.shape for k, v in x.items()},
-                      {k: v.nbytes for k, v in x.items()})
+        assert symbol_i == np.max(x['question_symbols']) + 1
         sample_weight = np.concatenate(sample_weight_list)
-        logging.debug(f'Sample weight: Shape: {sample_weight.shape}. Sizes in bytes: {sample_weight.nbytes}.')
+        assert len(sample_weight) == question_i
+        x['batch_graph'] = dgl.batch(graphs)
+        logging.debug(
+            'Batch created. Size: %d/%d (actual/maximum). Problems: %d. Nodes: %d. Questions: %d. Cumulative symbol count: %d. Cumulative question length: %d.',
+            total_size, self.max_batch_length, len(graphs), number_of_nodes(x['batch_graph']), question_i, symbol_i,
+            len(x['ranking_difference']))
         return x, sample_weight
 
 
@@ -401,7 +398,7 @@ def get_model(k, weights=None, use_bias=False, hidden_units=0):
 
 
 @memory.cache(verbose=2)
-def get_problem_questions(question_dir, max_questions_per_problem):
+def get_problem_questions(question_dir, rng, max_problems=None, max_questions_per_problem=None):
     def parse_question_dir_entry(dir_entry):
         m = re.search(
             r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
@@ -415,9 +412,16 @@ def get_problem_questions(question_dir, max_questions_per_problem):
         delayed(parse_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
     logging.info(f'Question paths parsed. Number of questions: {len(question_entry_list)}')
 
+    # Ensure we have at most max_problems problems
+    problem_names = OrderedSet(tuple(zip(*question_entry_list))[0])
+    if max_problems is not None and len(problem_names) > max_problems:
+        problem_names = rng.choice(problem_names, size=max_problems, replace=False)
+
     # Filter problems with too many questions
-    question_paths = collections.defaultdict(list)
+    question_paths = {problem_name: [] for problem_name in problem_names}
     for problem_name, question_path in question_entry_list:
+        if problem_name not in question_paths:
+            continue
         if max_questions_per_problem is None or len(question_paths[problem_name]) < max_questions_per_problem:
             question_paths[problem_name].append(question_path)
 
@@ -428,10 +432,10 @@ def get_problem_questions(question_dir, max_questions_per_problem):
     logging.info(f'Questions loaded. Number of questions: {len(question_list)}')
 
     # Collect questions into a dictionary
-    problem_names = itertools.chain.from_iterable(
+    question_problem_names = itertools.chain.from_iterable(
         itertools.repeat(problem_name, len(vv)) for problem_name, vv in question_paths.items())
-    questions = collections.defaultdict(list)
-    for problem_name, question in zip(problem_names, question_list):
+    questions = {problem_name: [] for problem_name in question_paths.keys()}
+    for problem_name, question in zip(question_problem_names, question_list):
         questions[problem_name].append(question)
 
     # Convert per-problem questions into an array

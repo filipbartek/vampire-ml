@@ -61,3 +61,7 @@ def path_join(dirname, base, makedir=False):
     if makedir:
         os.makedirs(dirname, exist_ok=True)
     return os.path.join(dirname, base)
+
+
+def number_of_nodes(g):
+    return sum(g.number_of_nodes(ntype) for ntype in g.ntypes)
