@@ -62,13 +62,14 @@ header_patterns = {
 
 
 def problem_properties(problem, header_properties=True):
-    res = file_name_properties(os.path.basename(problem))
+    res = file_name_properties(problem)
     if header_properties:
         res.update(problem_header_properties(header(problem), res['form']))
     return res
 
 
 def file_name_properties(file_name):
+    file_name = os.path.basename(file_name)
     # http://www.tptp.org/TPTP/TR/TPTPTR.shtml#ProblemAndAxiomatizationNaming
     p = r'^(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*)\.p$'
     return match_and_cast(p, file_name)
