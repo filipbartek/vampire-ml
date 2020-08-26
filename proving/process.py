@@ -33,7 +33,7 @@ def run(args, timeout=None, capture_stdout=True, capture_stderr=True):
         cp = subprocess.run(args,
                             stdout=(subprocess.PIPE if capture_stdout else subprocess.DEVNULL),
                             stderr=(subprocess.PIPE if capture_stderr else subprocess.DEVNULL), timeout=timeout,
-                            text=True)
+                            universal_newlines=True)
         time_elapsed = time.time() - time_start
         returncode = cp.returncode
         stdout = cp.stdout
