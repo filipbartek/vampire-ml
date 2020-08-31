@@ -248,9 +248,10 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
 
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
-    # tf.summary.scalar('batch.symbol_embeddings.len', len(x['symbol_embeddings']))
-    # tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
-    # tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
+    tf.summary.scalar('batch.problems', x['batch_graph'].batch_size)
+    tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
+    tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
+    tf.summary.scalar('batch.sample_weight.sum', np.sum(sample_weight))
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
