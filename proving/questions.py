@@ -98,6 +98,19 @@ def main():
                                            max_questions_per_problem=args.max_questions_per_problem,
                                            output_dir=args.output, datasets=eval_dataset_names)
 
+        for dataset_name in ('test', 'train'):
+            logging.info(f'Number of {dataset_name} problems: %d', len(problems[dataset_name]))
+            if len(problems[dataset_name]) >= 1:
+                logging.info(f'Total {dataset_name} dataset size: %d', sum(map(problem_size, problems[dataset_name])))
+                logging.info(f'Maximum {dataset_name} problem size with all questions: %d',
+                             max(map(problem_size, problems[dataset_name])))
+                logging.info(f'Maximum {dataset_name} problem size with 1 question: %d',
+                             max(map(lambda p: problem_size(p, n_questions=1), problems[dataset_name])))
+            if eval_datasets[dataset_name] is not None:
+                logging.info(f'Number of {dataset_name} batches: %d', len(eval_datasets[dataset_name]['xs']))
+                logging.info(f'Number of {dataset_name} questions: %d',
+                             len(eval_datasets[dataset_name]['sample_weight']))
+
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
         optimizers = {
@@ -401,6 +414,7 @@ def get_problem_questions(question_dir, rng, max_problems=None, max_questions_pe
 
     # Ensure we have at most max_problems problems
     problem_names = OrderedSet(tuple(zip(*question_entry_list))[0])
+    logging.info(f'Total number of problems: {len(problem_names)}')
     if max_problems is not None and len(problem_names) > max_problems:
         problem_names = rng.choice(problem_names, size=max_problems, replace=False)
 
