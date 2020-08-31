@@ -24,3 +24,5 @@ if [ -n ${PYTHONPATH-} ]; then
 else
   export PYTHONPATH=${VAMPIRE_ML}
 fi
+
+export DGLBACKEND=tensorflow
