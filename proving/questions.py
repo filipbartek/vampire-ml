@@ -287,17 +287,17 @@ def test_step(model, data, loss_fn):
     return res
 
 
+def problem_size(d, n_questions=None):
+    g = d['graph']
+    if n_questions is None:
+        n_questions = len(d['questions'])
+    assert n_questions <= len(d['questions'])
+    return number_of_nodes(g) + d['questions'].shape[1] * n_questions
+
+
 class BatchGenerator:
     def __init__(self, max_batch_length):
         self.max_batch_length = max_batch_length
-
-    @classmethod
-    def problem_size(cls, d, n_questions=None):
-        g = d['graph']
-        if n_questions is None:
-            n_questions = len(d['questions'])
-        assert n_questions <= len(d['questions'])
-        return number_of_nodes(g) + d['questions'].shape[1] * n_questions
 
     def get_batches(self, problems):
         if len(problems) == 0:
@@ -305,7 +305,7 @@ class BatchGenerator:
             return None
         xs = []
         sample_weight_list = []
-        problem_sizes = dict(enumerate(map(self.problem_size, problems)))
+        problem_sizes = dict(enumerate(map(problem_size, problems)))
         max_size = max(problem_sizes.values())
         logging.info(f'Maximum problem size: {max_size}')
         if max_size > self.max_batch_length:
@@ -369,7 +369,7 @@ class BatchGenerator:
             sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
             question_i += m
             symbol_i += n
-            total_size += self.problem_size(d, len(questions))
+            total_size += problem_size(d, len(questions))
         assert total_size <= self.max_batch_length
         x = {k: np.concatenate(v) for k, v in x_lists.items()}
         assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
