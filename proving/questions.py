@@ -157,7 +157,7 @@ class SymbolPreferenceGCN(keras.Model):
         edge_layer_sizes = {canonical_etype: 64 for canonical_etype in canonical_etypes}
         node_layer_sizes = {ntype: 64 for ntype in ntypes}
         self.hetero_gcn = HeteroGCN(edge_layer_sizes, node_layer_sizes, num_layers, False, [symbol_type])
-        self.cost_model = layers.Dense(1, activation='relu')
+        self.cost_model = layers.Dense(1)
 
     def call(self, x):
         graph = x['batch_graph']
