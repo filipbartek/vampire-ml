@@ -246,7 +246,7 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
     return record
 
 
-def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
+def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_grads=True):
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
     tf.summary.scalar('batch.problems', x['batch_graph'].batch_size)
     tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
@@ -260,6 +260,12 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator):
         # loss_value is average loss over samples (questions).
     tf.summary.scalar('batch.loss', loss_value)
     grads = tape.gradient(loss_value, model.trainable_weights)
+    if log_grads:
+        grads_flat = tf.concat([tf.keras.backend.flatten(g) for g in grads if g is not None], 0)
+        tf.summary.scalar('grads.mean', tf.keras.backend.mean(grads_flat))
+        tf.summary.scalar('grads.norm.1', tf.norm(grads_flat, ord=1))
+        tf.summary.scalar('grads.norm.2', tf.norm(grads_flat, ord=2))
+        tf.summary.histogram('grads', grads_flat)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
     return loss_value
 
