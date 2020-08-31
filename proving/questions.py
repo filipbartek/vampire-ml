@@ -388,28 +388,6 @@ class BatchGenerator:
         return x, sample_weight
 
 
-def get_model(k, weights=None, use_bias=False, hidden_units=0):
-    # Row: problem -> symbol
-    symbol_embeddings = keras.Input(shape=k, name='symbol_embeddings')
-    x = symbol_embeddings
-    if hidden_units > 0:
-        x = layers.Dense(hidden_units, 'relu')(x)
-    symbol_costs_layer = layers.Dense(1, use_bias=use_bias, name='symbol_costs')
-    symbol_costs = symbol_costs_layer(x)
-    if weights is not None:
-        symbol_costs_layer.set_weights(weights)
-    # Row: problem -> question -> symbol
-    ranking_difference = keras.Input(shape=1, name='ranking_difference')
-    question_symbols = keras.Input(shape=1, name='question_symbols', dtype=tf.int32)
-    symbol_costs_tiled = layers.Flatten(name='symbol_costs_tiled')(tf.gather(symbol_costs, question_symbols))
-    potentials = layers.multiply([symbol_costs_tiled, ranking_difference])
-    segment_ids = keras.Input(shape=1, name='segment_ids', dtype=tf.int32)
-    precedence_pair_logit = tf.math.segment_sum(potentials, keras.backend.flatten(segment_ids))
-    precedence_pair_logit = layers.Flatten(name='logits')(precedence_pair_logit)
-    return keras.Model(inputs=[symbol_embeddings, ranking_difference, question_symbols, segment_ids],
-                       outputs=precedence_pair_logit)
-
-
 @memory.cache(verbose=2)
 def get_problem_questions(question_dir, rng, max_problems=None, max_questions_per_problem=None):
     def parse_question_dir_entry(dir_entry):
