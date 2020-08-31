@@ -51,17 +51,17 @@ def main():
     parser.add_argument('--log-dir', default='logs')
     parser.add_argument('--test-size', type=float)
     parser.add_argument('--train-size', type=float)
-    parser.add_argument('--epochs', type=int, default=100)
+    parser.add_argument('--steps', type=int)
     parser.add_argument('--evaluation-period', type=int, default=1)
     parser.add_argument('--evaluate-on-training-set', action='store_true')
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--jobs', type=int, default=1)
-    parser.add_argument('--max-data-length', type=int, default=100000)
+    parser.add_argument('--max-test-batch-size', type=int, default=1000000)
+    parser.add_argument('--max-train-batch-size', type=int, default=100000)
     parser.add_argument('--max-problems', type=int)
-    parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--max-problem-size', type=int)
-    parser.add_argument('--max-batch-size', type=int)
+    parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
     parser.add_argument('--profile', action='store_true')
@@ -86,7 +86,6 @@ def main():
         tf.summary.text('args', str(args))
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        batch_generator = BatchGenerator(args.max_data_length)
         solver = Solver(timeout=20)
         graphifier = Graphifier(solver, max_number_of_nodes=args.max_problem_size)
         if args.evaluate_on_training_set:
@@ -94,7 +93,8 @@ def main():
         else:
             eval_dataset_names = ('test',)
         problems, eval_datasets = get_data(args.question_dir, graphifier, args.cache_file, args.train_size,
-                                           args.test_size, batch_generator, max_problems=args.max_problems,
+                                           args.test_size, BatchGenerator(args.max_test_batch_size),
+                                           max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
                                            output_dir=args.output, datasets=eval_dataset_names)
 
@@ -130,11 +130,12 @@ def main():
                 keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model, makedir=True),
                                        show_shapes=True)
             rng = np.random.RandomState(0)
-            if args.max_batch_size is None:
-                batch_generator_train = batch_generator
+            batch_generator_train = BatchGenerator(args.max_train_batch_size)
+            if args.steps is not None:
+                step_ids = range(args.steps)
             else:
-                batch_generator_train = BatchGenerator(min(args.max_batch_size, args.max_data_length))
-            with tqdm(range(args.epochs), unit='epoch', desc='Training') as t:
+                step_ids = itertools.count()
+            with tqdm(step_ids, unit='step', desc='Training') as t:
                 for i in t:
                     tf.summary.experimental.set_step(i)
                     if i % args.evaluation_period == 0:
@@ -147,7 +148,8 @@ def main():
                             loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng,
                                                     batch_generator_train)
                         t.set_postfix({'loss': loss_value.numpy()})
-            i = args.epochs
+            i = args.steps
+            assert i is not None
             tf.summary.experimental.set_step(i)
             record = {'type': 'training', 'step': i}
             record.update(evaluate(model, eval_datasets, loss_fn, summary_writers))
