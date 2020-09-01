@@ -1,4 +1,5 @@
 import collections
+import functools
 import itertools
 import json
 import logging
@@ -180,7 +181,8 @@ class TermVisitor:
 
     def get_data_dict(self):
         assert set(self.edges.keys()) == set(self.template.canonical_etypes)
-        return self.edges
+        return {k: tuple(map(functools.partial(tf.convert_to_tensor, dtype=tf.int32), zip(*v))) for k, v in
+                self.edges.items() if len(v) > 0}
 
     def get_graph(self):
         g = dgl.heterograph(self.get_data_dict(), self.node_counts)
