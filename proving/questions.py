@@ -136,18 +136,22 @@ def main():
             else:
                 step_ids = itertools.count()
             with tqdm(step_ids, unit='step', desc='Training') as t:
+                postfix = {}
                 for i in t:
                     tf.summary.experimental.set_step(i)
                     if i % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=i, _r=1):
                             record = {'type': 'training', 'step': i}
-                            record.update(evaluate(model, eval_datasets, loss_fn, summary_writers))
+                            eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers)
+                            postfix.update({'.'.join(k): v for k, v in eval_record.items()})
+                            t.set_postfix(postfix)
+                            record.update(eval_record)
                             records.append(record)
                     with tf.profiler.experimental.Trace('train', step_num=i, _r=1):
                         with summary_writers['train'].as_default():
-                            loss_value = train_step(model, problems['train'], loss_fn, optimizer, rng,
-                                                    batch_generator_train)
-                        t.set_postfix({'loss': loss_value.numpy()})
+                            postfix['loss'] = train_step(model, problems['train'], loss_fn, optimizer, rng,
+                                                         batch_generator_train).numpy()
+                            t.set_postfix(postfix)
             i = args.steps
             assert i is not None
             tf.summary.experimental.set_step(i)
