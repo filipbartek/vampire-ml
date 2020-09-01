@@ -62,9 +62,11 @@ class Graphifier:
 
         self.canonical_etypes = []
         for srctype, dsttype in ntype_pairs:
-            self.canonical_etypes.extend(((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)))
+            self.canonical_etypes.extend(
+                ((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)))
         # Self-loops
-        self.canonical_etypes.extend((('predicate', self.edge_type_self, 'predicate'), ('function', self.edge_type_self, 'function')))
+        self.canonical_etypes.extend(
+            (('predicate', self.edge_type_self, 'predicate'), ('function', self.edge_type_self, 'function')))
 
     def __repr__(self):
         attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
@@ -73,7 +75,8 @@ class Graphifier:
     def problems_to_graphs(self, problems):
         logging.info(f'Graphifying {len(problems)} problems...')
         res = Parallel(verbose=1)(delayed(problem_to_graph)(self, problem) for problem in problems)
-        logging.info(f'Problems graphified. {sum(g is not None for g, record in res)}/{len(res)} graphified successfully.')
+        logging.info(
+            f'Problems graphified. {sum(g is not None for g, record in res)}/{len(res)} graphified successfully.')
         return res
 
     def problem_to_graph(self, problem):
