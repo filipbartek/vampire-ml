@@ -3,12 +3,12 @@
 import argparse
 import collections
 import datetime
+import functools
 import itertools
 import logging
 import os
 import pickle
 import re
-import warnings
 
 import binpacking
 import dgl
@@ -23,7 +23,6 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
 
-from proving import symbols
 from proving import utils
 from proving.graphifier import Graphifier
 from proving.heterographconv import HeteroGCN
@@ -448,40 +447,21 @@ def get_problem_questions(question_dir, rng, max_problems=None, max_questions_pe
     return questions
 
 
-@memory.cache(verbose=2)
-def get_problem_signatures(symbols_dir_path, symbol_type, problems=None):
-    if problems is not None:
-        iterable = ((problem_name, os.path.join(symbols_dir_path, f'{problem_name}.sig')) for problem_name in problems)
-        total = len(problems)
-    else:
-        iterable = ((os.path.splitext(dir_entry.name)[0], dir_entry.path) for dir_entry in os.scandir(symbols_dir_path))
-        total = None
-    signatures = {}
-    with tqdm(iterable, unit='problem', desc='Loading signatures', total=total) as t:
-        for problem_name, signature_path in t:
-            t.set_postfix_str(signature_path)
-            try:
-                sym_all = symbols.load(signature_path)
-                sym_selected = symbols.symbols_of_type(sym_all, symbol_type)
-                signatures[problem_name] = sym_selected.drop('name', axis='columns').astype(dtype_tf_float).values
-            except ValueError:
-                warnings.warn(f'Failed to load signature: {signature_path}')
-    return signatures
-
-
-def load_question(question_path):
+def load_question(question_path, normalize=True, dtype=dtype_tf_float):
     content = open(question_path).read()
     m = re.search(r'^(?P<precedence_0>[0-9,]+)\n(?P<precedence_1>[0-9,]+)\n(?P<polarity>[<>])$', content, re.MULTILINE)
+    precedence_strings = (m['precedence_0'], m['precedence_1'])
+    precedences = map(precedence_from_string, precedence_strings)
+    precedences_inverted = tuple(map(functools.partial(utils.invert_permutation, dtype=dtype), precedences))
+    res = precedences_inverted[1] - precedences_inverted[0]
     assert m['polarity'] in {'<', '>'}
-    if m['polarity'] == '<':
-        p = (precedence_from_string(m['precedence_0']), precedence_from_string(m['precedence_1']))
-    else:
-        p = (precedence_from_string(m['precedence_1']), precedence_from_string(m['precedence_0']))
-    n = len(p[0])
-    assert p[0].shape == p[1].shape == (n,)
-    p_inv = (utils.invert_permutation(p[0]), utils.invert_permutation(p[1]))
-    res = (p_inv[1].astype(np.int32) - p_inv[0].astype(np.int32)) * 2 / (n * (n + 1))
-    res = res.astype(dtype_tf_float)
+    if m['polarity'] == '>':
+        res *= -1
+    if normalize:
+        n = len(res)
+        res = res * dtype(2 / (n * (n + 1)))
+    assert len(res.shape) == 1
+    assert res.dtype == dtype
     assert np.isclose(0, res.sum(), atol=1e-06)
     # logging.debug(f'n={n}, abs.sum={np.sum(np.abs(res))}, abs.std={np.std(np.abs(res))}, std={np.std(res)}')
     return res

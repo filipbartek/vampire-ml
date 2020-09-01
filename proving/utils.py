@@ -48,9 +48,11 @@ def join_dicts(dicts):
     return {k: v for d in dicts for k, v in d.items()}
 
 
-def invert_permutation(p):
+def invert_permutation(p, dtype=None):
+    if dtype is None:
+        dtype = p.dtype
     # https://stackoverflow.com/a/25535723/4054250
-    s = np.empty(p.size, p.dtype)
+    s = np.empty(p.size, dtype)
     s[p] = np.arange(p.size)
     return s
 
