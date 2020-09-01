@@ -178,20 +178,24 @@ class TermVisitor:
         return self.template.max_number_of_nodes
 
     def get_graph(self):
+        dtype = tf.int32
         data_dict = {}
         edge_features = {}
         for (srctype, dsttype), d in self.edges.items():
             canonical_etype_fw = srctype, self.edge_type_forward, dsttype
             canonical_etype_bw = dsttype, self.edge_type_backward, srctype
-            data_dict[canonical_etype_fw] = (d['src'], d['dst'])
-            data_dict[canonical_etype_bw] = (d['dst'], d['src'])
+            src = tf.convert_to_tensor(d['src'], dtype=dtype)
+            dst = tf.convert_to_tensor(d['dst'], dtype=dtype)
+            data_dict[canonical_etype_fw] = (src, dst)
+            data_dict[canonical_etype_bw] = (dst, src)
             if 'feat' in d:
                 feat = self.convert_to_feature_matrix(d['feat'])
                 edge_features[canonical_etype_fw] = feat
                 edge_features[canonical_etype_bw] = feat
-        for ntype, feat in self.node_features.items():
-            data_dict[ntype, self.edge_type_self, ntype] = (range(len(feat)), range(len(feat)))
-        g = dgl.heterograph(data_dict, self.node_counts, idtype=tf.int32)
+        for ntype in self.node_features:
+            r = tf.range(self.node_counts[ntype], dtype=dtype)
+            data_dict[ntype, self.edge_type_self, ntype] = (r, r)
+        g = dgl.heterograph(data_dict, self.node_counts)
         for ntype, v in self.node_features.items():
             assert g.number_of_nodes(ntype) == len(v)
             g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v)
