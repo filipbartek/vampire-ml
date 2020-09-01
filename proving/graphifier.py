@@ -119,7 +119,7 @@ class Graphifier:
 class TermVisitor:
     """Stateful. Must be instantiated for each new graph."""
 
-    def __init__(self, template, symbol_features):
+    def __init__(self, template, symbol_features, feature_dtype=tf.float32):
         # TODO: Allow limiting term sharing to inside a clause, letting every clause to use a separate set of variables.
         # TODO: Add a root "formula" node that connects to all clauses.
         # TODO: Allow introducing separate node types for predicates and functions.
@@ -131,6 +131,7 @@ class TermVisitor:
         # TODO: Clause feature: inGoal
         # TODO: Node feature: argument: argument id (or log of the id)
         self.template = template
+        self.feature_dtype = feature_dtype
         self.node_counts = {node_type: 0 for node_type in self.template.ntypes}
         self.edges = {edge_type: [] for edge_type in self.template.canonical_etypes}
         self.terms = {}
@@ -198,9 +199,8 @@ class TermVisitor:
             g.edges[canonical_etype].data['feat'] = self.convert_to_matrix(v)
         return g
 
-    @staticmethod
-    def convert_to_matrix(v):
-        t = tf.convert_to_tensor(v, dtype=tf.keras.backend.floatx())
+    def convert_to_matrix(self, v):
+        t = tf.convert_to_tensor(v, dtype=self.feature_dtype)
         assert 1 <= len(t.shape) <= 2
         if len(t.shape) == 1:
             t = tf.expand_dims(t, 1)
