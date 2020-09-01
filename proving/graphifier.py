@@ -34,40 +34,38 @@ class Graphifier:
         self.max_number_of_nodes = max_number_of_nodes
 
         self.ntypes = ['clause', 'term', 'predicate', 'function', 'variable']
-        ntype_pairs = [
+        self.ntype_pairs = [
             ('clause', 'term'),
             ('term', 'predicate'),
             ('term', 'function')
         ]
         if arg_order:
             self.ntypes.append('argument')
-            ntype_pairs.extend([
+            self.ntype_pairs.extend([
                 ('term', 'argument'),
                 ('argument', 'argument'),
                 ('argument', 'term'),
                 ('argument', 'variable')
             ])
         else:
-            ntype_pairs.extend([
+            self.ntype_pairs.extend([
                 ('term', 'term'),
                 ('term', 'variable')
             ])
         if equality:
             self.ntypes.append('equality')
-            ntype_pairs.extend([
+            self.ntype_pairs.extend([
                 ('clause', 'equality'),
                 ('equality', 'term'),
                 ('equality', 'variable')
             ])
-        assert all(ntype in self.ntypes for ntype in itertools.chain.from_iterable(ntype_pairs))
+        assert all(ntype in self.ntypes for ntype in itertools.chain.from_iterable(self.ntype_pairs))
 
-        self.canonical_etypes = []
-        for srctype, dsttype in ntype_pairs:
-            self.canonical_etypes.extend(
-                ((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)))
-        # Self-loops
-        self.canonical_etypes.extend(
-            (('predicate', self.edge_type_self, 'predicate'), ('function', self.edge_type_self, 'function')))
+    @property
+    def canonical_etypes(self):
+        res_standard = itertools.chain.from_iterable(((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)) for srctype, dsttype in self.ntype_pairs)
+        res_self = ((ntype, self.edge_type_self, ntype) for ntype in ('predicate', 'function'))
+        return list(itertools.chain(res_standard, res_self))
 
     def __repr__(self):
         attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
@@ -119,7 +117,7 @@ class Graphifier:
 class TermVisitor:
     """Stateful. Must be instantiated for each new graph."""
 
-    def __init__(self, template, symbol_features, feature_dtype=tf.float32):
+    def __init__(self, template, node_features, feature_dtype=tf.float32):
         # TODO: Allow limiting term sharing to inside a clause, letting every clause to use a separate set of variables.
         # TODO: Add a root "formula" node that connects to all clauses.
         # TODO: Allow introducing separate node types for predicates and functions.
@@ -133,15 +131,14 @@ class TermVisitor:
         self.template = template
         self.feature_dtype = feature_dtype
         self.node_counts = {node_type: 0 for node_type in self.template.ntypes}
-        self.edges = {edge_type: [] for edge_type in self.template.canonical_etypes}
+        for ntype, feat in node_features.items():
+            self.node_counts[ntype] = len(feat)
+        self.edges = {ntype_pair: {'src': [], 'dst': []} for ntype_pair in self.template.ntype_pairs}
+        for ntype_pair in (('clause', 'term'), ('clause', 'equality')):
+            if ntype_pair in self.edges:
+                self.edges[ntype_pair]['feat'] = []
         self.terms = {}
-        self.node_features = collections.defaultdict(list)
-        self.edge_features = collections.defaultdict(list)
-        for symbol_type, feat in symbol_features.items():
-            # We add self-loops for all symbol nodes so that even nodes without any connection to the graph are preserved.
-            self.edges[symbol_type, self.edge_type_self, symbol_type] = [(i, i) for i in range(len(feat))]
-            self.node_counts[symbol_type] = len(feat)
-            self.node_features[symbol_type] = feat
+        self.node_features = node_features
         self.check_number_of_nodes()
 
     @property
@@ -180,26 +177,30 @@ class TermVisitor:
     def max_number_of_nodes(self):
         return self.template.max_number_of_nodes
 
-    def get_data_dict(self):
-        assert set(self.edges.keys()) == set(self.template.canonical_etypes)
-        return {k: tuple(map(functools.partial(tf.convert_to_tensor, dtype=tf.int32), zip(*v))) for k, v in
-                self.edges.items() if len(v) > 0}
-
     def get_graph(self):
-        g = dgl.heterograph(self.get_data_dict(), self.node_counts)
+        data_dict = {}
+        edge_features = {}
+        for (srctype, dsttype), d in self.edges.items():
+            canonical_etype_fw = srctype, self.edge_type_forward, dsttype
+            canonical_etype_bw = dsttype, self.edge_type_backward, srctype
+            data_dict[canonical_etype_fw] = (d['src'], d['dst'])
+            data_dict[canonical_etype_bw] = (d['dst'], d['src'])
+            if 'feat' in d:
+                feat = self.convert_to_feature_matrix(d['feat'])
+                edge_features[canonical_etype_fw] = feat
+                edge_features[canonical_etype_bw] = feat
+        for ntype, feat in self.node_features.items():
+            data_dict[ntype, self.edge_type_self, ntype] = (range(len(feat)), range(len(feat)))
+        g = dgl.heterograph(data_dict, self.node_counts, idtype=tf.int32)
         for ntype, v in self.node_features.items():
             assert g.number_of_nodes(ntype) == len(v)
-            g.nodes[ntype].data['feat'] = self.convert_to_matrix(v)
-        for (srctype, dsttype), v in self.edge_features.items():
-            canonical_etype = srctype, self.edge_type_forward, dsttype
+            g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v)
+        for canonical_etype, v in edge_features.items():
             assert g.number_of_edges(canonical_etype) == len(v)
-            g.edges[canonical_etype].data['feat'] = self.convert_to_matrix(v)
-            canonical_etype = dsttype, self.edge_type_backward, srctype
-            assert g.number_of_edges(canonical_etype) == len(v)
-            g.edges[canonical_etype].data['feat'] = self.convert_to_matrix(v)
+            g.edges[canonical_etype].data['feat'] = v
         return g
 
-    def convert_to_matrix(self, v):
+    def convert_to_feature_matrix(self, v):
         t = tf.convert_to_tensor(v, dtype=self.feature_dtype)
         assert 1 <= len(t.shape) <= 2
         if len(t.shape) == 1:
@@ -267,14 +268,17 @@ class TermVisitor:
 
     def add_symbol(self, symbol_type, symbol_id):
         assert symbol_type in ('predicate', 'function')
-        assert (symbol_id, symbol_id) in self.edges[symbol_type, self.edge_type_self, symbol_type]
         assert 0 <= symbol_id < len(self.node_features[symbol_type])
         return symbol_type, symbol_id
 
     def add_edge(self, src_id_pair, dst_id_pair, features=None):
         src_type, src_id = src_id_pair
         dst_type, dst_id = dst_id_pair
-        self.edges[src_type, self.edge_type_forward, dst_type].append((src_id, dst_id))
-        self.edges[dst_type, self.edge_type_backward, src_type].append((dst_id, src_id))
+        edge_type_data = self.edges[src_type, dst_type]
+        edge_type_data['src'].append(src_id)
+        edge_type_data['dst'].append(dst_id)
+        assert ('feat' in edge_type_data) == (features is not None)
         if features is not None:
-            self.edge_features[src_type, dst_type].append(features)
+            edge_type_data['feat'].append(features)
+            assert len(edge_type_data['src']) == len(edge_type_data['dst']) == len(edge_type_data['feat'])
+        assert len(edge_type_data['src']) == len(edge_type_data['dst'])
