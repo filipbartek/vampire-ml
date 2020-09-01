@@ -72,7 +72,7 @@ def main():
     tf.random.set_seed(0)
 
     logging.info(f'Cache location: {memory.location}')
-    logging.debug('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
+    logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     subset_names = ('train', 'test')
