@@ -64,6 +64,7 @@ def main():
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
     parser.add_argument('--profile', action='store_true')
+    parser.add_argument('--device')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -84,7 +85,7 @@ def main():
     with summary_writers['train'].as_default():
         tf.summary.text('args', str(args))
 
-    with joblib.parallel_backend('threading', n_jobs=args.jobs):
+    with joblib.parallel_backend('threading', n_jobs=args.jobs), tf.device(args.device):
         solver = Solver(timeout=20)
         graphifier = Graphifier(solver, max_number_of_nodes=args.max_problem_size)
         if args.evaluate_on_training_set:
