@@ -313,6 +313,9 @@ class BatchGenerator:
     def __init__(self, max_batch_length):
         self.max_batch_length = max_batch_length
 
+    def __repr__(self):
+        return f'{type(self).__name__}({self.max_batch_length})'
+
     def get_batches(self, problems):
         if len(problems) == 0:
             # This happens namely when the user sets test set size to 0.
