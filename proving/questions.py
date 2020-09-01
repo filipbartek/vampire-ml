@@ -487,8 +487,8 @@ def load_question(question_path):
     return res
 
 
-def precedence_from_string(s):
-    return np.fromstring(s, sep=',', dtype=np.uint32)
+def precedence_from_string(s, dtype=np.uint32):
+    return np.fromstring(s, sep=',', dtype=dtype)
 
 
 if __name__ == '__main__':
