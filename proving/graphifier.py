@@ -6,6 +6,7 @@ import logging
 import time
 
 import dgl
+import numpy as np
 import tensorflow as tf
 from joblib import Parallel, delayed
 
@@ -205,10 +206,14 @@ class TermVisitor:
         return g
 
     def convert_to_feature_matrix(self, v):
+        v = np.asarray(v)
+        assert 1 <= len(v.shape) <= 2
+        if len(v.shape) == 1:
+            v = np.expand_dims(v, 1)
         t = tf.convert_to_tensor(v, dtype=self.feature_dtype)
-        assert 1 <= len(t.shape) <= 2
-        if len(t.shape) == 1:
-            t = tf.expand_dims(t, 1)
+        # We avoid reshaping the tensor using TensorFlow.
+        # Reshaping the tensor once it's been created could move it to another device.
+        assert len(t.shape) == 2
         return t
 
     def visit_clauses(self, clauses):
