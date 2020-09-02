@@ -64,7 +64,9 @@ class Graphifier:
 
     @property
     def canonical_etypes(self):
-        res_standard = itertools.chain.from_iterable(((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)) for srctype, dsttype in self.ntype_pairs)
+        res_standard = itertools.chain.from_iterable(
+            ((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)) for
+            srctype, dsttype in self.ntype_pairs)
         res_self = ((ntype, self.edge_type_self, ntype) for ntype in ('predicate', 'function'))
         return list(itertools.chain(res_standard, res_self))
 
