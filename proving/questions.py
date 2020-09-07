@@ -412,18 +412,8 @@ class BatchGenerator:
 
 @memory.cache(verbose=2)
 def get_problem_questions(question_dir, rng, max_problems=None, max_questions_per_problem=None):
-    def parse_question_dir_entry(dir_entry):
-        m = re.search(
-            r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
-            dir_entry.name, re.MULTILINE)
-        problem_name = m['problem_name']
-        return problem_name, dir_entry.path
-
     # Parse paths
-    logging.info(f'Parsing question paths in directory {question_dir}...')
-    question_entry_list = Parallel(verbose=1)(
-        delayed(parse_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
-    logging.info(f'Question paths parsed. Number of questions: {len(question_entry_list)}')
+    question_entry_list = get_question_paths(question_dir)
 
     # Ensure we have at most max_problems problems
     problem_names = OrderedSet(tuple(zip(*question_entry_list))[0])
@@ -457,6 +447,22 @@ def get_problem_questions(question_dir, rng, max_problems=None, max_questions_pe
         questions[problem_name] = np.asarray(questions[problem_name])
 
     return questions
+
+
+@memory.cache(verbose=2)
+def get_question_paths(question_dir):
+    def parse_question_dir_entry(dir_entry):
+        m = re.search(
+            r'^(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))_(?P<question_number>\d+)\.q$',
+            dir_entry.name, re.MULTILINE)
+        problem_name = m['problem_name']
+        return problem_name, dir_entry.path
+
+    logging.info(f'Parsing question paths in directory {question_dir}...')
+    question_entry_list = Parallel(verbose=1)(
+        delayed(parse_question_dir_entry)(dir_entry) for dir_entry in os.scandir(question_dir))
+    logging.info(f'Question paths parsed. Number of questions: {len(question_entry_list)}')
+    return question_entry_list
 
 
 def load_question(question_path, normalize=True, dtype=dtype_tf_float):
