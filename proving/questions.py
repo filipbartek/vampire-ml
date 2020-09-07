@@ -96,7 +96,7 @@ def main():
                                            args.test_size, BatchGenerator(args.max_test_batch_size),
                                            max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
-                                           output_dir=args.output, datasets=eval_dataset_names)
+                                           output_dir=args.output, datasets=eval_dataset_names, device=args.device)
 
         for dataset_name in ('test', 'train'):
             logging.info(f'Number of {dataset_name} problems: %d', len(problems[dataset_name]))
@@ -190,12 +190,16 @@ class SymbolPreferenceGCN(keras.Model):
         return precedence_pair_logit
 
 
-@memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
+#@memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
 def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_generator, max_problems,
-             max_questions_per_problem, random_state=0, output_dir=None, datasets=None):
+             max_questions_per_problem, random_state=0, output_dir=None, datasets=None, device=None):
     problems_all = get_problems(question_dir, graphifier, max_problems, max_questions_per_problem,
                                 np.random.RandomState(random_state), cache_file, output_dir)
     logging.info(f'Number of problems graphified: {len(problems_all)}')
+
+    if device is not None:
+        for v in problems_all.values():
+            v['graph'] = v['graph'].to(device)
 
     if train_size == 1.0 or test_size == 0.0:
         problems = {
