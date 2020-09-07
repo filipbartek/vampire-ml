@@ -185,8 +185,8 @@ class TermVisitor:
         for (srctype, dsttype), d in self.edges.items():
             canonical_etype_fw = srctype, self.edge_type_forward, dsttype
             canonical_etype_bw = dsttype, self.edge_type_backward, srctype
-            src = tf.convert_to_tensor(d['src'], dtype=dtype)
-            dst = tf.convert_to_tensor(d['dst'], dtype=dtype)
+            src = self.convert_to_tensor(d['src'], dtype=dtype)
+            dst = self.convert_to_tensor(d['dst'], dtype=dtype)
             data_dict[canonical_etype_fw] = (src, dst)
             data_dict[canonical_etype_bw] = (dst, src)
             if 'feat' in d:
@@ -210,11 +210,16 @@ class TermVisitor:
         assert 1 <= len(v.shape) <= 2
         if len(v.shape) == 1:
             v = np.expand_dims(v, 1)
-        t = tf.convert_to_tensor(v, dtype=self.feature_dtype)
+        t = self.convert_to_tensor(v, dtype=self.feature_dtype)
         # We avoid reshaping the tensor using TensorFlow.
         # Reshaping the tensor once it's been created could move it to another device.
         assert len(t.shape) == 2
         return t
+
+    @staticmethod
+    def convert_to_tensor(v, dtype):
+        # Always places the tensor in host memory.
+        return tf.convert_to_tensor(v, dtype=dtype)
 
     def visit_clauses(self, clauses):
         for clause in clauses:
