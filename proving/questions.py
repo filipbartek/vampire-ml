@@ -63,7 +63,8 @@ def main():
     parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--log-level', default='INFO', choices=['INFO', 'DEBUG'])
     parser.add_argument('--plot-model')
-    parser.add_argument('--profile', action='store_true')
+    parser.add_argument('--profile-start', type=int)
+    parser.add_argument('--profile-stop', type=int)
     parser.add_argument('--device')
     args = parser.parse_args()
 
@@ -97,19 +98,7 @@ def main():
                                            max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
                                            output_dir=args.output, datasets=eval_dataset_names, device=args.device)
-
-        for dataset_name in ('test', 'train'):
-            logging.info(f'Number of {dataset_name} problems: %d', len(problems[dataset_name]))
-            if len(problems[dataset_name]) >= 1:
-                logging.info(f'Total {dataset_name} dataset size: %d', sum(map(problem_size, problems[dataset_name])))
-                logging.info(f'Maximum {dataset_name} problem size with all questions: %d',
-                             max(map(problem_size, problems[dataset_name])))
-                logging.info(f'Maximum {dataset_name} problem size with 1 question: %d',
-                             max(map(lambda p: problem_size(p, n_questions=1), problems[dataset_name])))
-            if eval_datasets[dataset_name] is not None:
-                logging.info(f'Number of {dataset_name} batches: %d', len(eval_datasets[dataset_name]['xs']))
-                logging.info(f'Number of {dataset_name} questions: %d',
-                             len(eval_datasets[dataset_name]['sample_weight']))
+        save_dataset_stats(problems, eval_datasets, args.output)
 
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -120,10 +109,9 @@ def main():
         }
         optimizer = optimizers[args.optimizer](learning_rate=args.learning_rate)
 
-        records = []
+        records_evaluation = []
+        records_training = []
 
-        if args.profile:
-            tf.profiler.experimental.start(args.log_dir)
         try:
             model = SymbolPreferenceGCN('predicate', graphifier.canonical_etypes, graphifier.ntypes)
             if args.plot_model is not None:
@@ -139,30 +127,71 @@ def main():
                 postfix = {}
                 for i in t:
                     tf.summary.experimental.set_step(i)
+                    if i == args.profile_start:
+                        tf.profiler.experimental.start(args.log_dir)
+                    if i == args.profile_stop:
+                        tf.profiler.experimental.stop()
                     if i % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=i, _r=1):
-                            record = {'type': 'training', 'step': i}
                             eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers)
                             postfix.update({'.'.join(k): v for k, v in eval_record.items()})
                             t.set_postfix(postfix)
-                            record.update(eval_record)
-                            records.append(record)
+                            records_evaluation.append(eval_record)
                     with tf.profiler.experimental.Trace('train', step_num=i, _r=1):
                         with summary_writers['train'].as_default():
-                            postfix['loss'] = train_step(model, problems['train'], loss_fn, optimizer, rng,
-                                                         batch_generator_train).numpy()
+                            record = train_step(model, problems['train'], loss_fn, optimizer, rng,
+                                                batch_generator_train)
+                            postfix['loss'] = record['loss']
                             t.set_postfix(postfix)
+                            records_training.append(record)
             i = args.steps
             assert i is not None
             tf.summary.experimental.set_step(i)
-            record = {'type': 'training', 'step': i}
-            record.update(evaluate(model, eval_datasets, loss_fn, summary_writers))
-            records.append(record)
+            records_evaluation.append(evaluate(model, eval_datasets, loss_fn, summary_writers))
         finally:
-            if args.profile:
-                tf.profiler.experimental.stop()
-            save_df(utils.dataframe_from_records(records, dtypes={'type': 'category', 'step': pd.UInt32Dtype()}),
-                    'evaluation', args.output)
+            tf.profiler.experimental.stop()
+            save_df(utils.dataframe_from_records(records_evaluation, index_keys='step', dtypes={'step': pd.UInt32Dtype()}), 'steps_evaluation', args.output)
+            save_df(utils.dataframe_from_records(records_training, index_keys='step', dtypes={'step': pd.UInt32Dtype()}), 'steps_training', args.output)
+
+
+def save_dataset_stats(problems, eval_datasets, output_dir):
+    records = []
+    for dataset_name in ('test', 'train'):
+        record = {'name': dataset_name}
+        cur_problems = problems[dataset_name]
+        record['problem', 'count'] = len(cur_problems)
+        if len(problems[dataset_name]) >= 1:
+            # Cumulative problem size with all questions
+            record['problem', 'size', 'all', 'sum'] = sum(map(problem_size, cur_problems))
+            # Maximum problem size with all questions
+            record['problem', 'size', 'all', 'max'] = max(map(problem_size, cur_problems))
+            # Maximum problem size with 1 question
+            record['problem', 'size', 1, 'max'] = max(map(lambda p: problem_size(p, n_questions=1), cur_problems))
+        dataset = eval_datasets[dataset_name]
+        if dataset is not None:
+            xs = dataset['xs']
+            record['batches'] = len(xs)
+            record['ranking_difference', 'len', 'sum'] = sum(len(x['ranking_difference']) for x in xs)
+            record['ranking_difference', 'len', 'max'] = max(len(x['ranking_difference']) for x in xs)
+            sample_weight = dataset['sample_weight']
+            # Number of questions
+            record['sample_weight', 'len'] = len(sample_weight)
+            record['sample_weight', 'sum'] = np.sum(sample_weight)
+        records.append(record)
+    logging.info(records)
+    dtypes = {
+        'name': 'category',
+        ('problem', 'count'): pd.UInt32Dtype(),
+        ('problem', 'size', 'all', 'sum'): pd.UInt32Dtype(),
+        ('problem', 'size', 'all', 'max'): pd.UInt32Dtype(),
+        ('problem', 'size', 1, 'max'): pd.UInt32Dtype(),
+        'batches': pd.UInt32Dtype(),
+        ('ranking_difference', 'len', 'sum'): pd.UInt32Dtype(),
+        ('ranking_difference', 'len', 'max'): pd.UInt32Dtype(),
+        ('sample_weight', 'len'): pd.UInt32Dtype(),
+        ('sample_weight', 'sum'): np.float
+    }
+    save_df(utils.dataframe_from_records(records, index_keys='name', dtypes=dtypes), 'datasets', output_dir)
 
 
 class SymbolPreferenceGCN(keras.Model):
@@ -244,7 +273,7 @@ def get_problems(question_dir, graphifier, max_problems, max_questions_per_probl
     graphs_records = graphifier.problems_to_graphs(problem_names)
     graphs, records = zip(*graphs_records)
     if output_dir is not None:
-        save_df(utils.dataframe_from_records(records), 'graphs', output_dir)
+        save_df(utils.dataframe_from_records(records, index_keys='problem'), 'graphs', output_dir)
     problems = {problem_name: {'graph': graphs[i], 'questions': questions[problem_name]} for
                 i, problem_name in enumerate(problem_names) if graphs[i] is not None}
     if cache_file is not None:
@@ -255,7 +284,7 @@ def get_problems(question_dir, graphifier, max_problems, max_questions_per_probl
 
 
 def evaluate(model, datasets, loss_fn, summary_writers=None):
-    record = {}
+    record = {'step': tf.summary.experimental.get_step()}
     for dataset_name, dataset in datasets.items():
         for name, value in test_step(model, dataset, loss_fn).items():
             record[(dataset_name, name)] = value.numpy()
@@ -266,10 +295,15 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
 
 
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_grads=True):
+    record = {'step': tf.summary.experimental.get_step()}
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
+    record['problems'] = x['batch_graph'].batch_size
     tf.summary.scalar('batch.problems', x['batch_graph'].batch_size)
+    record['ranking_difference', 'len'] = len(x['ranking_difference'])
     tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
+    record['sample_weight', 'len'] = len(sample_weight)
     tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
+    record['sample_weight', 'sum'] = np.sum(sample_weight)
     tf.summary.scalar('batch.sample_weight.sum', np.sum(sample_weight))
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
@@ -277,16 +311,20 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
                              sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
+    record['loss'] = loss_value.numpy()
     tf.summary.scalar('batch.loss', loss_value)
     grads = tape.gradient(loss_value, model.trainable_weights)
     if log_grads:
         grads_flat = tf.concat([tf.keras.backend.flatten(g) for g in grads if g is not None], 0)
+        record['grads', 'mean'] = tf.keras.backend.mean(grads_flat).numpy()
         tf.summary.scalar('grads.mean', tf.keras.backend.mean(grads_flat))
+        record['grads', 'norm', 1] = tf.norm(grads_flat, ord=1).numpy()
         tf.summary.scalar('grads.norm.1', tf.norm(grads_flat, ord=1))
+        record['grads', 'norm', 2] = tf.norm(grads_flat, ord=2).numpy()
         tf.summary.scalar('grads.norm.2', tf.norm(grads_flat, ord=2))
         tf.summary.histogram('grads', grads_flat)
     optimizer.apply_gradients(zip(grads, model.trainable_weights))
-    return loss_value
+    return record
 
 
 def test_step(model, data, loss_fn):
