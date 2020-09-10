@@ -239,7 +239,7 @@ def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_
     logging.info(f'Number of problems graphified: {len(problems_all)}')
 
     if device is not None:
-        for v in problems_all.values():
+        for v in tqdm(problems_all.values(), desc=f'Moving graphs to device {device}', unit='problem'):
             v['graph'] = v['graph'].to(device)
 
     if train_size == 1.0 or test_size == 0.0:
