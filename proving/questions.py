@@ -232,12 +232,15 @@ class SymbolPreferenceGCN(keras.Model):
         return precedence_pair_logit
 
 
+# Cannot cache this call because we set device on some objects.
 def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_generator, max_problems,
              max_questions_per_problem, random_state=0, output_dir=None, datasets=None, device=None):
     problems_all = get_problems(question_dir, graphifier, max_problems, max_questions_per_problem,
                                 np.random.RandomState(random_state), cache_file, output_dir)
     logging.info(f'Number of problems graphified: {len(problems_all)}')
 
+    # Set device of the graphs
+    # We set the device before batching the graphs to save memory.
     if device is not None:
         for v in tqdm(problems_all.values(), desc=f'Moving graphs to device {device}', unit='problem'):
             v['graph'] = v['graph'].to(device)
