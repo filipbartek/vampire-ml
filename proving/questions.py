@@ -229,7 +229,6 @@ class SymbolPreferenceGCN(keras.Model):
         return precedence_pair_logit
 
 
-#@memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
 def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_generator, max_problems,
              max_questions_per_problem, random_state=0, output_dir=None, datasets=None, device=None):
     problems_all = get_problems(question_dir, graphifier, max_problems, max_questions_per_problem,
