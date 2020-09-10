@@ -6,6 +6,7 @@ import datetime
 import itertools
 import logging
 import os
+import time
 
 import binpacking
 import dgl
@@ -282,32 +283,37 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
     record = {'step': tf.summary.experimental.get_step()}
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
     record['problems'] = x['batch_graph'].batch_size
-    tf.summary.scalar('batch.problems', x['batch_graph'].batch_size)
     record['ranking_difference', 'len'] = len(x['ranking_difference'])
-    tf.summary.scalar('batch.ranking_difference.len', len(x['ranking_difference']))
     record['sample_weight', 'len'] = len(sample_weight)
-    tf.summary.scalar('batch.sample_weight.len', len(sample_weight))
     record['sample_weight', 'sum'] = np.sum(sample_weight)
-    tf.summary.scalar('batch.sample_weight.sum', np.sum(sample_weight))
+    record['sample_weight', 'mean'] = np.mean(sample_weight)
+    time_start = time.time()
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
                              sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
+    record['time', 'grads', 'compute'] = time.time() - time_start
     record['loss'] = loss_value.numpy()
     tf.summary.scalar('batch.loss', loss_value)
     grads = tape.gradient(loss_value, model.trainable_weights)
     if log_grads:
         grads_flat = tf.concat([tf.keras.backend.flatten(g) for g in grads if g is not None], 0)
         record['grads', 'mean'] = tf.keras.backend.mean(grads_flat).numpy()
-        tf.summary.scalar('grads.mean', tf.keras.backend.mean(grads_flat))
         record['grads', 'norm', 1] = tf.norm(grads_flat, ord=1).numpy()
-        tf.summary.scalar('grads.norm.1', tf.norm(grads_flat, ord=1))
         record['grads', 'norm', 2] = tf.norm(grads_flat, ord=2).numpy()
-        tf.summary.scalar('grads.norm.2', tf.norm(grads_flat, ord=2))
         tf.summary.histogram('grads', grads_flat)
-    optimizer.apply_gradients(zip(grads, model.trainable_weights))
+    time_start = time.time()
+    # https://stackoverflow.com/a/60217922/4054250
+    optimizer.apply_gradients(filter(lambda x: x[0] is not None, zip(grads, model.trainable_weights)))
+    record['time', 'grads', 'apply'] = time.time() - time_start
+    for key, value in record.items():
+        if key == 'step':
+            continue
+        if isinstance(key, tuple):
+            key = '.'.join(map(str, key))
+        tf.summary.scalar(key, value)
     return record
 
 
