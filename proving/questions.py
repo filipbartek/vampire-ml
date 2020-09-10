@@ -371,7 +371,7 @@ class BatchGenerator:
                 f'Failed to distribute problems in batches of size at most {self.max_batch_length}. Problem of size {max_size} encountered.')
         bins = binpacking.to_constant_volume(problem_sizes, self.max_batch_length)
         logging.info(f'Number of batches: {len(bins)}')
-        for cur_bin in bins:
+        for cur_bin in tqdm(bins, desc='Generating batches', unit='batch'):
             batch_size = sum(cur_bin.values())
             assert batch_size <= self.max_batch_length
             x, sample_weight = self._get_batch(problems[i] for i in cur_bin.keys())
