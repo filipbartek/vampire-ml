@@ -379,8 +379,8 @@ class BatchGenerator:
 
     def get_batch_random(self, problems, rng):
         question_ids = list(itertools.chain.from_iterable(
-            ((problem_i, question_i) for question_i in range(len(problems[problem_i]['questions']))) for problem_i in
-            range(len(problems))))
+            ((problem_i, question_i) for question_i in range(len(problem['questions']))) for
+            problem_i, problem in enumerate(problems)))
         perm = rng.permutation(question_ids)
         selected_ids = collections.defaultdict(list)
         total_size = 0
