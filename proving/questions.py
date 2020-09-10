@@ -292,7 +292,7 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
         logits = model(x, training=True)
         assert len(logits) == len(sample_weight)
         loss_value = loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
-                             sample_weight=sample_weight)
+                             sample_weight=sample_weight / np.mean(sample_weight))
         # loss_value is average loss over samples (questions).
     record['time', 'grads', 'compute'] = time.time() - time_start
     record['loss'] = loss_value.numpy()
