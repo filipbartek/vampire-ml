@@ -391,10 +391,11 @@ class BatchGenerator:
             else:
                 cur_graph_size = number_of_nodes(d['graph'])
             cur_size = cur_graph_size + d['questions'].shape[1]
-            if cur_size > self.max_batch_length:
-                raise RuntimeError(f'A question of size {cur_size} does not fit into a batch.')
-            if total_size + cur_size > self.max_batch_length:
-                break
+            if self.max_batch_length is not None:
+                if cur_size > self.max_batch_length:
+                    raise RuntimeError(f'A question of size {cur_size} does not fit into a batch.')
+                if total_size + cur_size > self.max_batch_length:
+                    break
             selected_ids[problem_i].append(question_i)
             total_size += cur_size
         return self._get_batch((problems[i] for i in selected_ids), selected_ids.values())
@@ -425,7 +426,7 @@ class BatchGenerator:
             question_i += m
             symbol_i += n
             total_size += problem_size(d, len(questions))
-        assert total_size <= self.max_batch_length
+        assert self.max_batch_length is None or total_size <= self.max_batch_length
         x = {k: np.concatenate(v) for k, v in x_lists.items()}
         assert len(x['ranking_difference']) == len(x['question_symbols']) == len(x['segment_ids'])
         assert symbol_i == np.max(x['question_symbols']) + 1
