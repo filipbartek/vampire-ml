@@ -130,7 +130,10 @@ def main():
                     if i == args.profile_start:
                         tf.profiler.experimental.start(args.log_dir)
                     if i == args.profile_stop:
-                        tf.profiler.experimental.stop()
+                        try:
+                            tf.profiler.experimental.stop()
+                        except tf.errors.UnavailableError:
+                            logging.warning('Attempting to stop profiling when no profiler is running.', exc_info=True)
                     if i % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=i, _r=1):
                             eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers)
@@ -149,9 +152,16 @@ def main():
             tf.summary.experimental.set_step(i)
             records_evaluation.append(evaluate(model, eval_datasets, loss_fn, summary_writers))
         finally:
-            tf.profiler.experimental.stop()
-            save_df(utils.dataframe_from_records(records_evaluation, index_keys='step', dtypes={'step': pd.UInt32Dtype()}), 'steps_evaluation', args.output)
-            save_df(utils.dataframe_from_records(records_training, index_keys='step', dtypes={'step': pd.UInt32Dtype()}), 'steps_training', args.output)
+            try:
+                tf.profiler.experimental.stop()
+            except tf.errors.UnavailableError:
+                pass
+            save_df(
+                utils.dataframe_from_records(records_evaluation, index_keys='step', dtypes={'step': pd.UInt32Dtype()}),
+                'steps_evaluation', args.output)
+            save_df(
+                utils.dataframe_from_records(records_training, index_keys='step', dtypes={'step': pd.UInt32Dtype()}),
+                'steps_training', args.output)
 
 
 def save_dataset_stats(problems, eval_datasets, output_dir):
