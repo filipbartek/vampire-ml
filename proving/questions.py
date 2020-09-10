@@ -55,6 +55,7 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-test-batch-size', type=int, default=1000000)
     parser.add_argument('--max-train-batch-size', type=int, default=100000)
+    parser.add_argument('--train-batch-problems', type=int)
     parser.add_argument('--max-problems', type=int)
     parser.add_argument('--max-problem-size', type=int)
     parser.add_argument('--max-questions-per-problem', type=int)
@@ -115,7 +116,7 @@ def main():
                 keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model, makedir=True),
                                        show_shapes=True)
             rng = np.random.RandomState(0)
-            batch_generator_train = BatchGenerator(args.max_train_batch_size)
+            batch_generator_train = BatchGenerator(args.max_train_batch_size, args.train_batch_problems)
             if args.steps is not None:
                 step_ids = range(args.steps)
             else:
@@ -348,8 +349,9 @@ def problem_size(d, n_questions=None):
 
 
 class BatchGenerator:
-    def __init__(self, max_batch_length):
+    def __init__(self, max_batch_length, problems_per_batch=None):
         self.max_batch_length = max_batch_length
+        self.problems_per_batch = problems_per_batch
 
     def __repr__(self):
         return f'{type(self).__name__}({self.max_batch_length})'
@@ -378,6 +380,8 @@ class BatchGenerator:
         return {'xs': xs, 'sample_weight': sample_weight}
 
     def get_batch_random(self, problems, rng):
+        if self.problems_per_batch is not None:
+            problems = rng.choice(problems, self.problems_per_batch, replace=False)
         question_ids = list(itertools.chain.from_iterable(
             ((problem_i, question_i) for question_i in range(len(problem['questions']))) for
             problem_i, problem in enumerate(problems)))
