@@ -213,13 +213,18 @@ class SymbolPreferenceGCN(keras.Model):
         graph = x['batch_graph']
         # Row: problem -> symbol
         symbol_embeddings = self.hetero_gcn(graph)[self.symbol_type]
+        question_symbols = x['question_symbols']
+        ranking_difference = x['ranking_difference']
+        segment_ids = x['segment_ids']
+        return self.call_symbol_embeddings(symbol_embeddings, question_symbols, ranking_difference, segment_ids)
+
+    @tf.function(experimental_relax_shapes=True)
+    def call_symbol_embeddings(self, symbol_embeddings, question_symbols, ranking_difference, segment_ids):
+        # Row: problem -> symbol
         symbol_costs = tf.squeeze(self.cost_model(symbol_embeddings))
         # Row: problem -> question -> symbol
-        question_symbols = x['question_symbols']
         symbol_costs_tiled = tf.gather(symbol_costs, question_symbols)
-        ranking_difference = x['ranking_difference']
         potentials = tf.multiply(symbol_costs_tiled, ranking_difference)
-        segment_ids = x['segment_ids']
         # Row: problem -> question
         precedence_pair_logit = tf.math.segment_sum(potentials, segment_ids)
         return precedence_pair_logit
