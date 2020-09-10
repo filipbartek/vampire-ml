@@ -276,7 +276,7 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
             record[(dataset_name, name)] = value.numpy()
             if summary_writers is not None:
                 with summary_writers[dataset_name].as_default():
-                    tf.summary.scalar(name, value)
+                    tf.summary.scalar(f'evaluation.{name}', value)
     return record
 
 
