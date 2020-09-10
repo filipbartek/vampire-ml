@@ -60,8 +60,6 @@ class HeteroGraphConv(layers.Layer):
     # https://docs.dgl.ai/en/0.4.x/tutorials/basics/5_hetero.html
     # https://docs.dgl.ai/_modules/dgl/nn/tensorflow/conv/relgraphconv.html#RelGraphConv
     # TODO: Add global state. Currently only node states are supported.
-    # TODO: Add node features: symbol: isFunction, maybe also arity, usageCnt, unitUsageCnt, inUnit
-    # TODO: Add node features: clause: inGoal
     # TODO: Add node features: argument: argument id (or log of the id)
 
     def __init__(self, edge_layers, node_layers, reduce_func_template=None):
