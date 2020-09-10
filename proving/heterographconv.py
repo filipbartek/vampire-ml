@@ -70,7 +70,8 @@ class HeteroGraphConv(layers.Layer):
         """
         super().__init__()
         if reduce_func_template is None:
-            reduce_func_template = dgl.function.mean
+            # Jan Hula suggested that sum is better than mean since it allows the destination node to determine the number of source nodes.
+            reduce_func_template = dgl.function.sum
         self.edge_layers = edge_layers
         self.node_layers = node_layers
         self.etype_dict = {}
