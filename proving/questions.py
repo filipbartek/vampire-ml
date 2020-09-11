@@ -311,7 +311,9 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
                              sample_weight=sample_weight)
         # loss_value is average loss over samples (questions).
     record['time', 'grads', 'compute'] = time.time() - time_start
-    record['loss'] = loss_value.numpy()
+    # Normalize the loss so that it is consistent with the metric BinaryCrossentropy.
+    # We still train using the raw loss value to ensure that the sample weights are consistent across training batches.
+    record['loss'] = loss_value.numpy() / np.mean(sample_weight)
     grads = tape.gradient(loss_value, model.trainable_weights)
     if log_grads:
         grads_flat = tf.concat([tf.keras.backend.flatten(g) for g in grads if g is not None], 0)
