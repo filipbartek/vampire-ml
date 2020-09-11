@@ -403,6 +403,8 @@ class BatchGenerator:
     def get_batch_random(self, problems, rng):
         if self.problems_per_batch is not None:
             problems = rng.choice(problems, self.problems_per_batch, replace=False)
+        if self.max_batch_length is None:
+            return self._get_batch(problems)
         question_ids = list(itertools.chain.from_iterable(
             ((problem_i, question_i) for question_i in range(len(problem['questions']))) for
             problem_i, problem in enumerate(problems)))
