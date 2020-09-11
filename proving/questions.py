@@ -301,7 +301,6 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
         # loss_value is average loss over samples (questions).
     record['time', 'grads', 'compute'] = time.time() - time_start
     record['loss'] = loss_value.numpy()
-    tf.summary.scalar('batch.loss', loss_value)
     grads = tape.gradient(loss_value, model.trainable_weights)
     if log_grads:
         grads_flat = tf.concat([tf.keras.backend.flatten(g) for g in grads if g is not None], 0)
