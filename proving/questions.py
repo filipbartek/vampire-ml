@@ -289,9 +289,11 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
     record['problems'] = x['batch_graph'].batch_size
     record['nodes'] = number_of_nodes(x['batch_graph'])
     record['ranking_difference', 'len'] = len(x['ranking_difference'])
+    tf.summary.histogram('ranking_difference', x['ranking_difference'])
     record['sample_weight', 'len'] = len(sample_weight)
     record['sample_weight', 'sum'] = np.sum(sample_weight)
     record['sample_weight', 'mean'] = np.mean(sample_weight)
+    tf.summary.histogram('sample_weight', sample_weight)
     time_start = time.time()
     with tf.GradientTape() as tape:
         logits = model(x, training=True)
