@@ -401,7 +401,7 @@ class BatchGenerator:
         return {'xs': xs, 'sample_weight': sample_weight}
 
     def get_batch_random(self, problems, rng):
-        if self.problems_per_batch is not None:
+        if self.problems_per_batch is not None and self.problems_per_batch < len(problems):
             problems = rng.choice(problems, self.problems_per_batch, replace=False)
         if self.max_batch_length is None:
             return self._get_batch(problems)
