@@ -54,7 +54,7 @@ def main():
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--jobs', type=int, default=1)
-    parser.add_argument('--max-test-batch-size', type=int, default=1000000)
+    parser.add_argument('--max-test-batch-size', type=int, default=10000000)
     parser.add_argument('--max-train-batch-size', type=int, default=100000)
     parser.add_argument('--train-batch-problems', type=int)
     parser.add_argument('--max-problems', type=int)
