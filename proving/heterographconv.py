@@ -78,6 +78,7 @@ class HeteroGraphConv(layers.Layer):
             msg_func = self.message_func
             reduce_func = reduce_func_template(('m', srctype, etype), ('m', srctype, etype))
             self.etype_dict[canonical_etype] = msg_func, reduce_func
+        assert set(tuple(zip(*self.etype_dict.keys()))[2]) == set(self.node_layers.keys())
 
     def __repr__(self):
         return f'{self.__class__.__name__}({self.node_layers.keys()}, {self.edge_layers.keys()})'
