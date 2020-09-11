@@ -347,7 +347,7 @@ def test_step(model, data, loss_fn):
     # BinaryCrossentropy requires that there is at least one non-batch dimension.
     # We normalize sample_weight so that the mean is 1 so that we get value comparable to the crossentropy metric.
     res = {'loss': loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
-                           sample_weight=sample_weight / np.mean(sample_weight))}
+                           sample_weight=sample_weight) / np.mean(sample_weight)}
     for name, metric in metrics.items():
         metric.update_state(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
                             sample_weight=sample_weight)
