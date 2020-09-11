@@ -130,34 +130,56 @@ def main():
                                                        problems_per_batch=args.train_batch_problems)
             else:
                 batch_generator_train = BatchGenerator(problems_per_batch=args.train_batch_problems)
-            if args.steps is not None:
-                step_ids = range(args.steps)
+            step_i = tf.Variable(0, dtype=tf.int64)
+            ckpt = tf.train.Checkpoint(step=step_i, optimizer=optimizer, model=model)
+            manager = tf.train.CheckpointManager(ckpt, os.path.join(output_dir_full, 'tf_ckpts', 'auto'),
+                                                 max_to_keep=10, step_counter=step_i)
+            ckpt.restore(manager.latest_checkpoint)
+            if manager.latest_checkpoint:
+                logging.info(f'Restored from {manager.latest_checkpoint}.')
             else:
-                step_ids = itertools.count()
-            with tqdm(step_ids, unit='step', desc='Training') as t:
+                logging.info('No checkpoint to restore. Training from scratch.')
+            best_accuracy = {k: 0 for k in eval_dataset_names}
+            with tqdm(unit='step', desc='Training', total=args.steps) as t:
+                t.update(int(step_i))
                 postfix = {}
-                for i in t:
-                    tf.summary.experimental.set_step(i)
-                    if i == args.profile_start:
+                while args.steps is None or step_i < args.steps:
+                    tf.summary.experimental.set_step(step_i)
+                    if int(step_i) == args.profile_start:
                         tf.profiler.experimental.start(args.log_dir)
-                    if i == args.profile_stop:
+                    if int(step_i) == args.profile_stop:
                         try:
                             tf.profiler.experimental.stop()
                         except tf.errors.UnavailableError:
                             logging.warning('Attempting to stop profiling when no profiler is running.', exc_info=True)
-                    if i % args.evaluation_period == 0:
-                        with tf.profiler.experimental.Trace('test', step_num=i, _r=1):
+                    if int(step_i) % args.evaluation_period == 0:
+                        with tf.profiler.experimental.Trace('test', step_num=step_i, _r=1):
                             eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers)
-                            postfix.update({'.'.join(k): v for k, v in eval_record.items()})
+                            postfix.update({'.'.join(k): v for k, v in eval_record.items() if k != 'step'})
                             t.set_postfix(postfix)
                             records_evaluation.append(eval_record)
-                    with tf.profiler.experimental.Trace('train', step_num=i, _r=1):
+                            manager.save(checkpoint_number=step_i)
+                            for dataset_name, best_value in best_accuracy.items():
+                                record_key = (dataset_name, 'accuracy')
+                                try:
+                                    cur_value = eval_record[record_key]
+                                    if cur_value > best_value:
+                                        best_accuracy[dataset_name] = cur_value
+                                        saved_path = ckpt.write(
+                                            os.path.join(output_dir_full, 'tf_ckpts', 'accuracy', dataset_name))
+                                        logging.info(
+                                            f'New best {dataset_name} accuracy at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
+                                except KeyError:
+                                    pass
+                    with tf.profiler.experimental.Trace('train', step_num=step_i, _r=1):
                         with summary_writers['train'].as_default():
                             record = train_step(model, problems['train'], loss_fn, optimizer, rng,
                                                 batch_generator_train)
                             postfix['loss'] = record['loss']
                             t.set_postfix(postfix)
                             records_training.append(record)
+                    step_i.assign_add(1)
+                    t.update()
             i = args.steps
             assert i is not None
             tf.summary.experimental.set_step(i)
@@ -286,7 +308,7 @@ def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_
 
 
 def evaluate(model, datasets, loss_fn, summary_writers=None):
-    record = {'step': tf.summary.experimental.get_step()}
+    record = {'step': int(tf.summary.experimental.get_step())}
     for dataset_name, dataset in datasets.items():
         for name, value in test_step(model, dataset, loss_fn).items():
             record[(dataset_name, name)] = value.numpy()
@@ -297,7 +319,7 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
 
 
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_grads=True):
-    record = {'step': tf.summary.experimental.get_step()}
+    record = {'step': int(tf.summary.experimental.get_step())}
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
     record['size'] = number_of_nodes(x['batch_graph']) + len(x['ranking_difference'])
     record['problems'] = x['batch_graph'].batch_size
