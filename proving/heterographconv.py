@@ -70,7 +70,7 @@ class HeteroGraphConv(layers.Layer):
         if reduce_func_template is None:
             # Jan Hula suggested that sum is better than mean since it allows the destination node to determine the number of source nodes.
             reduce_func_template = dgl.function.sum
-        self.edge_layers = edge_layers
+        self.edge_layers = {self.canonical_etype_id(k): v for k, v in edge_layers.items()}
         self.node_layers = node_layers
         self.etype_dict = {}
         for canonical_etype in edge_layers.keys():
@@ -89,7 +89,7 @@ class HeteroGraphConv(layers.Layer):
         return {layer_id: create_layer(units, name=str(layer_id)) for layer_id, units in layer_sizes.items()}
 
     def message_func(self, edges):
-        layer = self.edge_layers[edges.canonical_etype]
+        layer = self.get_edge_layer(edges.canonical_etype)
         input_tensors = [edges.src['h']]
         try:
             input_tensors.append(edges.src['feat'])
@@ -116,13 +116,20 @@ class HeteroGraphConv(layers.Layer):
                 assert t.shape[1] == 1
                 t = tf.squeeze(t, axis=1)
             except KeyError:
-                edge_layer = self.edge_layers[canonical_etype]
+                edge_layer = self.get_edge_layer(canonical_etype)
                 t = tf.zeros((len(nodes), edge_layer.units))
             assert len(t.shape) == 2
             input_tensors.append(t)
         layer = self.node_layers[nodes.ntype]
         v = layer(tf.concat(input_tensors, 1))
         return {'out': v}
+
+    def get_edge_layer(self, canonical_etype):
+        return self.edge_layers[self.canonical_etype_id(canonical_etype)]
+
+    @staticmethod
+    def canonical_etype_id(canonical_etype):
+        return '_'.join(canonical_etype)
 
     def call(self, g, x):
         """
@@ -132,7 +139,7 @@ class HeteroGraphConv(layers.Layer):
         :param x dict: Input node features. Maps each node type to a feature tensor.
         :return dict: New node features
         """
-        assert set(x.keys()) == set(tuple(zip(*self.edge_layers.keys()))[0])
+        assert set(x.keys()) == set(tuple(zip(*self.etype_dict.keys()))[0])
         with g.local_scope():
             for ntype in x.keys():
                 assert ntype in g.ntypes
