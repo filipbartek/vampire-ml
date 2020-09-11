@@ -45,6 +45,7 @@ def main():
     parser.add_argument('--signature-dir')
     parser.add_argument('--cache-file')
     parser.add_argument('--log-dir', default='logs')
+    parser.add_argument('--experiment-id')
     parser.add_argument('--test-size', type=float)
     parser.add_argument('--train-size', type=float)
     parser.add_argument('--steps', type=int)
@@ -75,10 +76,17 @@ def main():
     logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    if args.experiment_id is not None:
+        output_dir_full = os.path.join(args.output, args.experiment_id)
+        log_dir_full = os.path.join(args.log_dir, args.experiment_id, current_time)
+    else:
+        output_dir_full = args.output
+        log_dir_full = os.path.join(args.log_dir, current_time)
+    logging.info(f'Output directory: {output_dir_full}')
+    logging.info(f'Log directory: {log_dir_full}')
+
     subset_names = ('train', 'test')
-    logging.info(f'Log directory: {os.path.join(args.log_dir, current_time)}')
-    summary_writers = {name: tf.summary.create_file_writer(os.path.join(args.log_dir, current_time, name)) for name in
-                       subset_names}
+    summary_writers = {name: tf.summary.create_file_writer(os.path.join(log_dir_full, name)) for name in subset_names}
     tf.summary.experimental.set_step(0)
 
     with summary_writers['train'].as_default():
@@ -95,8 +103,8 @@ def main():
                                            args.test_size, BatchGenerator(args.max_test_batch_size),
                                            max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
-                                           output_dir=args.output, datasets=eval_dataset_names, device=args.device)
-        save_dataset_stats(problems, eval_datasets, args.output)
+                                           output_dir=output_dir_full, datasets=eval_dataset_names, device=args.device)
+        save_dataset_stats(problems, eval_datasets, output_dir_full)
 
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -113,7 +121,7 @@ def main():
         try:
             model = SymbolPreferenceGCN('predicate', graphifier.canonical_etypes, graphifier.ntypes)
             if args.plot_model is not None:
-                keras.utils.plot_model(model, utils.path_join(args.output, args.plot_model, makedir=True),
+                keras.utils.plot_model(model, utils.path_join(output_dir_full, args.plot_model, makedir=True),
                                        show_shapes=True)
             rng = np.random.RandomState(0)
             batch_generator_train = BatchGenerator(args.max_train_batch_size, args.train_batch_problems)
@@ -156,10 +164,10 @@ def main():
                 pass
             save_df(
                 utils.dataframe_from_records(records_evaluation, index_keys='step', dtypes={'step': pd.UInt32Dtype()}),
-                'steps_evaluation', args.output)
+                'steps_evaluation', output_dir_full)
             save_df(
                 utils.dataframe_from_records(records_training, index_keys='step', dtypes={'step': pd.UInt32Dtype()}),
-                'steps_training', args.output)
+                'steps_training', output_dir_full)
 
 
 def save_dataset_stats(problems, eval_datasets, output_dir):
