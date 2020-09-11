@@ -125,7 +125,11 @@ def main():
                 keras.utils.plot_model(model, utils.path_join(output_dir_full, args.plot_model, makedir=True),
                                        show_shapes=True)
             rng = np.random.RandomState(0)
-            batch_generator_train = BatchGenerator(args.max_train_batch_size, args.train_batch_problems)
+            if args.max_train_batch_size > 0:
+                batch_generator_train = BatchGenerator(max_batch_length=args.max_train_batch_size,
+                                                       problems_per_batch=args.train_batch_problems)
+            else:
+                batch_generator_train = BatchGenerator(problems_per_batch=args.train_batch_problems)
             if args.steps is not None:
                 step_ids = range(args.steps)
             else:
@@ -365,7 +369,7 @@ def problem_size(d, n_questions=None):
 
 
 class BatchGenerator:
-    def __init__(self, max_batch_length, problems_per_batch=None):
+    def __init__(self, max_batch_length=None, problems_per_batch=None):
         self.max_batch_length = max_batch_length
         self.problems_per_batch = problems_per_batch
 
