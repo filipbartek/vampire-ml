@@ -73,7 +73,6 @@ def main():
     tf.random.set_seed(0)
 
     logging.info(f'Cache location: {memory.location}')
-    logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     current_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     if args.experiment_id is not None:
@@ -91,6 +90,8 @@ def main():
 
     with summary_writers['train'].as_default():
         tf.summary.text('args', str(args))
+
+    logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), tf.device(args.device):
         solver = Solver(timeout=20)
