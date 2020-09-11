@@ -299,6 +299,7 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_grads=True):
     record = {'step': tf.summary.experimental.get_step()}
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
+    record['size'] = number_of_nodes(x['batch_graph']) + len(x['ranking_difference'])
     record['problems'] = x['batch_graph'].batch_size
     record['nodes'] = number_of_nodes(x['batch_graph'])
     record['ranking_difference', 'len'] = len(x['ranking_difference'])
