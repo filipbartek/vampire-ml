@@ -19,6 +19,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
 
+from proving import simple_features
 from proving import utils
 from proving.graphifier import Graphifier
 from proving.heterographconv import HeteroGCN
@@ -65,6 +66,8 @@ def main():
     parser.add_argument('--profile-start', type=int)
     parser.add_argument('--profile-stop', type=int)
     parser.add_argument('--device')
+    parser.add_argument('--evaluate-linear-standard', action='store_true')
+    parser.add_argument('--evaluate-linear-random', type=int, default=0)
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -100,7 +103,7 @@ def main():
             eval_dataset_names = ('test', 'train')
         else:
             eval_dataset_names = ('test',)
-        problems, eval_datasets = get_data(args.question_dir, graphifier, args.cache_file, args.train_size,
+        problems, eval_datasets = get_data(args.question_dir, args.signature_dir, graphifier, args.cache_file, args.train_size,
                                            args.test_size, BatchGenerator(args.max_test_batch_size),
                                            max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
@@ -108,6 +111,18 @@ def main():
         save_dataset_stats(problems, eval_datasets, output_dir_full)
 
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
+
+        k = 12
+        w_values = []
+        records = []
+        if args.evaluate_linear_standard:
+            w_values.extend(itertools.chain(np.eye(k), np.eye(k) * -1))
+        rng = np.random.RandomState(0)
+        w_values.extend(rng.normal(0, 1, k) for _ in range(args.evaluate_linear_random))
+        for w in tqdm(w_values, unit='model', desc='Evaluating linear models'):
+            record = simple_features.evaluate_weights(w, eval_datasets['test'], eval_datasets['train'], loss_fn)
+            records.append(record)
+        save_df(utils.dataframe_from_records(records), 'linear_models', output_dir_full)
 
         optimizers = {
             'sgd': keras.optimizers.SGD,
@@ -268,9 +283,9 @@ class SymbolPreferenceGCN(keras.Model):
 
 
 # Cannot cache this call because we set device on some objects.
-def get_data(question_dir, graphifier, cache_file, train_size, test_size, batch_generator, max_problems,
+def get_data(question_dir, signature_dir, graphifier, cache_file, train_size, test_size, batch_generator, max_problems,
              max_questions_per_problem, random_state=0, output_dir=None, datasets=None, device=None):
-    problems_all = get_problems(question_dir, graphifier, max_problems, max_questions_per_problem,
+    problems_all = get_problems(question_dir, signature_dir, graphifier, max_problems, max_questions_per_problem,
                                 np.random.RandomState(random_state), cache_file, output_dir)
     logging.info(f'Number of problems graphified: {len(problems_all)}')
 
@@ -452,7 +467,7 @@ class BatchGenerator:
     def _get_batch(self, problems, question_ids=None):
         """Does not ensure that the batch is sufficiently small."""
         graphs = []
-        x_lists = {'ranking_difference': [], 'question_symbols': [], 'segment_ids': []}
+        x_lists = {'ranking_difference': [], 'question_symbols': [], 'segment_ids': [], 'symbol_embeddings_predicate': [], 'symbol_embeddings_function': []}
         sample_weight_list = []
         question_i = 0
         symbol_i = 0
@@ -471,6 +486,8 @@ class BatchGenerator:
             x_lists['ranking_difference'].append(questions.flatten())
             x_lists['question_symbols'].append(np.tile(np.arange(symbol_i, symbol_i + n, dtype=np.int32), m).flatten())
             x_lists['segment_ids'].append(np.repeat(np.arange(question_i, question_i + m, dtype=np.int32), n).flatten())
+            x_lists['symbol_embeddings_predicate'].append(d['signatures']['predicate'])
+            x_lists['symbol_embeddings_function'].append(d['signatures']['function'])
             sample_weight_list.append(np.full(m, 1 / m, dtype=dtype_tf_float))
             question_i += m
             symbol_i += n
@@ -482,6 +499,8 @@ class BatchGenerator:
         sample_weight = np.concatenate(sample_weight_list)
         assert len(sample_weight) == question_i
         x['batch_graph'] = dgl.batch(graphs)
+        assert x['batch_graph'].number_of_nodes('predicate') == len(x['symbol_embeddings_predicate'])
+        assert x['batch_graph'].number_of_nodes('function') == len(x['symbol_embeddings_function'])
         logging.debug(
             'Batch created. Size: %d/%d (actual/maximum). Problems: %d. Nodes: %d. Questions: %d. Cumulative symbol count: %d. Cumulative question length: %d.',
             total_size, self.max_batch_length, len(graphs), number_of_nodes(x['batch_graph']), question_i, symbol_i,

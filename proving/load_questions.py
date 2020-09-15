@@ -5,6 +5,7 @@ import logging
 import os
 import pickle
 import re
+import warnings
 
 import numpy as np
 import tensorflow as tf
@@ -12,6 +13,7 @@ from joblib import Parallel, delayed
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
+from proving import symbols
 from proving import utils
 from proving.memory import memory
 from vampire_ml.results import save_df
@@ -66,7 +68,7 @@ def line_to_precedence(x):
 
 
 @memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
-def get_problems(question_dir, graphifier, max_problems, max_questions_per_problem, rng, cache_file, output_dir):
+def get_problems(question_dir, signature_dir, graphifier, max_problems, max_questions_per_problem, rng, cache_file, output_dir):
     if cache_file is not None:
         try:
             logging.info(f'Loading problems from {cache_file}...')
@@ -78,17 +80,40 @@ def get_problems(question_dir, graphifier, max_problems, max_questions_per_probl
     questions = get_problem_questions(question_dir, rng, max_problems=max_problems,
                                       max_questions_per_problem=max_questions_per_problem)
     problem_names = list(questions.keys())
+    signatures = get_problem_signatures(signature_dir, problem_names)
     graphs_records = graphifier.problems_to_graphs(problem_names)
     graphs, records = zip(*graphs_records)
     if output_dir is not None:
         save_df(utils.dataframe_from_records(records, index_keys='problem'), 'graphs', output_dir)
-    problems = {problem_name: {'graph': graphs[i], 'questions': questions[problem_name]} for
+    problems = {problem_name: {'graph': graphs[i], 'questions': questions[problem_name], 'signatures': signatures[problem_name]} for
                 i, problem_name in enumerate(problem_names) if graphs[i] is not None}
     if cache_file is not None:
         logging.info(f'Saving problems into {cache_file}...')
         pickle.dump(problems, open(cache_file, mode='wb'))
         logging.info(f'Problems saved into {cache_file}.')
     return problems
+
+
+@memory.cache(verbose=2)
+def get_problem_signatures(symbols_dir_path, problems=None):
+    if problems is not None:
+        iterable = ((problem_name, os.path.join(symbols_dir_path, f'{problem_name}.sig')) for problem_name in problems)
+        total = len(problems)
+    else:
+        iterable = ((os.path.splitext(dir_entry.name)[0], dir_entry.path) for dir_entry in os.scandir(symbols_dir_path))
+        total = None
+    signatures = collections.defaultdict(dict)
+    with tqdm(iterable, unit='problem', desc='Loading signatures', total=total) as t:
+        for problem_name, signature_path in t:
+            t.set_postfix_str(signature_path)
+            try:
+                sym_all = symbols.load(signature_path)
+                for symbol_type in ('predicate', 'function'):
+                    sym_selected = symbols.symbols_of_type(sym_all, symbol_type)
+                    signatures[problem_name][symbol_type] = sym_selected.drop('name', axis='columns').astype(dtype_tf_float).values
+            except ValueError:
+                warnings.warn(f'Failed to load signature: {signature_path}')
+    return signatures
 
 
 @memory.cache(verbose=2)
