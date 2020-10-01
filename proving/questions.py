@@ -67,6 +67,7 @@ def main():
     parser.add_argument('--device')
     parser.add_argument('--evaluate-linear-standard', action='store_true')
     parser.add_argument('--evaluate-linear-random', type=int, default=0)
+    parser.add_argument('--checkpoint-read')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level, format='%(asctime)s %(threadName)s %(levelname)s - %(message)s')
@@ -149,14 +150,20 @@ def main():
                 batch_generator_train = BatchGenerator(problems_per_batch=args.train_batch_problems)
             step_i = tf.Variable(0, dtype=tf.int64)
             ckpt = tf.train.Checkpoint(step=step_i, optimizer=optimizer, model=model)
-            manager = tf.train.CheckpointManager(ckpt, os.path.join(output_dir_full, 'tf_ckpts', 'auto'),
+            checkpoint_dir = os.path.join(output_dir_full, 'tf_ckpts')
+            manager = tf.train.CheckpointManager(ckpt, os.path.join(checkpoint_dir, 'auto'),
                                                  max_to_keep=10, step_counter=step_i)
-            ckpt.restore(manager.latest_checkpoint)
-            if manager.latest_checkpoint:
-                logging.info(f'Restored from {manager.latest_checkpoint}.')
+            if args.checkpoint_read:
+                ckpt.restore(args.checkpoint_read).assert_existing_objects_matched()
+                logging.info(f'Restored from custom checkpoint: {args.checkpoint_read}')
+            elif manager.latest_checkpoint:
+                # https://www.tensorflow.org/guide/checkpoint#train_and_checkpoint_the_model
+                ckpt.restore(manager.latest_checkpoint).assert_existing_objects_matched()
+                logging.info(f'Restored from latest checkpoint: {manager.latest_checkpoint}')
             else:
                 logging.info('No checkpoint to restore. Training from scratch.')
             best_accuracy = {k: 0 for k in eval_dataset_names}
+            trained = False
             with tqdm(unit='step', desc='Training', total=args.steps) as t:
                 t.update(int(step_i))
                 postfix = {}
@@ -175,23 +182,26 @@ def main():
                             postfix.update({'.'.join(k): v for k, v in eval_record.items() if k != 'step'})
                             t.set_postfix(postfix)
                             records_evaluation.append(eval_record)
-                            manager.save(checkpoint_number=step_i)
-                            for dataset_name, best_value in best_accuracy.items():
-                                record_key = (dataset_name, 'accuracy')
-                                try:
-                                    cur_value = eval_record[record_key]
-                                    if cur_value > best_value:
-                                        best_accuracy[dataset_name] = cur_value
-                                        saved_path = ckpt.write(
-                                            os.path.join(output_dir_full, 'tf_ckpts', 'accuracy', dataset_name))
-                                        logging.info(
-                                            f'New best {dataset_name} accuracy at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
-                                except KeyError:
-                                    pass
+                            if trained:
+                                # Save checkpoints
+                                manager.save(checkpoint_number=step_i)
+                                for dataset_name, best_value in best_accuracy.items():
+                                    record_key = (dataset_name, 'accuracy')
+                                    try:
+                                        cur_value = eval_record[record_key]
+                                        if cur_value > best_value:
+                                            best_accuracy[dataset_name] = cur_value
+                                            saved_path = ckpt.write(
+                                                os.path.join(output_dir_full, 'tf_ckpts', 'accuracy', dataset_name))
+                                            logging.info(
+                                                f'New best {dataset_name} accuracy at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
+                                    except KeyError:
+                                        pass
                     with tf.profiler.experimental.Trace('train', step_num=step_i, _r=1):
                         with summary_writers['train'].as_default():
                             record = train_step(model, problems['train'], loss_fn, optimizer, rng,
                                                 batch_generator_train)
+                            trained = True
                             postfix['loss'] = record['loss']
                             t.set_postfix(postfix)
                             records_training.append(record)
@@ -366,8 +376,7 @@ def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_gr
         record['grads', 'norm', 2] = tf.norm(grads_flat, ord=2).numpy()
         tf.summary.histogram('grads', grads_flat)
     time_start = time.time()
-    # https://stackoverflow.com/a/60217922/4054250
-    optimizer.apply_gradients(filter(lambda x: x[0] is not None, zip(grads, model.trainable_weights)))
+    optimizer.apply_gradients(zip(grads, model.trainable_weights))
     record['time', 'grads', 'apply'] = time.time() - time_start
     for key, value in record.items():
         if key == 'step':
