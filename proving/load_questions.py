@@ -63,8 +63,12 @@ def filename_to_question(filename):
     return res
 
 
-def line_to_precedence(x):
-    return tf.strings.to_number(tf.strings.split(x, sep=','), out_type=tf.int32)
+def line_to_precedence(x, dtype=tf.int32, sep=','):
+    """Convert a string with comma-separated numbers to a tensor.
+
+    Similar to `numpy.fromstring`.
+    """
+    return tf.strings.to_number(tf.strings.split(x, sep=sep), out_type=dtype)
 
 
 @memory.cache(ignore=['cache_file', 'output_dir'], verbose=2)
