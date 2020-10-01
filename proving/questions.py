@@ -92,7 +92,10 @@ def main():
     tf.summary.experimental.set_step(0)
 
     with summary_writers['train'].as_default():
-        tf.summary.text('args', str(args))
+        # https://stackoverflow.com/a/61106106/4054250
+        args_series = pd.Series(args.__dict__, name='value')
+        args_series.index.name = 'argument'
+        tf.summary.text('args', args_series.to_markdown())
 
     logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
