@@ -26,7 +26,6 @@ from proving.heterographconv import HeteroGCN
 from proving.load_questions import get_problems
 from proving.memory import memory
 from proving.solver import Solver
-from proving.utils import number_of_nodes
 from vampire_ml.results import save_df
 
 dtype_tf_float = np.float32
@@ -339,9 +338,9 @@ def evaluate(model, datasets, loss_fn, summary_writers=None):
 def train_step(model, problems, loss_fn, optimizer, rng, batch_generator, log_grads=True):
     record = {'step': int(tf.summary.experimental.get_step())}
     x, sample_weight = batch_generator.get_batch_random(problems, rng)
-    record['size'] = number_of_nodes(x['batch_graph']) + len(x['ranking_difference'])
+    record['size'] = x['batch_graph'].num_nodes() + len(x['ranking_difference'])
     record['problems'] = x['batch_graph'].batch_size
-    record['nodes'] = number_of_nodes(x['batch_graph'])
+    record['nodes'] = x['batch_graph'].num_nodes()
     record['ranking_difference', 'len'] = len(x['ranking_difference'])
     tf.summary.histogram('ranking_difference', x['ranking_difference'])
     record['sample_weight', 'len'] = len(sample_weight)
@@ -406,7 +405,7 @@ def problem_size(d, n_questions=None):
     if n_questions is None:
         n_questions = len(d['questions'])
     assert n_questions <= len(d['questions'])
-    return number_of_nodes(g) + d['questions'].shape[1] * n_questions
+    return g.num_nodes() + d['questions'].shape[1] * n_questions
 
 
 class BatchGenerator:
@@ -456,7 +455,7 @@ class BatchGenerator:
             if problem_i in selected_ids:
                 cur_graph_size = 0
             else:
-                cur_graph_size = number_of_nodes(d['graph'])
+                cur_graph_size = d['graph'].num_nodes()
             cur_size = cur_graph_size + d['questions'].shape[1]
             if self.max_batch_length is not None:
                 if cur_size > self.max_batch_length:
@@ -502,11 +501,11 @@ class BatchGenerator:
         sample_weight = np.concatenate(sample_weight_list)
         assert len(sample_weight) == question_i
         x['batch_graph'] = dgl.batch(graphs)
-        assert x['batch_graph'].number_of_nodes('predicate') == len(x['symbol_embeddings_predicate'])
-        assert x['batch_graph'].number_of_nodes('function') == len(x['symbol_embeddings_function'])
+        assert x['batch_graph'].num_nodes('predicate') == len(x['symbol_embeddings_predicate'])
+        assert x['batch_graph'].num_nodes('function') == len(x['symbol_embeddings_function'])
         logging.debug(
             'Batch created. Size: %d/%d (actual/maximum). Problems: %d. Nodes: %d. Questions: %d. Cumulative symbol count: %d. Cumulative question length: %d.',
-            total_size, self.max_batch_length, len(graphs), number_of_nodes(x['batch_graph']), question_i, symbol_i,
+            total_size, self.max_batch_length, len(graphs), x['batch_graph'].num_nodes(), question_i, symbol_i,
             len(x['ranking_difference']))
         return x, sample_weight
 

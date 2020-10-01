@@ -10,7 +10,6 @@ from joblib import Parallel, delayed
 
 from proving import tptp
 from proving.memory import memory
-from proving.utils import number_of_nodes
 
 
 # For example HWV091_1 takes 21.1s to graphify.
@@ -102,9 +101,9 @@ class Graphifier:
         time_elapsed = time.time() - time_start
         record['graph_time'] = time_elapsed
         if g is not None:
-            record['graph_nodes'] = number_of_nodes(g)
-            record.update({f'graph_nodes_{ntype}': g.number_of_nodes(ntype) for ntype in g.ntypes})
-            record['graph_edges'] = sum(g.number_of_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
+            record['graph_nodes'] = g.num_nodes()
+            record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
+            record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
         return g, record
 
     def clausify_result_to_graph(self, clausify_result):
@@ -198,10 +197,10 @@ class TermVisitor:
             data_dict[ntype, self.edge_type_self, ntype] = (r, r)
         g = dgl.heterograph(data_dict, self.node_counts)
         for ntype, v in self.node_features.items():
-            assert g.number_of_nodes(ntype) == len(v)
+            assert g.num_nodes(ntype) == len(v)
             g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v)
         for canonical_etype, v in edge_features.items():
-            assert g.number_of_edges(canonical_etype) == len(v)
+            assert g.num_edges(canonical_etype) == len(v)
             g.edges[canonical_etype].data['feat'] = v
         return g
 

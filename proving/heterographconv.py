@@ -47,7 +47,7 @@ class HeteroGCN(tf.keras.Model):
         return HeteroGraphConv(edge_layers, node_layers)
 
     def initial_node_embeddings(self, g):
-        return {ntype: tf.tile(self.ntype_embeddings[ntype], (g.number_of_nodes(ntype), 1)) for ntype in g.ntypes}
+        return {ntype: tf.tile(self.ntype_embeddings[ntype], (g.num_nodes(ntype), 1)) for ntype in g.ntypes}
 
     def call(self, g):
         x = self.initial_node_embeddings(g)
@@ -145,7 +145,7 @@ class HeteroGraphConv(layers.Layer):
         with g.local_scope():
             for ntype in x.keys():
                 assert ntype in g.ntypes
-                assert g.number_of_nodes(ntype) == len(x[ntype])
+                assert g.num_nodes(ntype) == len(x[ntype])
                 g.nodes[ntype].data['h'] = x[ntype]
             g.multi_update_all(self.etype_dict, 'stack', self.apply_node_func)
             return {ntype: g.nodes[ntype].data['out'] for ntype in self.node_layers.keys()}
