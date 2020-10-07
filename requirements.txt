@@ -15,5 +15,6 @@ scipy
 seaborn
 scikit-learn
 scikit-learn-extra
+tabulate
 tensorflow
 tqdm
