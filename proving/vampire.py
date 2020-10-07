@@ -29,15 +29,24 @@ class Result(process.Result):
 
     @property
     def saturation_iterations(self):
-        return int(re.search(r'^% Main loop iterations started: (\d+)$', self.stdout, re.MULTILINE)[1])
+        try:
+            return int(re.search(r'^% Main loop iterations started: (\d+)$', self.stdout, re.MULTILINE)[1])
+        except TypeError:
+            return None
 
     @property
     def memory_used(self):
-        return int(re.search(r'^% Memory used \[KB\]: (\d+)$', self.stdout, re.MULTILINE)[1])
+        try:
+            return int(re.search(r'^% Memory used \[KB\]: (\d+)$', self.stdout, re.MULTILINE)[1])
+        except TypeError:
+            return None
 
     @property
     def time_elapsed_vampire(self):
-        return float(re.search(r'^% Time elapsed: (\d+\.\d+) s$', self.stdout, re.MULTILINE)[1])
+        try:
+            return float(re.search(r'^% Time elapsed: (\d+\.\d+) s$', self.stdout, re.MULTILINE)[1])
+        except TypeError:
+            return None
 
 
 @memory.cache
