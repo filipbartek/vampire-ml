@@ -20,7 +20,6 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
 
-from proving import simple_features
 from proving import utils
 from proving.graphifier import Graphifier
 from proving.heterographconv import HeteroGCN
@@ -124,8 +123,10 @@ def main():
         rng = np.random.RandomState(0)
         w_values.extend(rng.normal(0, 1, k) for _ in range(args.evaluate_linear_random))
         for w in tqdm(w_values, unit='model', desc='Evaluating linear models'):
-            record = simple_features.evaluate_weights(w, eval_datasets['test'], eval_datasets['train'], loss_fn)
-            records.append(record)
+            symbol_cost_model = layers.Dense(1, use_bias=False, trainable=False, kernel_initializer=tf.constant_initializer(w))
+            simple_model = QuestionLogitModel(SymbolEmbeddingModelSimple(), 'predicate', symbol_cost_model)
+            eval_record = evaluate(simple_model, eval_datasets, loss_fn, summary_writers, solver)
+            records.append(eval_record)
         save_df(utils.dataframe_from_records(records), 'linear_models', output_dir_full)
 
         optimizers = {
@@ -139,7 +140,8 @@ def main():
         records_training = []
 
         try:
-            model = SymbolPreferenceGCN('predicate', graphifier.canonical_etypes, graphifier.ntypes)
+            symbol_embedding_model = SymbolEmbeddingModelGCN(graphifier.canonical_etypes, graphifier.ntypes)
+            model = QuestionLogitModel(symbol_embedding_model, 'predicate')
             if args.plot_model is not None:
                 keras.utils.plot_model(model, utils.path_join(output_dir_full, args.plot_model, makedir=True),
                                        show_shapes=True)
@@ -282,27 +284,26 @@ def save_dataset_stats(problems, eval_datasets, output_dir):
     save_df(utils.dataframe_from_records(records, index_keys='name', dtypes=dtypes), 'datasets', output_dir)
 
 
-class SymbolPreferenceGCN(keras.Model):
-    def __init__(self, symbol_type, canonical_etypes, ntypes, num_layers=4):
+class QuestionLogitModel(keras.Model):
+    def __init__(self, symbol_embedding_model, symbol_type, symbol_cost_model=None):
         super().__init__()
+        self.symbol_embedding_model = symbol_embedding_model
         self.symbol_type = symbol_type
-        edge_layer_sizes = {canonical_etype: 64 for canonical_etype in canonical_etypes}
-        node_layer_sizes = {ntype: 64 for ntype in ntypes}
-        self.hetero_gcn = HeteroGCN(edge_layer_sizes, node_layer_sizes, num_layers, False, [symbol_type])
-        self.cost_model = layers.Dense(1)
+        if symbol_cost_model is None:
+            symbol_cost_model = layers.Dense(1)
+        self.cost_model = symbol_cost_model
 
     def call(self, x):
-        graph = x['batch_graph']
+        symbol_costs = self.predict_symbol_costs(x)
         question_symbols = x['question_symbols']
         ranking_difference = x['ranking_difference']
         segment_ids = x['segment_ids']
-        symbol_costs = self.predict_symbol_costs(graph)
         logits = self._predict_precedence_pair_logits(symbol_costs, question_symbols, ranking_difference, segment_ids)
         return {'symbol_costs': symbol_costs, 'logits': logits}
 
-    def predict_symbol_costs(self, graph):
+    def predict_symbol_costs(self, x):
         # Row: problem -> symbol
-        symbol_embeddings = self.hetero_gcn(graph)[self.symbol_type]
+        symbol_embeddings = self.symbol_embedding_model(x)[self.symbol_type]
         return tf.squeeze(self.cost_model(symbol_embeddings))
 
     @tf.function(experimental_relax_shapes=True)
@@ -313,6 +314,23 @@ class SymbolPreferenceGCN(keras.Model):
         # Row: problem -> question
         precedence_pair_logit = tf.math.segment_sum(potentials, segment_ids)
         return precedence_pair_logit
+
+
+class SymbolEmbeddingModelSimple(keras.Model):
+    def call(self, x):
+        return {'predicate': x['symbol_embeddings_predicate'], 'function': x['symbol_embeddings_function']}
+
+
+class SymbolEmbeddingModelGCN(keras.Model):
+    def __init__(self, canonical_etypes, ntypes, num_layers=4, symbol_types=None):
+        edge_layer_sizes = {canonical_etype: 64 for canonical_etype in canonical_etypes}
+        node_layer_sizes = {ntype: 64 for ntype in ntypes}
+        if symbol_types is None:
+            symbol_types = ('predicate', 'function')
+        self.hetero_gcn = HeteroGCN(edge_layer_sizes, node_layer_sizes, num_layers, False, symbol_types)
+
+    def call(self, x):
+        return self.hetero_gcn(x['batch_graph'])
 
 
 # Cannot cache this call because we set device on some objects.
