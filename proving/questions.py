@@ -163,7 +163,7 @@ def main():
                 logging.info(f'Restored from latest checkpoint: {manager.latest_checkpoint}')
             else:
                 logging.info('No checkpoint to restore. Training from scratch.')
-            best_accuracy = {k: 0 for k in eval_dataset_names}
+            best_metric_values = {k: 0 for k in itertools.product(eval_dataset_names, ('accuracy', 'vampire_rate'))}
             trained = False
             with tqdm(unit='step', desc='Training', total=args.steps) as t:
                 t.update(int(step_i))
@@ -186,16 +186,16 @@ def main():
                             if trained:
                                 # Save checkpoints
                                 manager.save(checkpoint_number=step_i)
-                                for dataset_name, best_value in best_accuracy.items():
-                                    record_key = (dataset_name, 'accuracy')
+                                for (dataset_name, metric_name), best_value in best_metric_values.items():
+                                    record_key = (dataset_name, metric_name)
                                     try:
                                         cur_value = eval_record[record_key]
                                         if cur_value > best_value:
-                                            best_accuracy[dataset_name] = cur_value
+                                            best_metric_values[dataset_name, metric_name] = cur_value
                                             saved_path = ckpt.write(
-                                                os.path.join(output_dir_full, 'tf_ckpts', 'accuracy', dataset_name))
+                                                os.path.join(output_dir_full, 'tf_ckpts', metric_name, dataset_name))
                                             logging.info(
-                                                f'New best {dataset_name} accuracy at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
+                                                f'New best {dataset_name} {metric_name} at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
                                     except KeyError:
                                         pass
                     with tf.profiler.experimental.Trace('train', step_num=step_i, _r=1):
@@ -217,16 +217,16 @@ def main():
                 if trained:
                     # Save checkpoints
                     manager.save(checkpoint_number=step_i)
-                    for dataset_name, best_value in best_accuracy.items():
-                        record_key = (dataset_name, 'accuracy')
+                    for (dataset_name, metric_name), best_value in best_metric_values.items():
+                        record_key = (dataset_name, metric_name)
                         try:
                             cur_value = eval_record[record_key]
                             if cur_value > best_value:
-                                best_accuracy[dataset_name] = cur_value
+                                best_metric_values[dataset_name, metric_name] = cur_value
                                 saved_path = ckpt.write(
-                                    os.path.join(output_dir_full, 'tf_ckpts', 'accuracy', dataset_name))
+                                    os.path.join(output_dir_full, 'tf_ckpts', metric_name, dataset_name))
                                 logging.info(
-                                    f'New best {dataset_name} accuracy at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
+                                    f'New best {dataset_name} {metric_name} at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
                         except KeyError:
                             pass
         finally:
