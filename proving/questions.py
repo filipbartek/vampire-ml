@@ -420,9 +420,13 @@ def test_step(model, data, loss_fn, solver):
     assert len(logits) == len(sample_weight)
     # BinaryCrossentropy requires that there is at least one non-batch dimension.
     # We normalize loss by dividing it with the mean sample weight so that the loss is consistent with the metric BinaryCrossentropy.
+    if n_total > 0:
+        vampire_rate = n_succ / n_total
+    else:
+        vampire_rate = np.nan
     res = {'loss': float(loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
                                  sample_weight=sample_weight) / np.mean(sample_weight)),
-           'vampire_rate': n_succ / n_total,
+           'vampire_rate': vampire_rate,
            'vampire_succ': n_succ,
            'vampire_total': n_total}
     for name, metric in metrics.items():
