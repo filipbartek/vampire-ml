@@ -208,10 +208,27 @@ def main():
                             records_training.append(record)
                     step_i.assign_add(1)
                     t.update()
-            i = args.steps
-            assert i is not None
-            tf.summary.experimental.set_step(i)
-            records_evaluation.append(evaluate(model, eval_datasets, loss_fn, summary_writers))
+                tf.summary.experimental.set_step(step_i)
+                eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver)
+                postfix.update({'.'.join(k): v for k, v in eval_record.items() if
+                                k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
+                t.set_postfix(postfix)
+                records_evaluation.append(eval_record)
+                if trained:
+                    # Save checkpoints
+                    manager.save(checkpoint_number=step_i)
+                    for dataset_name, best_value in best_accuracy.items():
+                        record_key = (dataset_name, 'accuracy')
+                        try:
+                            cur_value = eval_record[record_key]
+                            if cur_value > best_value:
+                                best_accuracy[dataset_name] = cur_value
+                                saved_path = ckpt.write(
+                                    os.path.join(output_dir_full, 'tf_ckpts', 'accuracy', dataset_name))
+                                logging.info(
+                                    f'New best {dataset_name} accuracy at step {int(step_i)}: {cur_value}. Checkpoint written to {saved_path}.')
+                        except KeyError:
+                            pass
         finally:
             try:
                 tf.profiler.experimental.stop()
@@ -420,15 +437,14 @@ def test_step(model, data, loss_fn, solver):
     assert len(logits) == len(sample_weight)
     # BinaryCrossentropy requires that there is at least one non-batch dimension.
     # We normalize loss by dividing it with the mean sample weight so that the loss is consistent with the metric BinaryCrossentropy.
-    if n_total > 0:
-        vampire_rate = n_succ / n_total
-    else:
-        vampire_rate = np.nan
     res = {'loss': float(loss_fn(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
-                                 sample_weight=sample_weight) / np.mean(sample_weight)),
-           'vampire_rate': vampire_rate,
-           'vampire_succ': n_succ,
-           'vampire_total': n_total}
+                                 sample_weight=sample_weight) / np.mean(sample_weight))}
+    if solver is not None:
+        if n_total > 0:
+            vampire_rate = n_succ / n_total
+        else:
+            vampire_rate = np.nan
+        res.update({'vampire_rate': vampire_rate, 'vampire_succ': n_succ, 'vampire_total': n_total})
     for name, metric in metrics.items():
         metric.update_state(np.ones((len(sample_weight), 1), dtype=np.bool), tf.expand_dims(logits, 1),
                             sample_weight=sample_weight)
