@@ -332,6 +332,7 @@ class SymbolEmbeddingModelSimple(keras.Model):
 
 class SymbolEmbeddingModelGCN(keras.Model):
     def __init__(self, canonical_etypes, ntypes, num_layers=4, symbol_types=None):
+        super().__init__()
         edge_layer_sizes = {canonical_etype: 64 for canonical_etype in canonical_etypes}
         node_layer_sizes = {ntype: 64 for ntype in ntypes}
         if symbol_types is None:
