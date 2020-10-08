@@ -2,6 +2,7 @@
 
 import logging
 import os
+import sys
 
 import numpy as np
 import pandas as pd
@@ -37,7 +38,8 @@ def save_df(df, base_name, output_dir=None, index=True):
     if len(os.path.dirname(path_common)) > 0:
         os.makedirs(os.path.dirname(path_common), exist_ok=True)
     df.to_pickle(f'{path_common}.pkl')
-    df.to_csv(f'{path_common}.csv', index=index, header=df.columns.values)
+    with np.printoptions(threshold=sys.maxsize, linewidth=sys.maxsize):
+        df.to_csv(f'{path_common}.csv', index=index, header=df.columns.values)
     logging.info(f'DataFrame of length {len(df.index)} saved: {path_common}.{{pkl,csv}}')
 
 
