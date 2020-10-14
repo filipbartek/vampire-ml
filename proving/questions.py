@@ -316,8 +316,9 @@ class QuestionLogitModel(keras.Model):
         symbol_embeddings = self.symbol_embedding_model(x, training=training)[self.symbol_type]
         return tf.squeeze(self.cost_model(symbol_embeddings, training=training), axis=1)
 
+    @staticmethod
     @tf.function(experimental_relax_shapes=True)
-    def _predict_precedence_pair_logits(self, symbol_costs, question_symbols, ranking_difference, segment_ids):
+    def _predict_precedence_pair_logits(symbol_costs, question_symbols, ranking_difference, segment_ids):
         # Row: problem -> question -> symbol
         symbol_costs_tiled = tf.gather(symbol_costs, question_symbols)
         potentials = tf.multiply(symbol_costs_tiled, ranking_difference)
