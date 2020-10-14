@@ -31,6 +31,7 @@ def paths_from_patterns(patterns, base_path=None):
         base_path = config.problems_path()
     # We modify the glob patterns to be relative to base_path.
     # Alternatively, we could change the CWD which is used by glob.iglob.
+    assert isinstance(patterns, list)
     patterns_normalized = map(partial(normalize_path, base_path=base_path), patterns)
     path_generators = map(partial(glob.iglob, recursive=True), patterns_normalized)
     paths = itertools.chain(*path_generators)
