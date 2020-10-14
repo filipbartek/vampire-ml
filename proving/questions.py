@@ -303,18 +303,18 @@ class QuestionLogitModel(keras.Model):
             symbol_cost_model = layers.Dense(1)
         self.cost_model = symbol_cost_model
 
-    def call(self, x):
-        symbol_costs = self.predict_symbol_costs(x)
+    def call(self, x, training=False):
+        symbol_costs = self.predict_symbol_costs(x, training=training)
         question_symbols = x['question_symbols']
         ranking_difference = x['ranking_difference']
         segment_ids = x['segment_ids']
         logits = self._predict_precedence_pair_logits(symbol_costs, question_symbols, ranking_difference, segment_ids)
         return {'symbol_costs': symbol_costs, 'logits': logits}
 
-    def predict_symbol_costs(self, x):
+    def predict_symbol_costs(self, x, training=False):
         # Row: problem -> symbol
-        symbol_embeddings = self.symbol_embedding_model(x)[self.symbol_type]
-        return tf.squeeze(self.cost_model(symbol_embeddings))
+        symbol_embeddings = self.symbol_embedding_model(x, training=training)[self.symbol_type]
+        return tf.squeeze(self.cost_model(symbol_embeddings, training=training), axis=1)
 
     @tf.function(experimental_relax_shapes=True)
     def _predict_precedence_pair_logits(self, symbol_costs, question_symbols, ranking_difference, segment_ids):
@@ -327,7 +327,7 @@ class QuestionLogitModel(keras.Model):
 
 
 class SymbolEmbeddingModelSimple(keras.Model):
-    def call(self, x):
+    def call(self, x, training=False):
         return {'predicate': x['symbol_embeddings_predicate'], 'function': x['symbol_embeddings_function']}
 
 
@@ -340,8 +340,8 @@ class SymbolEmbeddingModelGCN(keras.Model):
             symbol_types = ('predicate', 'function')
         self.hetero_gcn = HeteroGCN(edge_layer_sizes, node_layer_sizes, num_layers, False, symbol_types)
 
-    def call(self, x):
-        return self.hetero_gcn(x['batch_graph'])
+    def call(self, x, training=False):
+        return self.hetero_gcn(x['batch_graph'], training=training)
 
 
 # Cannot cache this call because we set device on some objects.

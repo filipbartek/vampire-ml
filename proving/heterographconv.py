@@ -49,10 +49,10 @@ class HeteroGCN(tf.keras.Model):
     def initial_node_embeddings(self, g):
         return {ntype: tf.tile(self.ntype_embeddings[ntype], (g.num_nodes(ntype), 1)) for ntype in g.ntypes}
 
-    def call(self, g):
+    def call(self, g, training=False):
         x = self.initial_node_embeddings(g)
         for layer in self.layers_list:
-            x = layer(g, x)
+            x = layer(g, x, training=training)
         return {k: x[k] for k in self.output_ntypes}
 
 
@@ -133,7 +133,7 @@ class HeteroGraphConv(layers.Layer):
     def canonical_etype_id(canonical_etype):
         return '_'.join(canonical_etype)
 
-    def call(self, g, x):
+    def call(self, g, x, training=None):
         """
         Forward computation
 
