@@ -21,6 +21,7 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
 
+from proving import file_path_list
 from proving import utils
 from proving.graphifier import Graphifier
 from proving.heterographconv import HeteroGCN
@@ -101,6 +102,8 @@ def main():
     logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), tf.device(args.device):
+        problems_vampire_eval, _ = file_path_list.compose(glob_patterns=['**/*.p'])
+
         solver = Solver(timeout=20)
         graphifier = Graphifier(solver, max_number_of_nodes=args.max_problem_size)
         if args.evaluate_on_training_set:
@@ -173,6 +176,12 @@ def main():
                     if int(step_i) % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=step_i, _r=1):
                             eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver)
+                            vampire_results = evaluate_with_vampire_on_problem_list(problems_vampire_eval, model, graphifier)
+                            n_succ = (vampire_results.returncode == 0).sum()
+                            n_total = len(problems_vampire_eval)
+                            eval_record['vampire_evaluation', 'vampire_rate'] = n_succ / n_total
+                            eval_record['vampire_evaluation', 'vampire_succ'] = n_succ
+                            eval_record['vampire_evaluation', 'vampire_total'] = n_total
                             postfix.update({'.'.join(k): v for k, v in eval_record.items() if
                                             k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
                             t.set_postfix(postfix)
@@ -495,6 +504,29 @@ def evaluate_with_vampire_on_problems(problems, batch_symbol_costs, solver):
 
 def extract_problem_symbol_costs(problem, batch_symbol_costs):
     return batch_symbol_costs[problem.first_symbol: problem.first_symbol + problem.n_symbols]
+
+
+def evaluate_with_vampire_on_problem_list(problem_names, model, graphifier):
+    logging.info(f'Evaluating with Vampire on {len(problem_names)} problems...')
+    records = Parallel(verbose=2)(
+        delayed(evaluate_with_vampire_on_problem_using_model)(problem_name, model, graphifier) for problem_name in
+        problem_names)
+    logging.info('Evaluation with Vampire done.')
+    df = pd.DataFrame(records, index=problem_names)
+    return df
+
+
+def evaluate_with_vampire_on_problem_using_model(problem_name, model, graphifier):
+    time_start = time.time()
+    graph = graphifier[problem_name]
+    time_graphification = time.time() - time_start
+    if graph is None:
+        return None
+    x = {'batch_graph': graph}
+    symbol_costs = model.predict_symbol_costs(x, training=False)
+    res = evaluate_with_vampire_on_problem(problem_name, symbol_costs, graphifier.solver)
+    res['time_graphification'] = time_graphification
+    return res
 
 
 def evaluate_with_vampire_on_problem(problem_name, symbol_costs, solver):

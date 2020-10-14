@@ -59,6 +59,9 @@ class Graphifier:
             ])
         assert all(ntype in self.ntypes for ntype in itertools.chain.from_iterable(self.ntype_pairs))
 
+    def __getitem__(self, problem):
+        return problem_to_graph(self, problem)[0]
+
     @property
     def canonical_etypes(self):
         res_standard = itertools.chain.from_iterable(
