@@ -120,7 +120,7 @@ def main():
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
         records = evaluate_linear_models(args.evaluate_linear_standard, args.evaluate_linear_random, eval_datasets,
-                                         loss_fn, summary_writers, solver)
+                                         loss_fn, summary_writers, solver, problems_vampire_eval, graphifier)
         save_df(utils.dataframe_from_records(records), 'linear_models', output_dir_full)
 
         optimizers = {
@@ -175,7 +175,7 @@ def main():
                             logging.warning('Attempting to stop profiling when no profiler is running.', exc_info=True)
                     if int(step_i) % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=step_i, _r=1):
-                            eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver)
+                            eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver, problems_vampire_eval, graphifier)
                             postfix.update({'.'.join(k): v for k, v in eval_record.items() if
                                             k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
                             t.set_postfix(postfix)
@@ -206,7 +206,7 @@ def main():
                     step_i.assign_add(1)
                     t.update()
                 tf.summary.experimental.set_step(step_i)
-                eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver)
+                eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver, problems_vampire_eval, graphifier)
                 postfix.update({'.'.join(k): v for k, v in eval_record.items() if
                                 k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
                 t.set_postfix(postfix)
@@ -239,7 +239,7 @@ def main():
                 'steps_training', output_dir_full)
 
 
-def evaluate_linear_models(standard, random, eval_datasets, loss_fn, summary_writers, solver, k=12):
+def evaluate_linear_models(standard, random, eval_datasets, loss_fn, summary_writers, solver, problems_vampire_eval, graphifier, k=12):
     w_values = []
     records = []
     if standard:
@@ -250,7 +250,7 @@ def evaluate_linear_models(standard, random, eval_datasets, loss_fn, summary_wri
         symbol_cost_model = layers.Dense(1, use_bias=False, trainable=False,
                                          kernel_initializer=tf.constant_initializer(w))
         simple_model = QuestionLogitModel(SymbolEmbeddingModelSimple(), 'predicate', symbol_cost_model)
-        eval_record = evaluate(simple_model, eval_datasets, loss_fn, summary_writers, solver)
+        eval_record = evaluate(simple_model, eval_datasets, loss_fn, summary_writers, solver, problems_vampire_eval, graphifier)
         eval_record['weight'] = w
         eval_record['weight_normalized'] = sklearn.preprocessing.normalize(w.reshape(1, -1)).flatten()
         records.append(eval_record)
