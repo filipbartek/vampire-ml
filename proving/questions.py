@@ -20,7 +20,6 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tqdm import tqdm
 
-from proving import simple_features
 from proving import utils
 from proving.graphifier import Graphifier
 from proving.heterographconv import HeteroGCN
@@ -124,8 +123,10 @@ def main():
         rng = np.random.RandomState(0)
         w_values.extend(rng.normal(0, 1, k) for _ in range(args.evaluate_linear_random))
         for w in tqdm(w_values, unit='model', desc='Evaluating linear models'):
-            record = simple_features.evaluate_weights(w, eval_datasets['test'], eval_datasets['train'], loss_fn)
-            records.append(record)
+            symbol_cost_model = layers.Dense(1, use_bias=False, trainable=False, kernel_initializer=tf.constant_initializer(w))
+            simple_model = QuestionLogitModel(SymbolEmbeddingModelSimple(), 'predicate', symbol_cost_model)
+            eval_record = evaluate(simple_model, eval_datasets, loss_fn, summary_writers, solver)
+            records.append(eval_record)
         save_df(utils.dataframe_from_records(records), 'linear_models', output_dir_full)
 
         optimizers = {
@@ -280,6 +281,44 @@ def save_dataset_stats(problems, eval_datasets, output_dir):
         ('sample_weight', 'sum'): np.float
     }
     save_df(utils.dataframe_from_records(records, index_keys='name', dtypes=dtypes), 'datasets', output_dir)
+
+
+class QuestionLogitModel(keras.Model):
+    def __init__(self, symbol_embedding_model, symbol_type, symbol_cost_model=None):
+        super().__init__()
+        self.symbol_embedding_model = symbol_embedding_model
+        self.symbol_type = symbol_type
+        if symbol_cost_model is None:
+            symbol_cost_model = layers.Dense(1)
+        self.cost_model = symbol_cost_model
+
+    def call(self, x):
+        symbol_costs = self.predict_symbol_costs(x)
+        question_symbols = x['question_symbols']
+        ranking_difference = x['ranking_difference']
+        segment_ids = x['segment_ids']
+        logits = self._predict_precedence_pair_logits(symbol_costs, question_symbols, ranking_difference, segment_ids)
+        return {'symbol_costs': symbol_costs, 'logits': logits}
+
+    def predict_symbol_costs(self, x):
+        # Row: problem -> symbol
+        symbol_embeddings = self.symbol_embedding_model(x)[self.symbol_type]
+        return tf.squeeze(self.cost_model(symbol_embeddings), axis=1)
+
+    @staticmethod
+    @tf.function(experimental_relax_shapes=True)
+    def _predict_precedence_pair_logits(symbol_costs, question_symbols, ranking_difference, segment_ids):
+        # Row: problem -> question -> symbol
+        symbol_costs_tiled = tf.gather(symbol_costs, question_symbols)
+        potentials = tf.multiply(symbol_costs_tiled, ranking_difference)
+        # Row: problem -> question
+        precedence_pair_logit = tf.math.segment_sum(potentials, segment_ids)
+        return precedence_pair_logit
+
+
+class SymbolEmbeddingModelSimple(keras.Model):
+    def call(self, x):
+        return {'predicate': x['symbol_embeddings_predicate'], 'function': x['symbol_embeddings_function']}
 
 
 class SymbolPreferenceGCN(keras.Model):
