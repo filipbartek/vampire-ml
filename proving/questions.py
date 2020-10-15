@@ -344,17 +344,16 @@ class SymbolPreferenceGCN(keras.Model):
         self.cost_model = layers.Dense(1)
 
     def call(self, x):
-        graph = x['batch_graph']
         question_symbols = x['question_symbols']
         ranking_difference = x['ranking_difference']
         segment_ids = x['segment_ids']
-        symbol_costs = self.predict_symbol_costs(graph)
+        symbol_costs = self.predict_symbol_costs(x)
         logits = self._predict_precedence_pair_logits(symbol_costs, question_symbols, ranking_difference, segment_ids)
         return {'symbol_costs': symbol_costs, 'logits': logits}
 
-    def predict_symbol_costs(self, graph):
+    def predict_symbol_costs(self, x):
         # Row: problem -> symbol
-        symbol_embeddings = self.hetero_gcn(graph)[self.symbol_type]
+        symbol_embeddings = self.hetero_gcn(x['batch_graph'])[self.symbol_type]
         return tf.squeeze(self.cost_model(symbol_embeddings), axis=1)
 
     @staticmethod
