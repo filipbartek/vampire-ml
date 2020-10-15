@@ -303,7 +303,7 @@ class SymbolPreferenceGCN(keras.Model):
     def predict_symbol_costs(self, graph):
         # Row: problem -> symbol
         symbol_embeddings = self.hetero_gcn(graph)[self.symbol_type]
-        return tf.squeeze(self.cost_model(symbol_embeddings))
+        return tf.squeeze(self.cost_model(symbol_embeddings), axis=1)
 
     @tf.function(experimental_relax_shapes=True)
     def _predict_precedence_pair_logits(self, symbol_costs, question_symbols, ranking_difference, segment_ids):
