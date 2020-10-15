@@ -107,8 +107,8 @@ def main():
             eval_dataset_names = ('test', 'train')
         else:
             eval_dataset_names = ('test',)
-        problems, eval_datasets = get_data(args.question_dir, args.signature_dir, graphifier, args.cache_file, args.train_size,
-                                           args.test_size, BatchGenerator(args.max_test_batch_size),
+        problems, eval_datasets = get_data(args.question_dir, args.signature_dir, graphifier, args.cache_file,
+                                           args.train_size, args.test_size, BatchGenerator(args.max_test_batch_size),
                                            max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
                                            output_dir=output_dir_full, datasets=eval_dataset_names, device=args.device)
@@ -124,7 +124,8 @@ def main():
         rng = np.random.RandomState(0)
         w_values.extend(rng.normal(0, 1, k) for _ in range(args.evaluate_linear_random))
         for w in tqdm(w_values, unit='model', desc='Evaluating linear models'):
-            symbol_cost_model = layers.Dense(1, use_bias=False, trainable=False, kernel_initializer=tf.constant_initializer(w))
+            symbol_cost_model = layers.Dense(1, use_bias=False, trainable=False,
+                                             kernel_initializer=tf.constant_initializer(w))
             simple_model = QuestionLogitModel(SymbolEmbeddingModelSimple(), 'predicate', symbol_cost_model)
             eval_record = evaluate(simple_model, eval_datasets, loss_fn, summary_writers, solver)
             eval_record['weight'] = w
@@ -184,7 +185,8 @@ def main():
                     if int(step_i) % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=step_i, _r=1):
                             eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver)
-                            postfix.update({'.'.join(k): v for k, v in eval_record.items() if k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
+                            postfix.update({'.'.join(k): v for k, v in eval_record.items() if
+                                            k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
                             t.set_postfix(postfix)
                             records_evaluation.append(eval_record)
                             if trained:
