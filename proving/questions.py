@@ -176,12 +176,6 @@ def main():
                     if int(step_i) % args.evaluation_period == 0:
                         with tf.profiler.experimental.Trace('test', step_num=step_i, _r=1):
                             eval_record = evaluate(model, eval_datasets, loss_fn, summary_writers, solver)
-                            vampire_results = evaluate_with_vampire_on_problem_list(problems_vampire_eval, model, graphifier)
-                            n_succ = (vampire_results.returncode == 0).sum()
-                            n_total = len(problems_vampire_eval)
-                            eval_record['vampire_evaluation', 'vampire_rate'] = n_succ / n_total
-                            eval_record['vampire_evaluation', 'vampire_succ'] = n_succ
-                            eval_record['vampire_evaluation', 'vampire_total'] = n_total
                             postfix.update({'.'.join(k): v for k, v in eval_record.items() if
                                             k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
                             t.set_postfix(postfix)
@@ -394,7 +388,7 @@ def get_data(question_dir, signature_dir, graphifier, cache_file, train_size, te
     return problems, data
 
 
-def evaluate(model, datasets, loss_fn, summary_writers=None, solver=None):
+def evaluate(model, datasets, loss_fn, summary_writers=None, solver=None, problems_vampire_eval=None, graphifier=None):
     record = {'step': int(tf.summary.experimental.get_step())}
     for dataset_name, dataset in datasets.items():
         for name, value in test_step(model, dataset, loss_fn, solver).items():
@@ -402,6 +396,12 @@ def evaluate(model, datasets, loss_fn, summary_writers=None, solver=None):
             if summary_writers is not None:
                 with summary_writers[dataset_name].as_default():
                     tf.summary.scalar(f'evaluation.{name}', value)
+    vampire_results = evaluate_with_vampire_on_problem_list(problems_vampire_eval, model, graphifier)
+    n_succ = (vampire_results.returncode == 0).sum()
+    n_total = len(problems_vampire_eval)
+    record['vampire_evaluation', 'vampire_rate'] = n_succ / n_total
+    record['vampire_evaluation', 'vampire_succ'] = n_succ
+    record['vampire_evaluation', 'vampire_total'] = n_total
     return record
 
 
