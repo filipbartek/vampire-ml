@@ -531,8 +531,9 @@ def evaluate_with_vampire_on_problem_list(problem_names, model, graphifier):
     records = Parallel(verbose=2)(
         delayed(evaluate_with_vampire_on_problem_using_model)(problem_name, model, graphifier) for problem_name in
         problem_names)
-    logging.info('Evaluation with Vampire done.')
     df = pd.DataFrame(records, index=problem_names)
+    n_succ = (df.returncode == 0).sum()
+    logging.info(f'Evaluation with Vampire done. Success rate: {n_succ} / {len(df)} / {len(problem_names)}')
     return df
 
 
