@@ -542,7 +542,8 @@ def evaluate_with_vampire_on_problem_using_model(problem_name, model, graphifier
     graph = graphifier[problem_name]
     time_graphification = time.time() - time_start
     if graph is None:
-        return None
+        # Graphification failed.
+        return {'time_graphification': time_graphification}
     x = {'batch_graph': graph}
     clausify_result = graphifier.solver.clausify(problem_name)
     for symbol_type in ('predicate', 'function'):
