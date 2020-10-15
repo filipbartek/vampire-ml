@@ -69,6 +69,7 @@ def main():
     parser.add_argument('--device')
     parser.add_argument('--evaluate-linear-standard', action='store_true')
     parser.add_argument('--evaluate-linear-random', type=int, default=0)
+    parser.add_argument('--evaluate-linear', action='append', default=[])
     parser.add_argument('--evaluate-vampire', action='append')
     parser.add_argument('--checkpoint-read')
     args = parser.parse_args()
@@ -124,6 +125,8 @@ def main():
         k = 12
         w_values = []
         records = []
+        for w_str in args.evaluate_linear:
+            w_values.append(np.fromstring(w_str, count=k, sep=','))
         if args.evaluate_linear_standard:
             w_values.extend(itertools.chain(np.eye(k), np.eye(k) * -1))
         rng = np.random.RandomState(0)
