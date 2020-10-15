@@ -13,6 +13,7 @@ import dgl
 import joblib
 import numpy as np
 import pandas as pd
+import sklearn
 import tensorflow as tf
 from joblib import Parallel, delayed
 from sklearn.model_selection import train_test_split
@@ -126,6 +127,8 @@ def main():
             symbol_cost_model = layers.Dense(1, use_bias=False, trainable=False, kernel_initializer=tf.constant_initializer(w))
             simple_model = QuestionLogitModel(SymbolEmbeddingModelSimple(), 'predicate', symbol_cost_model)
             eval_record = evaluate(simple_model, eval_datasets, loss_fn, summary_writers, solver)
+            eval_record['weight'] = w
+            eval_record['weight_normalized'] = sklearn.preprocessing.normalize(w.reshape(1, -1)).flatten()
             records.append(eval_record)
         save_df(utils.dataframe_from_records(records), 'linear_models', output_dir_full)
 
