@@ -69,6 +69,7 @@ def main():
     parser.add_argument('--device')
     parser.add_argument('--evaluate-linear-standard', action='store_true')
     parser.add_argument('--evaluate-linear-random', type=int, default=0)
+    parser.add_argument('--evaluate-vampire', action='store_true')
     parser.add_argument('--checkpoint-read')
     args = parser.parse_args()
 
@@ -102,7 +103,9 @@ def main():
     logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), tf.device(args.device):
-        problems_vampire_eval, _ = file_path_list.compose(glob_patterns=['**/*.p'])
+        problems_vampire_eval = None
+        if args.evaluate_vampire:
+            problems_vampire_eval, _ = file_path_list.compose(glob_patterns=['**/*.p'])
 
         solver = Solver(timeout=20)
         graphifier = Graphifier(solver, max_number_of_nodes=args.max_problem_size)
@@ -396,12 +399,13 @@ def evaluate(model, datasets, loss_fn, summary_writers=None, solver=None, proble
             if summary_writers is not None:
                 with summary_writers[dataset_name].as_default():
                     tf.summary.scalar(f'evaluation.{name}', value)
-    vampire_results = evaluate_with_vampire_on_problem_list(problems_vampire_eval, model, graphifier)
-    n_succ = (vampire_results.returncode == 0).sum()
-    n_total = len(problems_vampire_eval)
-    record['vampire_evaluation', 'vampire_rate'] = n_succ / n_total
-    record['vampire_evaluation', 'vampire_succ'] = n_succ
-    record['vampire_evaluation', 'vampire_total'] = n_total
+    if problems_vampire_eval is not None:
+        vampire_results = evaluate_with_vampire_on_problem_list(problems_vampire_eval, model, graphifier)
+        n_succ = (vampire_results.returncode == 0).sum()
+        n_total = len(problems_vampire_eval)
+        record['vampire_evaluation', 'vampire_rate'] = n_succ / n_total
+        record['vampire_evaluation', 'vampire_succ'] = n_succ
+        record['vampire_evaluation', 'vampire_total'] = n_total
     return record
 
 
