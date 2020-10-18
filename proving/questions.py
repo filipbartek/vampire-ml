@@ -177,13 +177,6 @@ def main():
                 logging.info(f'Restored from latest checkpoint: {manager.latest_checkpoint}')
             else:
                 logging.info('No checkpoint to restore. Training from scratch.')
-
-            # TODO: Make sure they use `from_logits=True`.
-            model.compile(optimizer=optimizer, loss=loss_fn, metrics=['accuracy', 'binary_crossentropy'])
-            model_path = os.path.join(output_dir_full, 'model')
-            #model = keras.models.load_model(model_path)
-            #logging.info(f'Model loaded from {model_path}')
-
             best_metric_values = {k: 0 for k in itertools.product(eval_dataset_names, ('accuracy', 'vampire_rate'))}
             trained = False
             with tqdm(unit='step', desc='Training', total=args.steps) as t:
@@ -206,8 +199,6 @@ def main():
                                             k[1] in {'loss', 'accuracy', 'crossentropy', 'vampire_rate'}})
                             t.set_postfix(postfix)
                             records_evaluation.append(eval_record)
-                            model.save(model_path)
-                            logging.info(f'Model saved into {model_path}')
                             if trained:
                                 # Save checkpoints
                                 manager.save(checkpoint_number=step_i)
