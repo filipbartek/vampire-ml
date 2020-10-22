@@ -11,6 +11,7 @@ import numpy as np
 from proving import config
 from proving import process
 from proving import symbols
+from proving import utils
 from proving.memory import memory
 
 log = logging.getLogger(__name__)
@@ -52,6 +53,14 @@ class Result(process.Result):
 @memory.cache
 def call(problem, options=None, timeout=None, precedences=None, get_symbols=False, get_clauses=False, get_stdout=True,
          get_stderr=True):
+    try:
+        mode = options['mode']
+    except KeyError:
+        mode = None
+    precedence_strings = None
+    if precedences is not None:
+        precedence_strings = {k: utils.type_len(v) for k, v in precedences.items()}
+    log.debug(f'Running Vampire. Problem: {problem}. Mode: {mode}. Precedences: {precedence_strings}.')
     result_symbols = None
     clauses = None
     with OptionManager(problem, base_options=options, precedences=precedences, get_symbols=get_symbols,
