@@ -141,7 +141,10 @@ def main():
             eval_record['weight'] = w
             eval_record['weight_normalized'] = sklearn.preprocessing.normalize(w.reshape(1, -1)).flatten()
             records.append(eval_record)
-        save_df(utils.dataframe_from_records(records), 'linear_models', output_dir_full)
+        df_linear_models = utils.dataframe_from_records(records)
+        save_df(df_linear_models, 'linear_models', output_dir_full)
+        with summary_writers['train'].as_default():
+            tf.summary.text('linear_models', df_linear_models.to_markdown())
 
         optimizers = {
             'sgd': keras.optimizers.SGD,
