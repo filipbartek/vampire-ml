@@ -169,8 +169,10 @@ def load_clauses(file):
     # Throws FileNotFoundError if `file` does not exist.
     log.debug(f'Loading {file} of size {os.path.getsize(file)}.')
     # Throws json.JSONDecodeError if the content is malformed.
-    return json.load(open(file))
+    with open(file) as f:
+        return json.load(f)
 
 
 def save_clauses(clauses, file):
-    json.dump(clauses, open(file, 'w'))
+    with open(file, 'w') as f:
+        json.dump(clauses, f)

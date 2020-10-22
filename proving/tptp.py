@@ -103,5 +103,6 @@ def cast_value(name, raw_value):
 
 def header(problem):
     file_path = config.full_problem_path(problem)
-    header_lines = itertools.takewhile(lambda l: l.startswith('%') or not l.rstrip(), open(file_path))
-    return ''.join(header_lines)
+    with open(file_path) as f:
+        header_lines = itertools.takewhile(lambda l: l.startswith('%') or not l.rstrip(), f)
+        return ''.join(header_lines)
