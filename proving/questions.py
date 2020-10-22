@@ -118,7 +118,8 @@ def main():
                                            max_problems=args.max_problems,
                                            max_questions_per_problem=args.max_questions_per_problem,
                                            output_dir=output_dir_full, datasets=eval_dataset_names, device=args.device)
-        save_dataset_stats(problems, eval_datasets, output_dir_full)
+        with summary_writers['train'].as_default():
+            save_dataset_stats(problems, eval_datasets, output_dir_full)
 
         loss_fn = keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -296,7 +297,9 @@ def save_dataset_stats(problems, eval_datasets, output_dir):
         ('sample_weight', 'len'): pd.UInt32Dtype(),
         ('sample_weight', 'sum'): np.float
     }
-    save_df(utils.dataframe_from_records(records, index_keys='name', dtypes=dtypes), 'datasets', output_dir)
+    df = utils.dataframe_from_records(records, index_keys='name', dtypes=dtypes)
+    save_df(df, 'datasets', output_dir)
+    tf.summary.text('datasets', df.to_markdown())
 
 
 class QuestionLogitModel(keras.Model):
