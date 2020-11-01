@@ -7,9 +7,7 @@ class SymbolCostModel(tf.keras.Model):
         self.problem_to_embedding = problem_to_embedding
         if embedding_to_cost is None:
             embedding_to_cost = tf.keras.layers.Dense(1)
-        # TimeDistributed handles the ragged dimension 1 of symbol embeddings.
-        # https://github.com/tensorflow/tensorflow/issues/39072#issuecomment-631759113
-        self.embedding_to_cost = tf.keras.layers.TimeDistributed(embedding_to_cost)
+        self.embedding_to_cost = embedding_to_cost
 
     def test_step(self, data):
         if not isinstance(data, tuple):
@@ -21,9 +19,11 @@ class SymbolCostModel(tf.keras.Model):
         if len(problems.shape) == 2:
             problems = tf.squeeze(problems, axis=1)
         embeddings = self.problem_to_embedding(problems, training=training)
-        costs = self.embedding_to_cost(embeddings, training=training)
-        costs = tf.squeeze(costs, axis=2)
-        assert costs.shape[0] == len(problems)
+        # `TimeDistributed` can be used in eager mode to support ragged tensor input.
+        # In non-eager mode it is necessary to flatten the ragged tensor `embedding`.
+        costs_flat_values = self.embedding_to_cost(embeddings.flat_values, training=training)
+        costs_flat_values = tf.squeeze(costs_flat_values, axis=1)
+        costs = tf.RaggedTensor.from_nested_row_splits(costs_flat_values, embeddings.nested_row_splits)
         return costs
 
 
@@ -36,15 +36,17 @@ class SolverSuccessRate(tf.keras.metrics.Mean):
     def update_state(self, problems, symbol_costs, sample_weight=None):
         if len(problems.shape) == 2:
             problems = tf.squeeze(problems, axis=1)
-        values = []
-        for problem, symbol_cost in zip(problems, symbol_costs):
-            if tf.reduce_any(tf.math.is_nan(symbol_cost)):
-                values.append(False)
-            else:
-                precedence = tf.argsort(symbol_cost)
-                succ = self.solve_one(problem, precedence)
-                values.append(succ)
+        values = tf.map_fn(self.evaluate_one, (problems, symbol_costs), fn_output_signature=tf.bool)
         super().update_state(values, sample_weight=sample_weight)
+
+    def evaluate_one(self, x):
+        problem, symbol_cost = x
+        if tf.reduce_any(tf.math.is_nan(symbol_cost)):
+            return False
+        else:
+            precedence = tf.argsort(symbol_cost)
+            succ = self.solve_one(problem, precedence)
+            return succ
 
     def solve_one(self, problem, precedence):
         return tf.py_function(self._solve_one, [problem, precedence], tf.bool)

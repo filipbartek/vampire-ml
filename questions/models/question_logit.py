@@ -23,11 +23,15 @@ class QuestionLogitModel(tf.keras.Model):
         super().reset_metrics()
         self.symbol_cost_model.reset_metrics()
 
+    @staticmethod
+    def get_sample_weight(questions):
+        return 1 / tf.repeat(questions.row_lengths(), questions.row_lengths())
+
     def test_step(self, x):
         # We assume that only x is passed, not y nor sample_weight.
         questions = self.raggify_questions(x['questions'])
         y = tf.zeros((questions.row_splits[-1], 1))
-        sample_weight = tf.concat([tf.fill(l, 1 / l) for l in questions.row_lengths()], 0)
+        sample_weight = self.get_sample_weight(questions)
         x['questions'] = questions
 
         y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
@@ -49,7 +53,7 @@ class QuestionLogitModel(tf.keras.Model):
     def train_step(self, x):
         questions = self.raggify_questions(x['questions'])
         y = tf.zeros((questions.row_splits[-1], 1))
-        sample_weight = tf.concat([tf.fill(l, 1 / l) for l in questions.row_lengths()], 0)
+        sample_weight = self.get_sample_weight(questions)
         x['questions'] = questions
 
         with tf.GradientTape() as tape:
