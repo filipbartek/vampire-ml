@@ -49,7 +49,7 @@ def filename_to_question(filename, dtype):
     else:
         res = precedence_diff
     # Normalize
-    n = len(res)
+    n = res.shape[0]
     res = res * 2 / (n * (n + 1))
     return res
 
