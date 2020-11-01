@@ -14,12 +14,12 @@ from questions import models
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--questions-dir')
+    parser.add_argument('--max-problems', type=int, default=None)
     parser.add_argument('--logs-dir', default='logs')
     parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--log-level', choices=['INFO', 'DEBUG'], default='INFO')
     parser.add_argument('--problems', action='append')
     parser.add_argument('--validation-split', type=float, default=0.5)
-    parser.add_argument('--max-problems', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=10)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
     parser.add_argument('--solver-evaluation-start', type=int, default=0)
