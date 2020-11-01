@@ -32,8 +32,15 @@ def batch(dataset, batch_size, row_splits_dtype=tf.int64):
             'nested_row_splits': (row_splits_dtype, row_splits_dtype)
         }
     }
-    # TODO: Specify output shapes.
-    return tf.data.Dataset.from_generator(gen, output_types)
+    output_shapes = {
+        # Note: We specify None instead of `batch_size` because the last batch may be smaller than `batch_size`.
+        'problems': tf.TensorShape([None]),
+        'questions': {
+            'flat_values': tf.TensorShape([None]),
+            'nested_row_splits': (tf.TensorShape([None]), tf.TensorShape([None]))
+        }
+    }
+    return tf.data.Dataset.from_generator(gen, output_types, output_shapes)
 
 
 def ragged_from_tensors(tensors, row_splits_dtype):

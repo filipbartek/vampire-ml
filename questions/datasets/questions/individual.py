@@ -30,9 +30,12 @@ def get_dataset(question_dir, problems, dtype=tf.float32):
             if len(questions_list) >= 1:
                 yield {'problem': problem, 'questions': tf.stack(questions_list)}
 
+    output_types = {'problem': tf.string, 'questions': dtype}
+    output_shapes = {'problem': tf.TensorShape([]), 'questions': tf.TensorShape([None, None])}
+
     # Note: We cannot construct the dataset using `from_tensor_slices` because that function requires all 'questions'
     # tensors to have the same shape.
-    return tf.data.Dataset.from_generator(gen, {'problem': tf.string, 'questions': dtype})
+    return tf.data.Dataset.from_generator(gen, output_types, output_shapes)
 
 
 @tf.function
