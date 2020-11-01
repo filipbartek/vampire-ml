@@ -38,7 +38,6 @@ def get_dataset(question_dir, problems, dtype=tf.float32):
     return tf.data.Dataset.from_generator(gen, output_types, output_shapes)
 
 
-@tf.function
 def filename_to_question(filename, dtype):
     it = iter(tf.data.TextLineDataset(filename))
     precedences = tuple(map(functools.partial(line_to_precedence, dtype=dtype), itertools.islice(it, 2)))
@@ -55,7 +54,6 @@ def filename_to_question(filename, dtype):
     return res
 
 
-@tf.function
 def line_to_precedence(x, dtype=tf.int32, sep=','):
     """Convert a string with comma-separated numbers to a tensor.
 
