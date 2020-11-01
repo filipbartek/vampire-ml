@@ -97,11 +97,16 @@ class SymbolCostEvaluationCallback(tf.keras.callbacks.Callback):
         super().__init__()
         self.problems = problems
         self.problems_validation = problems_validation
+        if start is None and step is not None:
+            start = 0
+        elif step is None and start is not None:
+            step = 1
         self.start = start
         self.step = step
 
     def on_epoch_end(self, epoch, logs=None):
-        if epoch >= self.start and (epoch - self.start) % self.step == 0:
+        if self.start is not None and self.step is not None and epoch >= self.start and (
+                epoch - self.start) % self.step == 0:
             assert logs is not None
             symbol_cost_model = self.model.symbol_cost_model
             if self.problems is not None:
