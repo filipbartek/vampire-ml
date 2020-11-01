@@ -43,8 +43,7 @@ def main():
     questions = datasets.questions.batch.get_datasets(args.questions_dir, problems, args.batch_size,
                                                       os.path.join('cache', 'questions'))
     for k, q in questions.items():
-        logging.info(f'Preloading {k} batches...')
-        datasets.questions.batch.preload(q)
+        datasets.questions.batch.preload(q, k)
 
     model_simple = models.symbol_features.SimpleSymbolFeaturesModel(solver, args.symbol_type)
     model_symbol_cost = models.symbol_cost.SymbolCostModel(model_simple)

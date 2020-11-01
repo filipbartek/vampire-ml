@@ -63,10 +63,10 @@ def matrices_to_ragged_precursors(tensors, row_lengths_dtype=tf.int64):
     return flat_values, nested_row_lengths
 
 
-def preload(dataset):
+def preload(dataset, name):
     n_batches = 0
     n_elements = 0
-    for batch in tqdm(dataset, unit='batch', desc='Preloading batches'):
+    for batch in tqdm(dataset, unit='batch', desc=f'Preloading {name} batches'):
         n_batches += 1
         n_elements += len(batch['problems'])
     logging.info(f'Number of batches: {n_batches}')
