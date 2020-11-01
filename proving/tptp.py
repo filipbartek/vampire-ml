@@ -71,7 +71,7 @@ def problem_properties(problem, header_properties=True):
 def file_name_properties(file_name):
     file_name = os.path.basename(file_name)
     # http://www.tptp.org/TPTP/TR/TPTPTR.shtml#ProblemAndAxiomatizationNaming
-    p = r'^(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*)(?:\.[pg])?$'
+    p = r'^(?P<name>(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*))(?:\.[pg])?$'
     return match_and_cast(p, file_name)
 
 
