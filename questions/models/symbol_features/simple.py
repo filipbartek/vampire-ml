@@ -1,8 +1,10 @@
 import numpy as np
 import tensorflow as tf
 
+from .symbol_features import SymbolFeatures
 
-class SimpleSymbolFeaturesModel(tf.keras.layers.Layer):
+
+class SimpleSymbolFeaturesModel(SymbolFeatures):
     def __init__(self, solver, symbol_type, columns=None, dtype=None):
         super().__init__(trainable=False, dtype=dtype)
         self.solver = solver
@@ -22,6 +24,7 @@ class SimpleSymbolFeaturesModel(tf.keras.layers.Layer):
         return res
 
     def predict_one(self, problem):
+        # TODO: Cache the problem signatures so that TF need not run the pure Python function.
         return tf.py_function(self._predict_one, [problem], self.dtype)
 
     def _predict_one(self, problem):

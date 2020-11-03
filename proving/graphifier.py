@@ -74,14 +74,18 @@ class Graphifier:
         attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
         return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={getattr(self, k)}' for k in attrs)
 
-    def problems_to_graphs(self, problems):
-        logging.info(f'Graphifying {len(problems)} problems...')
-        res = Parallel(verbose=1)(delayed(problem_to_graph)(self, problem) for problem in problems)
-        logging.info(
+    def problems_to_graphs(self, problems, return_records=True):
+        logging.debug(f'Graphifying {len(problems)} problems...')
+        res = Parallel(verbose=0)(delayed(problem_to_graph)(self, problem) for problem in problems)
+        logging.debug(
             f'Problems graphified. {sum(g is not None for g, record in res)}/{len(res)} graphified successfully.')
+        if not return_records:
+            res = [r[0] for r in res]
         return res
 
     def problem_to_graph(self, problem):
+        if isinstance(problem, tf.Tensor):
+            problem = bytes.decode(problem.numpy())
         time_start = time.time()
         clausify_result = self.solver.clausify(problem)
         time_elapsed = time.time() - time_start

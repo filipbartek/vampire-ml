@@ -4,18 +4,6 @@ import more_itertools
 import tensorflow as tf
 from tqdm import tqdm
 
-from . import individual
-
-
-def get_datasets(question_dir, problems, batch_size, cache_dir=None):
-    logging.info('Batch size: %d', batch_size)
-    questions = individual.get_datasets(question_dir, problems, cache_dir)
-    res = {}
-    for k, q in questions.items():
-        batches = batch(q, batch_size)
-        res[k] = batches
-    return res
-
 
 def batch(dataset, batch_size, row_splits_dtype=tf.int64):
     def gen():

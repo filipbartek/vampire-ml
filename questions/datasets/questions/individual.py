@@ -1,23 +1,8 @@
 import functools
 import itertools
-import logging
 import os
 
 import tensorflow as tf
-
-
-def get_datasets(question_dir, problems, cache_dir=None):
-    res = {}
-    for k, p in problems.items():
-        questions = get_dataset(question_dir, p)
-        if cache_dir is not None:
-            os.makedirs(cache_dir, exist_ok=True)
-            cache_path = os.path.join(cache_dir, k)
-            logging.info('Caching into: %s', cache_path)
-            # Parameters: problems, question set (path), dataset (train or validation)
-            questions = questions.cache(cache_path)
-        res[k] = questions
-    return res
 
 
 def get_dataset(question_dir, problems, dtype=tf.float32):

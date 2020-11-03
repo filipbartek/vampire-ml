@@ -2,13 +2,23 @@
 
 import argparse
 import logging
-import os
 
 import tensorflow as tf
 
+from proving.graphifier import Graphifier
 from proving.solver import Solver
 from questions import datasets
 from questions import models
+
+
+def get_symbol_embedding_model(model_type, solver, symbol_type):
+    if model_type == 'simple':
+        return models.symbol_features.simple.SimpleSymbolFeaturesModel(solver, symbol_type)
+    elif model_type == 'gcn':
+        graphifier = Graphifier(solver)
+        return models.symbol_features.graph.GraphSymbolFeatures(graphifier, symbol_type)
+    else:
+        raise ValueError(f'Unsupported symbol embedding model: {model_type}')
 
 
 def main():
@@ -27,6 +37,9 @@ def main():
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--run-eagerly', action='store_true')
+    parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
+    parser.add_argument('--cache-dir')
+    parser.add_argument('--cache-mem', action='store_true')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -38,16 +51,14 @@ def main():
         patterns = ['**/*-*.p', '**/*+*.p']
         logging.info('Defaulting problem patterns to: %s', patterns)
 
+    problems, questions = datasets.common.get_datasets(patterns, args.validation_split, args.max_problems,
+                                                       args.questions_dir, args.batch_size, args.cache_dir,
+                                                       args.cache_mem)
+
     solver = Solver(timeout=20)
 
-    problems = datasets.problems.get_datasets_split(patterns, args.validation_split, args.max_problems)
-    questions = datasets.questions.batch.get_datasets(args.questions_dir, problems, args.batch_size,
-                                                      os.path.join('cache', 'questions'))
-    for k, q in questions.items():
-        datasets.questions.batch.preload(q, k)
-
-    model_simple = models.symbol_features.SimpleSymbolFeaturesModel(solver, args.symbol_type)
-    model_symbol_cost = models.symbol_cost.SymbolCostModel(model_simple)
+    model_symbol_embedding = get_symbol_embedding_model(args.symbol_embedding_model, solver, args.symbol_type)
+    model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding)
     model_symbol_cost.compile(metrics=[models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)],
                               run_eagerly=False)
     model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
