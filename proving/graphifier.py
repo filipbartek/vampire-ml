@@ -86,6 +86,7 @@ class Graphifier:
     def problem_to_graph(self, problem):
         if isinstance(problem, tf.Tensor):
             problem = bytes.decode(problem.numpy())
+        logging.debug(f'Graphifying problem {problem}...')
         time_start = time.time()
         clausify_result = self.solver.clausify(problem)
         time_elapsed = time.time() - time_start
@@ -94,6 +95,7 @@ class Graphifier:
                   'clausify_time': time_elapsed}
         record.update(tptp.problem_properties(problem))
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
+            logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
             return None, record
         symbol_types = ('predicate', 'function')
         symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
@@ -104,6 +106,7 @@ class Graphifier:
             g = self.clausify_result_to_graph(clausify_result)
         except RuntimeError:
             # The graph would be too large (too many nodes).
+            logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
             g = None
         time_elapsed = time.time() - time_start
         record['graph_time'] = time_elapsed
@@ -111,6 +114,7 @@ class Graphifier:
             record['graph_nodes'] = g.num_nodes()
             record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
             record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
+            logging.debug(f'Problem {problem} graphified.')
         return g, record
 
     def clausify_result_to_graph(self, clausify_result):
