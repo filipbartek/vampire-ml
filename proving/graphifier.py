@@ -158,7 +158,7 @@ class TermVisitor:
 
     def check_number_of_nodes(self):
         if self.max_number_of_nodes is not None and self.number_of_nodes > self.max_number_of_nodes:
-            raise RuntimeError('Too many nodes.')
+            raise RuntimeError(f'Too many nodes. Current: {self.number_of_nodes}. Maximum: {self.max_number_of_nodes}.')
 
     @property
     def edge_type_forward(self):
