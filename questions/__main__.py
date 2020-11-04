@@ -12,6 +12,7 @@ from questions import models
 
 
 def get_symbol_embedding_model(model_type, solver, symbol_type):
+    logging.info(f'Symbol embedding model: {model_type}')
     if model_type == 'simple':
         return models.symbol_features.simple.SimpleSymbolFeaturesModel(solver, symbol_type)
     elif model_type == 'gcn':
