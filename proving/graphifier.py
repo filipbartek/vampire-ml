@@ -1,3 +1,4 @@
+import functools
 import itertools
 import json
 import logging
@@ -73,6 +74,17 @@ class Graphifier:
     def __repr__(self):
         attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
         return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={getattr(self, k)}' for k in attrs)
+
+    def problems_to_batch_graph(self, problems):
+        if isinstance(problems, tf.Tensor):
+            problems = tuple(bytes.decode(p.numpy()) for p in problems)
+        return self._problems_to_batch_graph(problems)
+
+    @functools.lru_cache(maxsize=None)
+    def _problems_to_batch_graph(self, problems):
+        graphs = self.problems_to_graphs(problems, return_records=False)
+        batch_graph = dgl.batch(graphs)
+        return batch_graph
 
     def problems_to_graphs(self, problems, return_records=True):
         logging.debug(f'Graphifying {len(problems)} problems...')

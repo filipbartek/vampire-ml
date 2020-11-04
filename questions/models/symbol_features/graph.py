@@ -1,4 +1,3 @@
-import dgl
 import tensorflow as tf
 
 from .heterographconv import HeteroGCN
@@ -17,8 +16,7 @@ class GraphSymbolFeatures(SymbolFeatures, HeteroGCN):
         self.symbol_type = symbol_type
 
     def call(self, problems):
-        graphs = self.graphifier.problems_to_graphs(problems, return_records=False)
-        batch_graph = dgl.batch(graphs)
+        batch_graph = self.graphifier.problems_to_batch_graph(problems)
         res = self.resolve_batch_graph(batch_graph)
         return res
 
