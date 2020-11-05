@@ -24,7 +24,7 @@ def get_symbol_embedding_model(model_type, solver, symbol_type):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--problems', action='append')
+    parser.add_argument('problem', nargs='*')
     parser.add_argument('--questions-dir')
     parser.add_argument('--max-problems', type=int, default=None)
     parser.add_argument('--logs-dir', default='logs')
@@ -47,8 +47,8 @@ def main():
     tf.random.set_seed(0)
     tf.config.run_functions_eagerly(args.run_eagerly)
 
-    patterns = args.problems
-    if patterns is None:
+    patterns = args.problem
+    if patterns is None or len(patterns) == 0:
         patterns = ['**/*-*.p', '**/*+*.p']
         logging.info('Defaulting problem patterns to: %s', patterns)
 
