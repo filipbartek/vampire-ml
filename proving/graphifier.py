@@ -25,12 +25,14 @@ class Graphifier:
     edge_type_backward = 'backward'
     edge_type_self = 'self'
 
-    def __init__(self, solver, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None):
+    def __init__(self, solver, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
+                 output_ntypes=('predicate', 'function')):
         self.solver = solver
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
         self.equality = equality
         self.max_number_of_nodes = max_number_of_nodes
+        self.output_ntypes = output_ntypes
 
         self.ntypes = ['clause', 'term', 'predicate', 'function', 'variable']
         self.ntype_pairs = [
@@ -58,7 +60,8 @@ class Graphifier:
                 ('equality', 'term'),
                 ('equality', 'variable')
             ])
-        assert all(ntype in self.ntypes for ntype in itertools.chain.from_iterable(self.ntype_pairs))
+        assert set(self.output_ntypes) <= set(self.ntypes)
+        assert set(itertools.chain.from_iterable(self.ntype_pairs)) <= set(self.ntypes)
 
     def __getitem__(self, problem):
         return problem_to_graph(self, problem)[0]
@@ -68,7 +71,8 @@ class Graphifier:
         res_standard = itertools.chain.from_iterable(
             ((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)) for
             srctype, dsttype in self.ntype_pairs)
-        res_self = ((ntype, self.edge_type_self, ntype) for ntype in ('predicate', 'function'))
+        # We add loops to potential output ntypes to ensure that their embeddings are always computed.
+        res_self = ((ntype, self.edge_type_self, ntype) for ntype in self.output_ntypes)
         return list(itertools.chain(res_standard, res_self))
 
     def __repr__(self):
@@ -140,7 +144,7 @@ class Graphifier:
 class TermVisitor:
     """Stateful. Must be instantiated for each new graph."""
 
-    def __init__(self, template, node_features, feature_dtype=tf.float32):
+    def __init__(self, template, node_features=None, feature_dtype=tf.float32):
         # TODO: Allow limiting term sharing to inside a clause, letting every clause to use a separate set of variables.
         # TODO: Add a root "formula" node that connects to all clauses.
         # TODO: Allow introducing separate node types for predicates and functions.
@@ -154,6 +158,8 @@ class TermVisitor:
         self.template = template
         self.feature_dtype = feature_dtype
         self.node_counts = {node_type: 0 for node_type in self.template.ntypes}
+        if node_features is None:
+            node_features = {}
         for ntype, feat in node_features.items():
             self.node_counts[ntype] = len(feat)
         self.edges = {ntype_pair: {'src': [], 'dst': []} for ntype_pair in self.template.ntype_pairs}
@@ -215,7 +221,8 @@ class TermVisitor:
                 feat = self.convert_to_feature_matrix(d['feat'])
                 edge_features[canonical_etype_fw] = feat
                 edge_features[canonical_etype_bw] = feat
-        for ntype in self.node_features:
+        # Loops
+        for ntype in self.template.output_ntypes:
             r = tf.range(self.node_counts[ntype], dtype=dtype)
             data_dict[ntype, self.edge_type_self, ntype] = (r, r)
         g = dgl.heterograph(data_dict, self.node_counts)
