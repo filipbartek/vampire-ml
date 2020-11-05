@@ -108,29 +108,35 @@ class Graphifier:
         time_elapsed = time.time() - time_start
         record = {'problem': problem,
                   'clausify_returncode': clausify_result.returncode,
-                  'clausify_time': time_elapsed}
+                  'clausify_time': time_elapsed,
+                  'error': None}
         record.update(tptp.problem_properties(problem))
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
             logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
-            return None, record
-        symbol_types = ('predicate', 'function')
-        symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
-        record['clause_count'] = len(clausify_result.clauses)
-        record.update({f'{symbol_type}_count': len(symbols[symbol_type]) for symbol_type in symbol_types})
-        time_start = time.time()
-        try:
-            g = self.clausify_result_to_graph(clausify_result)
-        except RuntimeError:
-            # The graph would be too large (too many nodes).
-            logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
+            record['error'] = 'clausify'
             g = None
-        time_elapsed = time.time() - time_start
-        record['graph_time'] = time_elapsed
-        if g is not None:
-            record['graph_nodes'] = g.num_nodes()
-            record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
-            record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
-            logging.debug(f'Problem {problem} graphified.')
+        else:
+            symbol_types = ('predicate', 'function')
+            symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
+            record['clause_count'] = len(clausify_result.clauses)
+            record.update({f'{symbol_type}_count': len(symbols[symbol_type]) for symbol_type in symbol_types})
+            time_start = time.time()
+            try:
+                g = self.clausify_result_to_graph(clausify_result)
+            except RuntimeError:
+                # The graph would be too large (too many nodes).
+                logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
+                record['error'] = 'node_count'
+                g = None
+            time_elapsed = time.time() - time_start
+            record['graph_time'] = time_elapsed
+            if g is not None:
+                record['graph_nodes'] = g.num_nodes()
+                record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
+                record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
+                logging.debug(f'Problem {problem} graphified.')
+        if g is None:
+            g = TermVisitor(self).get_graph()
         return g, record
 
     def clausify_result_to_graph(self, clausify_result):
