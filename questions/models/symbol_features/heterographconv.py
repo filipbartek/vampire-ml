@@ -37,8 +37,6 @@ class HeteroGCN(tf.keras.layers.Layer):
         self.ntype_embeddings = {ntype: self.add_weight(name=ntype, shape=(1, node_layer_sizes[ntype]),
                                                         dtype=dtype_tf_float, initializer='random_normal',
                                                         trainable=True) for ntype in contributing_srctypes}
-        # self.ntype_embeddings = {ntype: tf.Variable(tf.random.normal((1, node_layer_sizes[ntype]), dtype=dtype_tf_float), name=ntype)
-        #                         for ntype in node_layer_sizes if ntype in contributing_srctypes}
 
     @staticmethod
     def create_layer(edge_layer_sizes, node_layer_sizes):
@@ -48,7 +46,6 @@ class HeteroGCN(tf.keras.layers.Layer):
 
     def initial_node_embeddings(self, g):
         return {ntype: tf.tile(e, (g.num_nodes(ntype), 1)) for ntype, e in self.ntype_embeddings.items()}
-        #return {ntype: tf.tile(self.ntype_embeddings[ntype], (g.num_nodes(ntype), 1)) for ntype in g.ntypes}
 
     def call(self, g):
         x = self.initial_node_embeddings(g)
