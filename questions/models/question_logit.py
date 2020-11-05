@@ -130,12 +130,13 @@ class SymbolCostEvaluationCallback(tf.keras.callbacks.Callback):
                 epoch - self.start) % self.step == 0:
             assert logs is not None
             symbol_cost_model = self.model.symbol_cost_model
-            if self.problems is not None:
-                print('Evaluating symbol cost model on training problems...')
+            if self.problems is not None and self.problems.cardinality() >= 1:
+                print(f'Evaluating symbol cost model on {self.problems.cardinality()} training problems...')
                 train_res = symbol_cost_model.evaluate(self.problems, return_dict=True)
                 logs.update({k: v for k, v in train_res.items() if k != 'loss'})
-            if self.problems_validation is not None:
-                print('Evaluating symbol cost model on validation problems...')
+            if self.problems_validation is not None and self.problems_validation.cardinality() >= 1:
+                print(
+                    f'Evaluating symbol cost model on {self.problems_validation.cardinality()} validation problems...')
                 validation_res = symbol_cost_model.evaluate(self.problems_validation, return_dict=True)
                 logs.update({f'val_{k}': v for k, v in validation_res.items() if k != 'loss'})
             print(f'Metrics after epoch {epoch}: {logs}')
