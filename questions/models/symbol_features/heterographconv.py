@@ -64,7 +64,8 @@ class HeteroGraphConv(tf.keras.layers.Layer):
         """
         :param reduce_func_template: A DGL built-in reduce function.
         """
-        super().__init__()
+        # This layer is dynamic because DGLGraph.multi_update_all only works in eager mode.
+        super().__init__(dynamic=True)
         if reduce_func_template is None:
             # Jan Hula suggested that sum is better than mean since it allows the destination node to determine the number of source nodes.
             reduce_func_template = dgl.function.sum
@@ -134,6 +135,8 @@ class HeteroGraphConv(tf.keras.layers.Layer):
     def call(self, g, x):
         """
         Forward computation
+
+        This cannot be declared as tf.function. g.multi_update_all fails in such case.
 
         :param g dgl.DGLHeteroGraph: The graph
         :param x dict: Input node features. Maps each node type to a feature tensor.
