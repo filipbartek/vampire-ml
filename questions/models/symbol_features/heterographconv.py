@@ -7,8 +7,8 @@ dtype_tf_float = tf.float32
 
 
 class HeteroGCN(tf.keras.layers.Layer):
-    def __init__(self, edge_layer_sizes, node_layer_sizes, num_layers=1, output_ntypes=None):
-        super().__init__()
+    def __init__(self, edge_layer_sizes, node_layer_sizes, num_layers=1, output_ntypes=None, dynamic=False):
+        super().__init__(dynamic=dynamic)
 
         assert num_layers >= 1
 
