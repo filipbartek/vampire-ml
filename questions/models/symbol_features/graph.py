@@ -17,9 +17,9 @@ class GraphSymbolFeatures(SymbolFeatures, HeteroGCN):
         self.symbol_type = symbol_type
 
     def call(self, problems):
-        batch_graph = self.graphifier.problems_to_batch_graph(problems)
+        batch_graph, valid = self.graphifier.problems_to_batch_graph(problems)
         res = self.resolve_batch_graph(batch_graph)
-        return res
+        return {'embeddings': res, 'valid': valid}
 
     def resolve_batch_graph(self, batch_graph):
         values = HeteroGCN.call(self, batch_graph)[self.symbol_type]

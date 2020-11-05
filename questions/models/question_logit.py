@@ -75,8 +75,25 @@ class QuestionLogitModel(tf.keras.Model):
     def call(self, x, training=False):
         problems = x['problems']
         questions = self.raggify_questions(x['questions'])
-        symbol_costs = self.symbol_cost_model(problems, training=training)
-        logits = self.costs_to_logits(symbol_costs, questions)
+        symbol_costs_decorated = self.symbol_cost_model(problems, training=training)
+        logits = self.costs_decorated_to_logits(symbol_costs_decorated, questions)
+        return logits
+
+    @classmethod
+    @tf.function
+    def costs_decorated_to_logits(cls, symbol_costs_decorated, questions):
+        symbol_costs_valid = tf.ragged.boolean_mask(symbol_costs_decorated['costs'], symbol_costs_decorated['valid'])
+        questions_valid = tf.ragged.boolean_mask(questions, symbol_costs_decorated['valid'])
+        logits_valid = cls.costs_to_logits(symbol_costs_valid, questions_valid)
+        index_mask = tf.repeat(symbol_costs_decorated['valid'], questions.row_lengths())
+        indices_all = tf.range(questions.row_splits[-1])
+        indices_valid = indices_all[index_mask]
+        indices_valid = tf.expand_dims(indices_valid, axis=1)
+        tf.debugging.assert_equal(indices_valid.shape[:-1], logits_valid.flat_values.shape)
+        logits_values = tf.scatter_nd(indices_valid, logits_valid.flat_values,
+                                      tf.reshape(questions.row_splits[-1], (1,)))
+        logits = tf.RaggedTensor.from_row_splits(logits_values, questions.row_splits)
+        tf.debugging.assert_equal(logits.row_splits, questions.row_splits)
         return logits
 
     @staticmethod

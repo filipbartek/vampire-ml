@@ -86,9 +86,10 @@ class Graphifier:
 
     @functools.lru_cache(maxsize=None)
     def _problems_to_batch_graph(self, problems):
-        graphs = self.problems_to_graphs(problems, return_records=False)
+        graphs, valid = self.problems_to_graphs(problems, return_records=False)
         batch_graph = dgl.batch(graphs)
-        return batch_graph
+        valid = tf.convert_to_tensor(valid, dtype=tf.bool)
+        return batch_graph, valid
 
     def problems_to_graphs(self, problems, return_records=True):
         logging.debug(f'Graphifying {len(problems)} problems...')
@@ -96,8 +97,11 @@ class Graphifier:
         logging.debug(
             f'Problems graphified. {sum(g is not None for g, record in res)}/{len(res)} graphified successfully.')
         if not return_records:
-            res = [r[0] for r in res]
-        return res
+            graphs = [r[0] for r in res]
+            valid = [r[1]['error'] is None for r in res]
+            return graphs, valid
+        else:
+            return res
 
     def problem_to_graph(self, problem):
         if isinstance(problem, tf.Tensor):
