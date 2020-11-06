@@ -12,7 +12,6 @@ import tensorflow as tf
 from joblib import Parallel, delayed
 
 from proving import utils
-from proving.memory import memory
 from questions import plot
 
 
@@ -48,7 +47,6 @@ def load(file, questions_dir):
     return questions_all
 
 
-@memory.cache(verbose=2)
 def get_problem_questions(question_dir):
     def load_one(dir_entry):
         m = re.search(r'^(?P<problem_name>[A-Z]{3}[0-9]{3}[-+^=_][1-9][0-9]*(\.[0-9]{3})*)_\d+\.q$', dir_entry.name,
