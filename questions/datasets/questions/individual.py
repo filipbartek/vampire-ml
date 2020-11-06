@@ -26,7 +26,8 @@ def get_dataset(question_dir, problems, dtype=tf.float32):
 def filename_to_question(filename, dtype):
     it = iter(tf.data.TextLineDataset(filename))
     precedences = tuple(map(functools.partial(line_to_precedence, dtype=dtype), itertools.islice(it, 2)))
-    precedence_diff = precedences[1] - precedences[0]
+    # TODO: Invert precedences.
+    precedence_diff = precedences[0] - precedences[1]
     polarity = next(it)
     # res = tf.cond(polarity == '>', lambda: precedence_diff * -1, lambda: precedence_diff)
     if polarity == '>':
