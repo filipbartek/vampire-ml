@@ -23,6 +23,7 @@ def main():
     parser.add_argument('problem', nargs='*')
     parser.add_argument('--questions-dir')
     parser.add_argument('--questions-file')
+    parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--max-problems', type=int, default=None)
     parser.add_argument('--logs-dir', default='logs')
     parser.add_argument('--epochs', type=int, default=1000)
@@ -66,7 +67,8 @@ def main():
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         with writer_train.as_default():
-            questions_all = datasets.questions.load_questions.load(args.questions_file, args.questions_dir)
+            questions_all = datasets.questions.load_questions.load(args.questions_file, args.questions_dir,
+                                                                   args.max_questions_per_problem)
 
         problems_all = datasets.problems.get_dataset(patterns)
         logging.info('Number of problems available: %d', problems_all.cardinality())
