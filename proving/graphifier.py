@@ -139,8 +139,12 @@ class Graphifier:
                 record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
                 logging.debug(f'Problem {problem} graphified.')
         if g is None:
-            g = TermVisitor(self).get_graph()
+            g = self.empty_graph()
         return g, record
+
+    @functools.lru_cache(maxsize=1)
+    def empty_graph(self):
+        return TermVisitor(self).get_graph()
 
     def clausify_result_to_graph(self, clausify_result):
         symbol_features = {symbol_type: clausify_result.symbols_of_type(symbol_type)[['inGoal', 'introduced']] for
