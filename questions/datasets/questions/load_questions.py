@@ -29,6 +29,7 @@ def load(file, questions_dir, max_questions_per_problem=None):
             logging.info(f'Failed to load questions from file {file}.')
             questions_all = get_problem_questions(questions_dir, max_questions_per_problem)
             logging.info(f'Saving questions to file {file}...')
+            os.makedirs(os.path.dirname(file), exist_ok=True)
             joblib.dump(questions_all, file)
             logging.info(f'Questions saved to file {file}.')
     else:
