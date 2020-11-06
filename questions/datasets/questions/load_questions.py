@@ -45,6 +45,7 @@ def load(file, questions_dir):
     plt.yscale('log')
     image = plot.plot_to_image(figure)
     tf.summary.image('Problems with questions', image)
+    return questions_all
 
 
 @memory.cache(verbose=2)
