@@ -18,11 +18,15 @@ from questions import datasets
 from questions import models
 
 
+def hash_digest(o):
+    hash_data = json.dumps(o).encode()
+    return hashlib.md5(hash_data).hexdigest()
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('problem', nargs='*')
     parser.add_argument('--questions-dir')
-    parser.add_argument('--questions-file')
     parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--max-problems', type=int, default=None)
     parser.add_argument('--logs-dir', default='logs')
@@ -37,7 +41,7 @@ def main():
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
-    parser.add_argument('--cache-dir')
+    parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
@@ -66,10 +70,6 @@ def main():
     solver = Solver(timeout=20)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        with writer_train.as_default():
-            questions_all = datasets.questions.load_questions.load(args.questions_file, args.questions_dir,
-                                                                   args.max_questions_per_problem)
-
         problems_all = datasets.problems.get_dataset(patterns)
         logging.info('Number of problems available: %d', problems_all.cardinality())
         logging.debug('Leading 10 problems: %s', [bytes.decode(p.numpy()) for p in problems_all.take(10)])
@@ -89,31 +89,39 @@ def main():
         for k in problems:
             logging.info(f'Number of {k} problems: %d', problems[k].cardinality())
 
-        cache_dir = args.cache_dir
-        if cache_dir is not None:
+        # TODO?: Only load questions if the batches are not cached.
+        questions_file = os.path.join(args.cache_dir, f'max_questions_per_problem_{args.max_questions_per_problem}',
+                                      'questions.pkl')
+        with writer_train.as_default():
+            questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
+                                                                   args.max_questions_per_problem)
+
+        cache_patterns = os.path.join(args.cache_dir, f'patterns_{hash_digest(patterns)}')
+        os.makedirs(cache_patterns, exist_ok=True)
+        with open(os.path.join(cache_patterns, 'patterns.json'), 'w') as fp:
+            json.dump(patterns, fp, indent=4)
+        cache_dir = os.path.join(cache_patterns,
+                                 f'max_problems_{args.max_problems}',
+                                 f'validation_split_{args.validation_split}')
+
+        questions = {}
+        problems_with_questions = set()
+        for k, p in problems.items():
             # Cache identification parameters:
             # - problem sets (patterns, validation_split, max_problems)
             # - question set (question_dir)
             # - dataset name (validation or train)
             # We only hash the parameters that cannot be easily represented by a string.
-            hash_data = json.dumps({
-                'patterns': patterns,
-                'validation_split': args.validation_split
-            }).encode()
-            hash_digest = hashlib.md5(hash_data).hexdigest()
-            cache_dir = os.path.join(cache_dir, str(args.max_problems), hash_digest)
-
-        questions = {}
-        problems_with_questions = set()
-        for k, p in problems.items():
+            cache_dir_dataset = os.path.join(cache_dir, k)
+            logging.info(f'Caching {k} questions into: {cache_dir_dataset}')
             q = datasets.questions.individual.dict_to_dataset(questions_all, p)
-            if cache_dir is not None:
-                cache_path = os.path.join(cache_dir, k)
-                os.makedirs(os.path.dirname(cache_path), exist_ok=True)
-                logging.info('Caching into: %s', cache_path)
-                q = q.cache(cache_path)
+            os.makedirs(cache_dir_dataset, exist_ok=True)
+            q = q.cache(os.path.join(cache_dir_dataset, 'questions_individual'))
             problems_with_questions.update(bytes.decode(qq['problem'].numpy()) for qq in q)
             batches = datasets.questions.batch.batch(q, args.batch_size)
+            cache_dir_batches = os.path.join(cache_dir_dataset, f'batch_size_{args.batch_size}')
+            os.makedirs(cache_dir_batches, exist_ok=True)
+            batches = batches.cache(os.path.join(cache_dir_batches, 'question_batches'))
             if args.cache_mem:
                 batches = batches.cache()
             questions[k] = batches
