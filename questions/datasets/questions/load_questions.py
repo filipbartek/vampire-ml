@@ -3,6 +3,7 @@ import functools
 import logging
 import os
 import re
+import warnings
 
 import joblib
 import matplotlib.pyplot as plt
@@ -51,6 +52,9 @@ def get_problem_questions(question_dir):
     def load_one(dir_entry):
         m = re.search(r'^(?P<problem_name>[A-Z]{3}[0-9]{3}[-+^=_][1-9][0-9]*(\.[0-9]{3})*)_\d+\.q$', dir_entry.name,
                       re.MULTILINE)
+        if m is None:
+            warnings.warn(f'Failed to extract problem name from question file name: {dir_entry.name}')
+            return None, None
         problem_name = m['problem_name']
         question = load_question(dir_entry.path)
         return problem_name, question
@@ -61,7 +65,8 @@ def get_problem_questions(question_dir):
 
     question_lists = collections.defaultdict(list)
     for problem_name, question in question_entry_list:
-        question_lists[problem_name].append(question)
+        if problem_name is not None:
+            question_lists[problem_name].append(question)
 
     # Convert per-problem questions into an array
     question_arrays = {k: np.asarray(v) for k, v in question_lists.items()}
