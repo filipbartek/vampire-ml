@@ -92,13 +92,12 @@ class Graphifier:
         return batch_graph, valid
 
     def problems_to_graphs(self, problems, return_records=True):
-        logging.debug(f'Graphifying {len(problems)} problems...')
-        res = Parallel(verbose=0)(delayed(problem_to_graph)(self, problem) for problem in problems)
-        logging.debug(
-            f'Problems graphified. {sum(g is not None for g, record in res)}/{len(res)} graphified successfully.')
+        logging.info(f'Graphifying {len(problems)} problems...')
+        res = Parallel(verbose=1)(delayed(problem_to_graph)(self, problem) for problem in problems)
+        valid = [r[1]['error'] is None for r in res]
+        logging.info(f'Problems graphified. {sum(valid)}/{len(res)} graphified successfully.')
         if not return_records:
             graphs = [r[0] for r in res]
-            valid = [r[1]['error'] is None for r in res]
             return graphs, valid
         else:
             return res
