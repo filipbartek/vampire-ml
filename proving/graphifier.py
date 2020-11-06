@@ -91,6 +91,11 @@ class Graphifier:
         valid = tf.convert_to_tensor(valid, dtype=tf.bool)
         return batch_graph, valid
 
+    def problems_to_graphs_dict(self, problems):
+        graphs, valid = self.problems_to_graphs(problems, return_records=False)
+        res = {p: g for p, g, v in zip(problems, graphs, valid) if v}
+        return res
+
     def problems_to_graphs(self, problems, return_records=True):
         logging.info(f'Graphifying {len(problems)} problems...')
         res = Parallel(verbose=1)(delayed(problem_to_graph)(self, problem) for problem in problems)

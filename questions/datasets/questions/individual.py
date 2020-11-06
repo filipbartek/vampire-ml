@@ -5,6 +5,22 @@ import os
 import tensorflow as tf
 
 
+def dict_to_dataset(questions, problems, dtype=tf.float32):
+    def gen():
+        for problem in problems:
+            try:
+                yield {'problem': problem, 'questions': questions[bytes.decode(problem.numpy())]}
+            except KeyError:
+                pass
+
+    output_types = {'problem': tf.string, 'questions': dtype}
+    output_shapes = {'problem': tf.TensorShape([]), 'questions': tf.TensorShape([None, None])}
+
+    # Note: We cannot construct the dataset using `from_tensor_slices` because that function requires all 'questions'
+    # tensors to have the same shape.
+    return tf.data.Dataset.from_generator(gen, output_types, output_shapes)
+
+
 def get_dataset(question_dir, problems, dtype=tf.float32):
     def gen():
         for problem in problems:
