@@ -89,7 +89,7 @@ class QuestionLogitModel(tf.keras.Model):
         indices_all = tf.range(questions.row_splits[-1])
         indices_valid = indices_all[index_mask]
         indices_valid = tf.expand_dims(indices_valid, axis=1)
-        tf.debugging.assert_equal(indices_valid.shape[:-1], logits_valid.flat_values.shape)
+        # tf.debugging.assert_equal(indices_valid.shape[:-1], logits_valid.flat_values.shape)
         logits_values = tf.scatter_nd(indices_valid, logits_valid.flat_values,
                                       tf.reshape(questions.row_splits[-1], (1,)))
         logits = tf.RaggedTensor.from_row_splits(logits_values, questions.row_splits)
