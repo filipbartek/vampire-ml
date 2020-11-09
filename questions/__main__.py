@@ -93,6 +93,7 @@ def main():
         questions_file = os.path.join(args.cache_dir, f'max_questions_per_problem_{args.max_questions_per_problem}',
                                       'questions.pkl')
         with writer_train.as_default():
+            # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
             questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
                                                                    args.max_questions_per_problem)
 
