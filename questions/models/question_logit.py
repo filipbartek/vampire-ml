@@ -25,6 +25,7 @@ class QuestionLogitModel(tf.keras.Model):
 
     @staticmethod
     def get_sample_weight(questions):
+        # This sample weight vector ensures that each problem has the same weight.
         return 1 / tf.repeat(questions.row_lengths(), questions.row_lengths())
 
     def test_step(self, x):
