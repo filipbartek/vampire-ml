@@ -5,11 +5,18 @@ import os
 import tensorflow as tf
 
 
-def dict_to_dataset(questions, problems, dtype=tf.float32):
+def dict_to_dataset(questions, problems, normalize=True, dtype=tf.float32):
     def gen():
         for problem in problems:
             try:
-                yield {'problem': problem, 'questions': questions[bytes.decode(problem.numpy())]}
+                q = tf.constant(questions[bytes.decode(problem.numpy())], dtype=dtype)
+                if normalize:
+                    # Let n be the number of symbols in the problem.
+                    n = q.shape[1]
+                    # We scale the question matrix by a factor that makes questions from problems of various sizes commensurable.
+                    # We set the factor so that if symbol cost is 1 for all symbols, then precedence cost is 1 for all precedences.
+                    q *= 2 / (n * (n + 1))
+                yield {'problem': problem, 'questions': q}
             except KeyError:
                 pass
 
