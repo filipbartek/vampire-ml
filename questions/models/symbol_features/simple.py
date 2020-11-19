@@ -18,7 +18,8 @@ class SimpleSymbolFeaturesModel(SymbolFeatures):
             return len(self.columns)
 
     def call(self, problems):
-        fn_output_signature = [tf.RaggedTensorSpec(shape=[None, self.n], dtype=self.dtype, ragged_rank=0), tf.bool]
+        # The output shape of 'valid' is fully specified so that it can be later used as a boolean mask with `tf.ragged.boolean_mask`.
+        fn_output_signature = [tf.RaggedTensorSpec(shape=[None, self.n], dtype=self.dtype, ragged_rank=0), tf.TensorSpec(tf.TensorShape([]), dtype=tf.bool)]
         res = tf.map_fn(self.predict_one, problems, fn_output_signature=fn_output_signature)
         return {'embeddings': res[0], 'valid': res[1]}
 
