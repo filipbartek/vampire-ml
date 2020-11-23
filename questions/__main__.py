@@ -68,6 +68,9 @@ def main():
     if patterns is None or len(patterns) == 0:
         patterns = ['**/*-*.p', '**/*+*.p']
         logging.info('Defaulting problem patterns to: %s', patterns)
+    for i, pattern in enumerate(patterns):
+        if pattern[-2:] != '.p':
+            patterns[i] = f'{pattern[:3]}/{pattern}.p'
 
     solver = Solver(timeout=20)
 
