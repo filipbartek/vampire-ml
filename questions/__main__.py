@@ -155,10 +155,7 @@ def main():
         model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding)
         model_symbol_cost.compile(metrics=[models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)])
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-        model_logit.compile(optimizer=args.optimizer,
-                            loss=tf.keras.losses.BinaryCrossentropy(from_logits=True),
-                            metrics=[tf.keras.metrics.BinaryAccuracy(threshold=0),
-                                     tf.keras.metrics.BinaryCrossentropy(from_logits=True)])
+        model_logit.compile(optimizer=args.optimizer)
 
         callbacks = [
             tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch),

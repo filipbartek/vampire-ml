@@ -7,6 +7,23 @@ class QuestionLogitModel(tf.keras.Model):
         self.symbol_cost_model = symbol_cost_model
         self.update_symbol_cost_metrics = update_symbol_cost_metrics
 
+    def compile(self, weighted_metrics=None, **kwargs):
+        """
+        The loss is fixed to BinaryCrossentropy.
+        The following weighted metrics are always used:
+        - BinaryCrossentropy
+        - BinaryAccuracy
+        The reported loss metric is inaccurate because it averages over questions.
+        Batches with more questions contribute more, while the contribution should only depend on the number of problems.
+        The metric BinaryCrossentropy reports correct values.
+        """
+        if weighted_metrics is None:
+            weighted_metrics = []
+        weighted_metrics = [tf.keras.metrics.BinaryCrossentropy(from_logits=True),
+                            tf.keras.metrics.BinaryAccuracy(threshold=0)] + weighted_metrics
+        loss = tf.keras.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.SUM)
+        super().compile(loss=loss, weighted_metrics=weighted_metrics, **kwargs)
+
     def evaluate(self, x=None, return_dict=False, **kwargs):
         # If the dataset is empty, the evaluation terminates gracefully.
         # Model.evaluate throws OverflowError in such case.
@@ -39,20 +56,29 @@ class QuestionLogitModel(tf.keras.Model):
         # This sample weight vector ensures that each problem has the same weight.
         return 1 / tf.repeat(questions.row_lengths(), questions.row_lengths())
 
+    @classmethod
+    def get_loss_sample_weight(cls, questions):
+        # We want the loss to be the mean of the batch: https://stats.stackexchange.com/a/358971/271804
+        # This means the mean over problems, not questions.
+        # The loss sums (not averages) the contributions from questions,
+        # weighted so that each problem contributes a unit.
+        # We normalize the loss by dividing by the number of problems.
+        sample_weight = cls.get_sample_weight(questions)
+        n_problems = tf.cast(questions.shape[0], sample_weight.dtype)
+        tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems)
+        return sample_weight / n_problems
     def test_step(self, x):
         # We assume that only x is passed, not y nor sample_weight.
         questions = self.raggify_questions(x['questions'])
         y = tf.zeros((questions.row_splits[-1], 1))
-        sample_weight = self.get_sample_weight(questions)
         x['questions'] = questions
 
         y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
 
         # Updates stateful loss metrics.
-        self.compiled_loss(y, y_pred, sample_weight, regularization_losses=self.losses)
+        self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions), regularization_losses=self.losses)
 
-        # TODO: Scale binary_crossentropy to match loss.
-        self.compiled_metrics.update_state(y, y_pred, sample_weight)
+        self.compiled_metrics.update_state(y, y_pred, self.get_sample_weight(questions))
 
         res = {m.name: m.result() for m in self.metrics}
 
@@ -65,16 +91,16 @@ class QuestionLogitModel(tf.keras.Model):
     def train_step(self, x):
         questions = self.raggify_questions(x['questions'])
         y = tf.zeros((questions.row_splits[-1], 1))
-        sample_weight = self.get_sample_weight(questions)
         x['questions'] = questions
 
         with tf.GradientTape() as tape:
             y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
-            loss = self.compiled_loss(y, y_pred, sample_weight, regularization_losses=self.losses)
+            loss = self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions),
+                                      regularization_losses=self.losses)
         tf.python.keras.engine.training._minimize(self.distribute_strategy, tape, self.optimizer, loss,
                                                   self.trainable_variables)
 
-        self.compiled_metrics.update_state(y, y_pred, sample_weight)
+        self.compiled_metrics.update_state(y, y_pred, self.get_sample_weight(questions))
 
         res = {m.name: m.result() for m in self.metrics}
 
