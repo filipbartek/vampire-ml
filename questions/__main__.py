@@ -181,9 +181,8 @@ def main():
                                                                step=args.solver_evaluation_step)
         ]
         logging.info('Training...')
-        fit_res = model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
-                                  callbacks=callbacks)
-        print(fit_res)
+        model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
+                        callbacks=callbacks)
 
 
 if __name__ == '__main__':
