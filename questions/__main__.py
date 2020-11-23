@@ -53,6 +53,8 @@ def main():
     tf.config.run_functions_eagerly(args.run_eagerly)
     tf.summary.experimental.set_step(0)
 
+    logging.info(f'Joblib cache location: {memory.cachedir}')
+
     log_dir = os.path.join(args.logs_dir, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     logging.info(f'Log directory: {log_dir}')
     writer_train = tf.summary.create_file_writer(os.path.join(log_dir, 'train'))
