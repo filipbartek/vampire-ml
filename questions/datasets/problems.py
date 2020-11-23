@@ -27,8 +27,12 @@ def get_datasets_split(patterns, validation_split, max_problems=None):
 def get_dataset(patterns, shuffle=True, seed=0):
     base_path = config.problems_path()
     patterns_normalized = [file_path_list.normalize_path(pattern, base_path=base_path) for pattern in patterns]
-    dataset_files = tf.data.Dataset.list_files(patterns_normalized, shuffle=shuffle, seed=seed)
-    return dataset_files.map(problem_path_to_name)
+    # filipbartek: From my observation, `list_files` shuffles non-deterministically even if `seed` is specified.
+    # We resort to shuffling by `shuffle`, which is deterministic.
+    dataset_files = tf.data.Dataset.list_files(patterns_normalized, shuffle=False)
+    if shuffle:
+        dataset_files = dataset_files.shuffle(dataset_files.cardinality(), seed=seed, reshuffle_each_iteration=False)
+    return dataset_files.map(problem_path_to_name, deterministic=True)
 
 
 def problem_path_to_name(path):
