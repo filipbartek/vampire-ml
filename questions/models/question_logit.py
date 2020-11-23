@@ -70,7 +70,7 @@ class QuestionLogitModel(tf.keras.Model):
     def test_step(self, x):
         # We assume that only x is passed, not y nor sample_weight.
         questions = self.raggify_questions(x['questions'])
-        y = tf.zeros((questions.row_splits[-1], 1))
+        y = tf.ones((questions.row_splits[-1], 1))
         x['questions'] = questions
 
         y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
@@ -90,7 +90,7 @@ class QuestionLogitModel(tf.keras.Model):
 
     def train_step(self, x):
         questions = self.raggify_questions(x['questions'])
-        y = tf.zeros((questions.row_splits[-1], 1))
+        y = tf.ones((questions.row_splits[-1], 1))
         x['questions'] = questions
 
         with tf.GradientTape() as tape:
@@ -128,6 +128,7 @@ class QuestionLogitModel(tf.keras.Model):
         indices_valid = indices_all[index_mask]
         indices_valid = tf.expand_dims(indices_valid, axis=1)
         # tf.debugging.assert_equal(indices_valid.shape[:-1], logits_valid.flat_values.shape)
+        # We assign the value 0 to the invalid logits. `scatter_nd` defaults the output values to 0.
         logits_values = tf.scatter_nd(indices_valid, logits_valid.flat_values,
                                       tf.reshape(questions.row_splits[-1], (1,)))
         logits = tf.RaggedTensor.from_row_splits(logits_values, questions.row_splits)

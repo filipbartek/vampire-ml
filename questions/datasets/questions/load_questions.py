@@ -121,12 +121,13 @@ def load_question(question_path, normalize=False, dtype=None):
     # We cast the data to the desired dtype while inverting.
     precedences_inverted = tuple(map(functools.partial(utils.invert_permutation, dtype=dtype), precedences))
     # We temporarily assume that precedence 0 is better than precedence 1.
-    # Then precedence pair cost uses the term `precedences_inverted[0] - precedences_inverted[1]`.
-    res = precedences_inverted[0] - precedences_inverted[1]
+    # Then precedence pair cost uses the term `precedences_inverted[1] - precedences_inverted[0]`.
+    res = precedences_inverted[1] - precedences_inverted[0]
     assert m['polarity'] in {'<', '>'}
     if m['polarity'] == '>':
         # If precedence 1 is actually better than precedence 0, we invert the term.
         res *= -1
+    # Now we have the term precedence_inverted_worse - precedence_inverted_better.
     if normalize:
         n = len(res)
         res = res * dtype(2 / (n * (n + 1)))
