@@ -67,6 +67,7 @@ class QuestionLogitModel(tf.keras.Model):
         n_problems = tf.cast(questions.shape[0], sample_weight.dtype)
         tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems)
         return sample_weight / n_problems
+
     def test_step(self, x):
         # We assume that only x is passed, not y nor sample_weight.
         questions = self.raggify_questions(x['questions'])
