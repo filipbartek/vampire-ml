@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow.python.keras.utils.tf_utils as tf_utils
 
 
 class QuestionLogitModel(tf.keras.Model):
