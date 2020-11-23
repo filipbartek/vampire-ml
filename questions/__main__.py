@@ -23,6 +23,13 @@ def hash_digest(o):
     return hashlib.md5(hash_data).hexdigest()
 
 
+def save_problems(problems, filename):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'w') as f:
+        f.writelines(f'{bytes.decode(p.numpy())}\n' for p in problems)
+    logging.info(f'List of {problems.cardinality()} problems saved: {filename}')
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('problem', nargs='*')
@@ -43,6 +50,7 @@ def main():
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
     parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
+    parser.add_argument('--output', default='out')
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--preload-graphs', action='store_true')
@@ -78,9 +86,11 @@ def main():
         problems_all = datasets.problems.get_dataset(patterns)
         logging.info('Number of problems available: %d', problems_all.cardinality())
         logging.debug('Leading 10 problems: %s', [bytes.decode(p.numpy()) for p in problems_all.take(10)])
+        save_problems(problems_all, os.path.join(args.output, 'problems', 'all.txt'))
         if args.max_problems is not None:
             problems_all = problems_all.take(args.max_problems)
         logging.info('Number of problems taken: %d', problems_all.cardinality())
+        save_problems(problems_all, os.path.join(args.output, 'problems', 'taken.txt'))
         # We need to split problems first and then collect questions for each of the datasets
         # because not all problems have questions and we only generate questions samples
         # for problems with at least one question.
@@ -91,8 +101,9 @@ def main():
             'validation': problems_all.take(problems_validation_count),
             'train': problems_all.skip(problems_validation_count)
         }
-        for k in problems:
-            logging.info(f'Number of {k} problems: %d', problems[k].cardinality())
+        for k, p in problems.items():
+            logging.info(f'Number of {k} problems: {p.cardinality()}')
+            save_problems(p, os.path.join(args.output, 'problems', 'dataset', f'{k}.txt'))
 
         # TODO?: Only load questions if the batches are not cached.
         questions_file = os.path.join(args.cache_dir, f'max_questions_per_problem_{args.max_questions_per_problem}',
