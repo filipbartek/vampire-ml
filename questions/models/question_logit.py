@@ -7,6 +7,18 @@ class QuestionLogitModel(tf.keras.Model):
         self.symbol_cost_model = symbol_cost_model
         self.update_symbol_cost_metrics = update_symbol_cost_metrics
 
+    def evaluate(self, x=None, return_dict=False, **kwargs):
+        # If the dataset is empty, the evaluation terminates gracefully.
+        # Model.evaluate throws OverflowError in such case.
+        try:
+            next(iter(x))
+        except StopIteration:
+            if return_dict:
+                return {}
+            else:
+                return []
+        return super().evaluate(x=x, return_dict=return_dict, **kwargs)
+
     @staticmethod
     def raggify_questions(questions):
         if isinstance(questions, dict):
