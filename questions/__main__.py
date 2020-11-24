@@ -57,6 +57,7 @@ def main():
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
+    logging.getLogger('matplotlib').setLevel(logging.INFO)
     tf.random.set_seed(0)
     tf.config.run_functions_eagerly(args.run_eagerly)
     tf.summary.experimental.set_step(0)
