@@ -2,10 +2,9 @@ import tensorflow as tf
 
 
 class QuestionLogitModel(tf.keras.Model):
-    def __init__(self, symbol_cost_model, update_symbol_cost_metrics=False):
+    def __init__(self, symbol_cost_model):
         super().__init__()
         self.symbol_cost_model = symbol_cost_model
-        self.update_symbol_cost_metrics = update_symbol_cost_metrics
 
     def compile(self, weighted_metrics=None, **kwargs):
         """
@@ -79,15 +78,7 @@ class QuestionLogitModel(tf.keras.Model):
         # Updates stateful loss metrics.
         self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions), regularization_losses=self.losses)
 
-        self.compiled_metrics.update_state(y, y_pred, self.get_sample_weight(questions))
-
-        res = {m.name: m.result() for m in self.metrics}
-
-        if self.update_symbol_cost_metrics and self.symbol_cost_model.compiled_metrics is not None:
-            symbol_cost_results = self.symbol_cost_model.test_step(x['problems'])
-            res.update({k: v for k, v in symbol_cost_results.items() if k != 'loss'})
-
-        return res
+        return self.update_metrics(y, y_pred, questions)
 
     def train_step(self, x):
         questions = self.raggify_questions(x['questions'])
@@ -98,18 +89,12 @@ class QuestionLogitModel(tf.keras.Model):
             y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
             loss = self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions),
                                       regularization_losses=self.losses)
-        tf.python.keras.engine.training._minimize(self.distribute_strategy, tape, self.optimizer, loss,
-                                                  self.trainable_variables)
+        self.optimizer.minimize(loss, self.trainable_variables, tape=tape)
+        return self.update_metrics(y, y_pred, questions)
 
+    def update_metrics(self, y, y_pred, questions):
         self.compiled_metrics.update_state(y, y_pred, self.get_sample_weight(questions))
-
-        res = {m.name: m.result() for m in self.metrics}
-
-        if self.update_symbol_cost_metrics and self.symbol_cost_model.compiled_metrics is not None:
-            symbol_cost_results = self.symbol_cost_model.test_step(x['problems'])
-            res.update({k: v for k, v in symbol_cost_results.items() if k != 'loss'})
-
-        return res
+        return {m.name: m.result() for m in self.metrics}
 
     def call(self, x, training=False):
         problems = x['problems']
