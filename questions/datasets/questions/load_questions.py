@@ -7,16 +7,12 @@ import re
 import warnings
 
 import joblib
-import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
-import tensorflow as tf
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from proving import utils
 from proving.memory import memory
-from questions import plot
 
 
 def load(file, questions_dir, max_questions_per_problem=None):
@@ -35,20 +31,6 @@ def load(file, questions_dir, max_questions_per_problem=None):
     else:
         questions_all = get_problem_questions(questions_dir, max_questions_per_problem)
     logging.info(f'Number of problems with questions: {len(questions_all)}')
-    question_counts = [q.shape[0] for q in questions_all.values()]
-    signature_lengths = [q.shape[1] for q in questions_all.values()]
-    tf.summary.histogram('Question counts', question_counts)
-    tf.summary.histogram('Signature lengths of problems with some questions', signature_lengths)
-    tf.summary.histogram('Question array sizes', [q.size for q in questions_all.values()])
-    figure = plt.figure(figsize=(8, 8))
-    plt.title('Problems with questions')
-    sns.scatterplot(signature_lengths, question_counts)
-    plt.xlabel('Symbols')
-    plt.ylabel('Questions')
-    plt.xscale('log')
-    plt.yscale('log')
-    image = plot.plot_to_image(figure)
-    tf.summary.image('Problems with questions', image)
     return questions_all
 
 

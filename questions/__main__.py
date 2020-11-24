@@ -8,7 +8,10 @@ import logging
 import os
 
 import joblib
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import seaborn as sns
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -16,6 +19,8 @@ from proving.graphifier import Graphifier
 from proving.solver import Solver
 from questions import datasets
 from questions import models
+from questions import plot
+from vampire_ml.results import save_df
 
 
 def hash_digest(o):
@@ -113,6 +118,30 @@ def main():
             # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
             questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
                                                                    args.max_questions_per_problem)
+
+            question_counts = [q.shape[0] for q in questions_all.values()]
+            signature_lengths = [q.shape[1] for q in questions_all.values()]
+
+            df_index = pd.Index(questions_all.keys(), name='name')
+            df = pd.DataFrame({
+                'n_questions': pd.Series(question_counts, index=df_index, dtype=pd.UInt32Dtype(), name='n_questions'),
+                'n_symbols': pd.Series(signature_lengths, index=df_index, dtype=pd.UInt32Dtype(), name='n_symbols')
+            }, index=df_index)
+            save_df(df, 'with_questions', os.path.join(args.output, 'problems'))
+
+            tf.summary.histogram('Question counts', question_counts)
+            tf.summary.histogram('Signature lengths of problems with some questions', signature_lengths)
+            tf.summary.histogram('Question array sizes', [q.size for q in questions_all.values()])
+            figure = plt.figure(figsize=(8, 8))
+            plt.title('Problems with questions')
+            sns.scatterplot(signature_lengths, question_counts)
+            plt.xlabel('Symbols')
+            plt.ylabel('Questions')
+            plt.xscale('log')
+            plt.yscale('log')
+            plt.savefig(os.path.join(args.output, 'problems', 'with_questions.png'))
+            image = plot.plot_to_image(figure)
+            tf.summary.image('Problems with questions', image)
 
         cache_patterns = os.path.join(args.cache_dir, f'patterns_{hash_digest(patterns)}')
         os.makedirs(cache_patterns, exist_ok=True)
