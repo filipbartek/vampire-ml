@@ -1,6 +1,8 @@
 import os
 import re
 
+import appdirs
+
 
 def program_name():
     return 'vampire_ml'
@@ -8,6 +10,10 @@ def program_name():
 
 def program_version():
     return '1.0'
+
+
+def cache_dir():
+    return appdirs.user_cache_dir(program_name(), version=program_version())
 
 
 def scratch_dir():
