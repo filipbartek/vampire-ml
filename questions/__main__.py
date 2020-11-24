@@ -16,6 +16,7 @@ import tensorflow as tf
 from tqdm import tqdm
 
 from proving.graphifier import Graphifier
+from proving.memory import memory
 from proving.solver import Solver
 from questions import datasets
 from questions import models
