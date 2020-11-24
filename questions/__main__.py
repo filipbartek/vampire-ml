@@ -180,7 +180,8 @@ def main():
             model_symbol_embedding = models.symbol_features.simple.SimpleSymbolFeaturesModel(solver, args.symbol_type)
         elif args.symbol_embedding_model == 'gcn':
             graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
-            graphs = graphifier.problems_to_graphs_dict(problems_with_questions)
+            graphs, graphs_df = graphifier.problems_to_graphs_dict(problems_with_questions)
+            save_df(graphs_df, 'graphs', args.output)
             model_symbol_embedding = models.symbol_features.graph.GraphSymbolFeatures(graphifier, graphs,
                                                                                       args.symbol_type, num_layers=4)
         else:

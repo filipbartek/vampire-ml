@@ -2,21 +2,18 @@ import functools
 import itertools
 import json
 import logging
+import os
 import time
 
 import dgl
+import joblib
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from joblib import Parallel, delayed
 
+from proving import config
 from proving import tptp
-from proving.memory import memory
-
-
-# For example HWV091_1 takes 21.1s to graphify.
-@memory.cache
-def problem_to_graph(graphifier, problem):
-    return graphifier.problem_to_graph(problem)
 
 
 class Graphifier:
@@ -63,8 +60,47 @@ class Graphifier:
         assert set(self.output_ntypes) <= set(self.ntypes)
         assert set(itertools.chain.from_iterable(self.ntype_pairs)) <= set(self.ntypes)
 
-    def __getitem__(self, problem):
-        return problem_to_graph(self, problem)[0]
+    @functools.lru_cache(maxsize=1)
+    def get_config(self):
+        return {k: getattr(self, k) for k in ['solver', 'arg_order', 'arg_backedge', 'equality', 'output_ntypes']}
+
+    @functools.lru_cache(maxsize=1)
+    def cache_dir(self):
+        cache_dir = os.path.join(config.cache_dir(), type(self).__name__, joblib.hash(self.get_config()))
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(os.path.join(cache_dir, 'config.json'), 'w') as fp:
+            json.dump(self.get_config(), fp, indent=4, default=vars)
+        return cache_dir
+
+    def problem_to_graph(self, problem_name):
+        cache_dir_full = os.path.join(self.cache_dir(), problem_name)
+        filename_graph = os.path.join(cache_dir_full, 'graph.joblib')
+        filename_record = os.path.join(cache_dir_full, 'record.json')
+        try:
+            with open(filename_record) as fp:
+                record = json.load(fp)
+            if record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
+                logging.debug(f'Skipping graphification of {problem_name} because it has at least %d nodes.',
+                              record['graph_nodes_lower_bound'])
+                graph = None
+            elif record['error'] == 'clausify':
+                logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
+                graph = None
+            else:
+                assert 'graph_nodes' not in record or record['graph_nodes'] <= self.max_number_of_nodes
+                graph = joblib.load(filename_graph)
+                logging.debug(f'Graph of {problem_name} loaded.')
+                assert graph.num_nodes() == record['graph_nodes']
+        except FileNotFoundError:
+            logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
+            graph, record = self.graphify(problem_name)
+            os.makedirs(cache_dir_full, exist_ok=True)
+            with open(filename_record, 'w') as fp:
+                json.dump(record, fp, indent=4, default=int)
+            if graph is not None:
+                joblib.dump(graph, filename_graph)
+        assert graph is None or graph.num_nodes() <= self.max_number_of_nodes
+        return graph, record
 
     @property
     def canonical_etypes(self):
@@ -79,35 +115,17 @@ class Graphifier:
         attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
         return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={getattr(self, k)}' for k in attrs)
 
-    def problems_to_batch_graph(self, problems):
-        if isinstance(problems, tf.Tensor):
-            problems = tuple(bytes.decode(p.numpy()) for p in problems)
-        return self._problems_to_batch_graph(problems)
-
-    @functools.lru_cache(maxsize=None)
-    def _problems_to_batch_graph(self, problems):
-        graphs, valid = self.problems_to_graphs(problems, return_records=False)
-        batch_graph = dgl.batch(graphs)
-        valid = tf.convert_to_tensor(valid, dtype=tf.bool)
-        return batch_graph, valid
-
     def problems_to_graphs_dict(self, problems):
-        graphs, valid = self.problems_to_graphs(problems, return_records=False)
-        res = {p: g for p, g, v in zip(problems, graphs, valid) if v}
-        return res
-
-    def problems_to_graphs(self, problems, return_records=True):
         logging.info(f'Graphifying {len(problems)} problems...')
-        res = Parallel(verbose=1)(delayed(problem_to_graph)(self, problem) for problem in problems)
-        valid = [r[1]['error'] is None for r in res]
-        logging.info(f'Problems graphified. {sum(valid)}/{len(res)} graphified successfully.')
-        if not return_records:
-            graphs = [r[0] for r in res]
-            return graphs, valid
-        else:
-            return res
+        graphs_records = Parallel(verbose=1)(delayed(self.problem_to_graph)(problem) for problem in problems)
+        graphs, records = zip(*graphs_records)
+        problem_graphs = {p: g for p, g, r in zip(problems, graphs, records) if
+                          g is not None and r is not None and r['error'] is None}
+        logging.info(f'Problems graphified. {len(problem_graphs)}/{len(graphs_records)} graphified successfully.')
+        df = pd.DataFrame.from_records(records, index='problem')
+        return problem_graphs, df
 
-    def problem_to_graph(self, problem):
+    def graphify(self, problem):
         if isinstance(problem, tf.Tensor):
             problem = bytes.decode(problem.numpy())
         logging.debug(f'Graphifying problem {problem}...')
@@ -131,20 +149,20 @@ class Graphifier:
             time_start = time.time()
             try:
                 g = self.clausify_result_to_graph(clausify_result)
-            except RuntimeError:
+            except TermVisitor.NumNodesError as e:
                 # The graph would be too large (too many nodes).
                 logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
                 record['error'] = 'node_count'
                 g = None
+                record['graph_nodes_lower_bound'] = e.actual
             time_elapsed = time.time() - time_start
             record['graph_time'] = time_elapsed
             if g is not None:
                 record['graph_nodes'] = g.num_nodes()
+                record['graph_nodes_lower_bound'] = g.num_nodes()
                 record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
                 record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
                 logging.debug(f'Problem {problem} graphified.')
-        if g is None:
-            g = self.empty_graph()
         return g, record
 
     @functools.lru_cache(maxsize=1)
@@ -161,6 +179,12 @@ class Graphifier:
 
 class TermVisitor:
     """Stateful. Must be instantiated for each new graph."""
+
+    class NumNodesError(RuntimeError):
+        def __init__(self, actual, expected):
+            super().__init__(f'Invalid number of nodes. Actual: {actual}. Expected: {expected}.')
+            self.actual = actual
+            self.expected = expected
 
     def __init__(self, template, node_features=None, feature_dtype=tf.float32):
         # TODO: Allow limiting term sharing to inside a clause, letting every clause to use a separate set of variables.
@@ -194,7 +218,7 @@ class TermVisitor:
 
     def check_number_of_nodes(self):
         if self.max_number_of_nodes is not None and self.number_of_nodes > self.max_number_of_nodes:
-            raise RuntimeError(f'Too many nodes. Current: {self.number_of_nodes}. Maximum: {self.max_number_of_nodes}.')
+            raise self.NumNodesError(self.number_of_nodes, self.max_number_of_nodes)
 
     @property
     def edge_type_forward(self):
