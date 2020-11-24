@@ -86,7 +86,6 @@ def main():
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
         problems_all = datasets.problems.get_dataset(patterns)
         logging.info('Number of problems available: %d', problems_all.cardinality())
-        logging.debug('Leading 10 problems: %s', [bytes.decode(p.numpy()) for p in problems_all.take(10)])
         save_problems(problems_all, os.path.join(args.output, 'problems', 'all.txt'))
         if args.max_problems is not None:
             problems_all = problems_all.take(args.max_problems)
