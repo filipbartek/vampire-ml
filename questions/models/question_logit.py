@@ -86,7 +86,7 @@ class QuestionLogitModel(tf.keras.Model):
         x['questions'] = questions
 
         with tf.GradientTape() as tape:
-            y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
+            y_pred = tf.reshape(self(x, training=True).flat_values, (-1, 1))
             loss = self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions),
                                       regularization_losses=self.losses)
         self.optimizer.minimize(loss, self.trainable_variables, tape=tape)
