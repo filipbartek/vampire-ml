@@ -60,6 +60,7 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--preload-graphs', action='store_true')
+    parser.add_argument('--initial-evaluation', action='store_true')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -206,6 +207,9 @@ def main():
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
 
+        if args.initial_evaluation:
+            initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
+
         callbacks = [
             tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch),
             models.question_logit.SymbolCostEvaluationCallback(problems=problems['train'].batch(1),
@@ -216,6 +220,42 @@ def main():
         logging.info('Training...')
         model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
                         callbacks=callbacks)
+
+
+def initial_evaluation(model_logit, questions_all, problems_all, batch_size, print_each_problem=False):
+    print('Initial evaluation...')
+    ds_individual = datasets.questions.individual.dict_to_dataset(questions_all, problems_all)
+    print(f'Evaluating with batch size {batch_size}...')
+    eval_res = model_logit.evaluate(datasets.questions.batch.batch(ds_individual, batch_size), return_dict=True)
+    print(f'Evaluation result with batch size {batch_size}: {eval_res}')
+    ds_batches = datasets.questions.batch.batch(ds_individual, 1)
+    print('Evaluating with batch size 1...')
+    eval_res = model_logit.evaluate(ds_batches, return_dict=True)
+    print(f'Evaluation result with batch size 1: {eval_res}')
+    batch_sizes = []
+    batch_losses = []
+    logit_lists = []
+    for batch in tqdm(ds_batches, disable=print_each_problem):
+        problem_names = [bytes.decode(p.numpy()) for p in batch['problems']]
+        eval_res = model_logit.evaluate(tf.data.Dataset.from_tensors(batch), return_dict=True, verbose=0)
+        call_res = model_logit(batch, training=False)
+        if print_each_problem:
+            print(f'{problem_names}: {eval_res}, {call_res}')
+        batch_sizes.append(len(problem_names))
+        batch_losses.append(eval_res['loss'])
+        logit_lists.append(call_res.flat_values)
+    print('Weighted average loss (expected overall loss): ', np.average(batch_losses, weights=batch_sizes))
+    print('Mean of batch losses: ', np.mean(batch_losses))
+    print('Median of batch losses (expected: 0.69): ', np.median(batch_losses))
+    logits = tf.concat(logit_lists, axis=0)
+    print('Mean of question logits (expected: 0): ', np.mean(logits))
+    print('Mean of question accuracies (expected: 0.5): ', np.mean(logits.numpy() > 0))
+    accs = []
+    for logit in logit_lists:
+        n_correct = np.count_nonzero(logit.numpy() > 0)
+        acc = n_correct / len(logit)
+        accs.append(acc)
+    print('Weighted average accuracy (expected overall accuracy): ', np.mean(accs))
 
 
 if __name__ == '__main__':
