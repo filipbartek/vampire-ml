@@ -212,7 +212,8 @@ def main():
             initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
 
         callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch),
+            tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+                                           embeddings_freq=1),
             models.question_logit.SymbolCostEvaluationCallback(problems=problems['train'].batch(1),
                                                                problems_validation=problems['validation'].batch(1),
                                                                start=args.solver_evaluation_start,
