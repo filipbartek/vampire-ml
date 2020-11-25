@@ -125,12 +125,15 @@ class QuestionLogitModel(tf.keras.Model):
     @tf.function
     def costs_to_logits(symbol_costs, questions):
         # assert symbol_costs.nrows() == questions.nrows()
-        starts = tf.repeat(symbol_costs.row_splits[:-1], questions.row_lengths())
-        limits = tf.repeat(symbol_costs.row_splits[1:], questions.row_lengths())
+        n = questions.row_lengths()
+        starts = tf.repeat(symbol_costs.row_splits[:-1], n)
+        limits = tf.repeat(symbol_costs.row_splits[1:], n)
         indices = tf.ragged.range(starts, limits)
         sc_tiled = tf.gather(symbol_costs.flat_values, indices)
         sc_like_questions = tf.RaggedTensor.from_row_splits(sc_tiled, questions.row_splits)
         # assert all(tf.reduce_all(sc_split == q_split) for sc_split, q_split in zip(sc_like_questions.nested_row_splits, questions.nested_row_splits))
+        tf.debugging.assert_greater_equal(2 / (tf.cast(n, questions.dtype) + 1), tf.reduce_max(questions, axis=(1, 2)))
+        tf.debugging.assert_less_equal(-2 / (tf.cast(n, questions.dtype) + 1), tf.reduce_min(questions, axis=(1, 2)))
         potentials = tf.ragged.map_flat_values(tf.multiply, questions, sc_like_questions)
         logits = tf.reduce_sum(potentials, axis=2)
         # assert (logits.shape + (None,)).as_list() == questions.shape.as_list()
