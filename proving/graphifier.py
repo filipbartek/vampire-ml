@@ -80,6 +80,9 @@ class Graphifier:
             with open(filename_record) as fp:
                 record = json.load(fp)
             if record['error'] == 'clausify':
+                if record['clausify_returncode'] < 0:
+                    raise RuntimeError('Clausification failed with negative return code: %d',
+                                       record['clausify_returncode'])
                 logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
                 graph = None
             elif record['error'] == 'node_count' and record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
@@ -91,7 +94,7 @@ class Graphifier:
                 graph = joblib.load(filename_graph)
                 logging.debug(f'Graph of {problem_name} loaded.')
                 assert graph.num_nodes() == record['graph_nodes']
-        except FileNotFoundError:
+        except (FileNotFoundError, RuntimeError):
             logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
             graph, record = self.graphify(problem_name)
             os.makedirs(cache_dir_full, exist_ok=True)
