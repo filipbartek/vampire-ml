@@ -136,7 +136,7 @@ def main():
             tf.summary.histogram('Question array sizes', [q.size for q in questions_all.values()])
             figure = plt.figure(figsize=(8, 8))
             plt.title('Problems with questions')
-            sns.scatterplot(signature_lengths, question_counts)
+            sns.scatterplot(x=signature_lengths, y=question_counts)
             plt.xlabel('Symbols')
             plt.ylabel('Questions')
             plt.xscale('log')
