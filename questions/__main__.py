@@ -60,7 +60,7 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--preload-graphs', action='store_true')
-    parser.add_argument('--initial-evaluation', action='store_true')
+    parser.add_argument('--initial-evaluation-extra', action='store_true')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -209,7 +209,12 @@ def main():
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
 
-        if args.initial_evaluation:
+        print('Initial evaluation...')
+        for k, x in questions.items():
+            eval_res = model_logit.evaluate(x, return_dict=True)
+            print(f'{k}: {eval_res}')
+
+        if args.initial_evaluation_extra:
             initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
 
         callbacks = [
