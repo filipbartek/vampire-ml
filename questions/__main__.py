@@ -54,6 +54,7 @@ def main():
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
+    parser.add_argument('--simple-model-kernel')
     parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
     parser.add_argument('--output', default='out')
@@ -201,8 +202,15 @@ def main():
                         stats['failures'] += len(batch) - cur_successes
                         t.set_postfix(stats)
 
-        model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding)
-        model_symbol_cost.compile(metrics=[models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)])
+        if args.simple_model_kernel is not None:
+            k = 12
+            kernel = np.fromstring(args.simple_model_kernel, count=k, sep=',')
+            logging.info(f'Simple model kernel: {kernel}')
+            embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
+                                                      kernel_initializer=tf.constant_initializer(kernel))
+            model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding, embedding_to_cost)
+        else:
+            model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding)
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
 
