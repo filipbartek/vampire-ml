@@ -63,7 +63,8 @@ class QuestionLogitModel(tf.keras.Model):
         # weighted so that each problem contributes a unit.
         # We normalize the loss by dividing by the number of problems.
         sample_weight = cls.get_sample_weight(questions)
-        n_problems = tf.cast(questions.shape[0], sample_weight.dtype)
+        n_problems = tf.shape(questions.row_splits)[0] - 1
+        n_problems = tf.cast(n_problems, sample_weight.dtype)
         tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems, rtol=tf.keras.backend.epsilon())
         return sample_weight / n_problems
 
