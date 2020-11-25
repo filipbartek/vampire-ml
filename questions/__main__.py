@@ -222,7 +222,7 @@ def main():
                                                                start=args.solver_evaluation_start,
                                                                step=args.solver_evaluation_step)
         ]
-        logging.info('Training...')
+        print('Training...')
         model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
                         callbacks=callbacks)
 
