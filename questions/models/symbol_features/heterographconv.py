@@ -83,11 +83,18 @@ class HeteroGraphConv(tf.keras.layers.Layer):
     def __repr__(self):
         return f'{self.__class__.__name__}({list(self.node_layers.keys())}, {list(self.edge_layers.keys())})'
 
-    @staticmethod
-    def create_layers(layer_sizes, create_layer=None):
+    @classmethod
+    def create_layers(cls, layer_sizes, create_layer=None):
         if create_layer is None:
             create_layer = functools.partial(tf.keras.layers.Dense, activation='relu')
-        return {layer_id: create_layer(units, name=str(layer_id)) for layer_id, units in layer_sizes.items()}
+        return {layer_id: create_layer(units, name=cls.layer_id_to_name(layer_id)) for layer_id, units in
+                layer_sizes.items()}
+
+    @staticmethod
+    def layer_id_to_name(layer_id):
+        if type(layer_id) is tuple:
+            return '_'.join(layer_id)
+        return str(layer_id)
 
     def message_func(self, edges):
         layer = self.get_edge_layer(edges.canonical_etype)
