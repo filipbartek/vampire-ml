@@ -64,7 +64,7 @@ class QuestionLogitModel(tf.keras.Model):
         # We normalize the loss by dividing by the number of problems.
         sample_weight = cls.get_sample_weight(questions)
         n_problems = tf.cast(questions.shape[0], sample_weight.dtype)
-        tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems)
+        tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems, rtol=tf.keras.backend.epsilon())
         return sample_weight / n_problems
 
     def test_step(self, x):
