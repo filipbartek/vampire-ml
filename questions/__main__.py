@@ -155,9 +155,8 @@ def main():
                                  f'validation_split_{args.validation_split}')
 
         questions = {}
-        problems_with_questions = set()
-        problems_with_questions.update(bytes.decode(qq['problem'].numpy()) for qq in
-                                       datasets.questions.individual.dict_to_dataset(questions_all, problems_all))
+        problems_with_questions = set(bytes.decode(qq['problem'].numpy()) for qq in
+                                      datasets.questions.individual.dict_to_dataset(questions_all, problems_all))
         for k, p in problems.items():
             # Cache identification parameters:
             # - problem sets (patterns, validation_split, max_problems)
@@ -169,7 +168,6 @@ def main():
             q = datasets.questions.individual.dict_to_dataset(questions_all, p)
             os.makedirs(cache_dir_dataset, exist_ok=True)
             q = q.cache(os.path.join(cache_dir_dataset, 'questions_individual'))
-            problems_with_questions.update(bytes.decode(qq['problem'].numpy()) for qq in q)
             batches = datasets.questions.batch.batch(q, args.batch_size)
             cache_dir_batches = os.path.join(cache_dir_dataset, f'batch_size_{args.batch_size}')
             os.makedirs(cache_dir_batches, exist_ok=True)
