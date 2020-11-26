@@ -135,7 +135,7 @@ def main():
                 'n_questions': pd.Series(question_counts, index=df_index, dtype=pd.UInt32Dtype(), name='n_questions'),
                 'n_symbols': pd.Series(signature_lengths, index=df_index, dtype=pd.UInt32Dtype(), name='n_symbols')
             }, index=df_index)
-            save_df(df, 'with_questions', os.path.join(args.output, 'problems'))
+            save_df(df, os.path.join(args.output, 'problems', 'with_questions'))
 
             tf.summary.histogram('Question counts', question_counts)
             tf.summary.histogram('Signature lengths of problems with some questions', signature_lengths)
@@ -199,7 +199,7 @@ def main():
             elif args.symbol_embedding_model == 'gcn':
                 graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
                 graphs, graphs_df = get_graphs(graphifier, problems_with_questions)
-                save_df(graphs_df, 'graphs', args.output)
+                save_df(graphs_df, os.path.join(args.output, 'graphs'))
                 model_symbol_embedding = models.symbol_features.graph.GraphSymbolFeatures(graphifier, graphs,
                                                                                           args.symbol_type,
                                                                                           num_layers=4)
