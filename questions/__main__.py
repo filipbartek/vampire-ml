@@ -227,17 +227,18 @@ def main():
         if args.initial_evaluation_extra:
             initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
 
-        callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
-                                           embeddings_freq=1),
-            models.question_logit.SymbolCostEvaluationCallback(problems=problems['train'].batch(1),
-                                                               problems_validation=problems['validation'].batch(1),
-                                                               start=args.solver_evaluation_start,
-                                                               step=args.solver_evaluation_step)
-        ]
-        print('Training...')
-        model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
-                        callbacks=callbacks)
+        if args.epochs >= 1:
+            callbacks = [
+                tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+                                               embeddings_freq=1),
+                models.question_logit.SymbolCostEvaluationCallback(problems=problems['train'].batch(1),
+                                                                   problems_validation=problems['validation'].batch(1),
+                                                                   start=args.solver_evaluation_start,
+                                                                   step=args.solver_evaluation_step)
+            ]
+            print('Training...')
+            model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
+                            callbacks=callbacks)
 
 
 def initial_evaluation(model_logit, questions_all, problems_all, batch_size, print_each_problem=False):
