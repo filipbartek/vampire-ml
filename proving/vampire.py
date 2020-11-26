@@ -7,6 +7,7 @@ import re
 import tempfile
 
 import numpy as np
+import pandas as pd
 
 from proving import config
 from proving import process
@@ -24,6 +25,13 @@ class Result(process.Result):
         super().__init__(**process_result.__dict__)
         self.symbols = result_symbols
         self.clauses = clauses
+
+    pd_dtypes = {
+        **process.Result.pd_dtypes,
+        'time_elapsed_vampire': float,
+        'saturation_iterations': pd.UInt32Dtype(),
+        'memory_used': pd.UInt32Dtype()
+    }
 
     def symbols_of_type(self, symbol_type):
         return symbols.symbols_of_type(self.symbols, symbol_type)

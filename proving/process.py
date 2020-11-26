@@ -17,6 +17,14 @@ class Result:
     def __str__(self):
         return utils.instance_str(self)
 
+    pd_dtypes = {
+        'returncode': 'category',
+        'time_elapsed': float
+    }
+
+    def as_record(self):
+        return {k: getattr(self, k) for k in self.pd_dtypes}
+
 
 def decode(b):
     if b is None:
