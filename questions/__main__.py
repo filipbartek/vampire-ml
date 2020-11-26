@@ -206,7 +206,8 @@ def main():
             if model_symbol_cost is None:
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding)
         else:
-            model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding)
+            raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
+
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
 
