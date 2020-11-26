@@ -13,6 +13,9 @@ class Direct(SymbolCostModel):
             self.costs[p] = self.optimize_cost(q)
 
     def call(self, problems):
+        # `Model.test_step` pads `problems` with a length 1 axis.
+        if len(problems.shape) == 2:
+            problems = tf.squeeze(problems, axis=1)
         fn_output_signature = [tf.RaggedTensorSpec(shape=[None], dtype=self.dtype, ragged_rank=0),
                                tf.TensorSpec(tf.TensorShape([]), dtype=tf.bool)]
         res = tf.map_fn(self.predict_one, problems, fn_output_signature=fn_output_signature)
