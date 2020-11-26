@@ -188,7 +188,8 @@ def main():
             model_symbol_cost = None
             logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
             if args.symbol_embedding_model == 'simple':
-                model_symbol_embedding = models.symbol_features.simple.SimpleSymbolFeaturesModel(solver, args.symbol_type)
+                model_symbol_embedding = models.symbol_features.simple.SimpleSymbolFeaturesModel(solver,
+                                                                                                 args.symbol_type)
                 if args.simple_model_kernel is not None:
                     kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
                     logging.info(f'Simple model kernel: {kernel}')
@@ -200,7 +201,8 @@ def main():
                 graphs, graphs_df = get_graphs(graphifier, problems_with_questions)
                 save_df(graphs_df, 'graphs', args.output)
                 model_symbol_embedding = models.symbol_features.graph.GraphSymbolFeatures(graphifier, graphs,
-                                                                                          args.symbol_type, num_layers=4)
+                                                                                          args.symbol_type,
+                                                                                          num_layers=4)
             else:
                 raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
             if model_symbol_cost is None:
