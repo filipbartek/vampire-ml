@@ -13,7 +13,7 @@ class Composite(SymbolCostModel):
         self.symbol_cost_metrics = []
 
     def call(self, problems, training=False):
-        # `Model.evaluate` pads `problems` with a length 1 axis.
+        # `Model.test_step` pads `problems` with a length 1 axis.
         if len(problems.shape) == 2:
             problems = tf.squeeze(problems, axis=1)
         embeddings = self.problem_to_embedding(problems, training=training)
