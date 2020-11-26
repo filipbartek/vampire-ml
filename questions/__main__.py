@@ -209,6 +209,7 @@ def main():
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding)
         else:
             raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
+        model_symbol_cost.compile(metrics=[models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)])
 
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
