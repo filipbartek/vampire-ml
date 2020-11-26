@@ -59,13 +59,13 @@ def main():
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
+    parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct'])
     parser.add_argument('--simple-model-kernel')
     parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
     parser.add_argument('--output', default='out')
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
-    parser.add_argument('--preload-graphs', action='store_true')
     parser.add_argument('--initial-evaluation-extra', action='store_true')
     args = parser.parse_args()
 
@@ -181,39 +181,30 @@ def main():
                 batches = batches.cache()
             questions[k] = batches
 
-        logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
-        if args.symbol_embedding_model == 'simple':
-            model_symbol_embedding = models.symbol_features.simple.SimpleSymbolFeaturesModel(solver, args.symbol_type)
-        elif args.symbol_embedding_model == 'gcn':
-            graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
-            graphs, graphs_df = get_graphs(graphifier, problems_with_questions)
-            save_df(graphs_df, 'graphs', args.output)
-            model_symbol_embedding = models.symbol_features.graph.GraphSymbolFeatures(graphifier, graphs,
-                                                                                      args.symbol_type, num_layers=4)
-        else:
-            raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
-
-        if args.preload_graphs:
-            for k, v in problems.items():
-                # TODO: Ensure that the batches match the question batches exactly.
-                with tqdm(v.batch(args.batch_size), unit='batch', desc=f'Preloading {k} graphs') as t:
-                    stats = {'total': 0, 'successes': 0, 'failures': 0}
-                    t.set_postfix(stats)
-                    for batch in t:
-                        res = model_symbol_embedding.call(batch)
-                        cur_successes = tf.math.count_nonzero(res['valid']).numpy()
-                        stats['total'] += len(batch)
-                        stats['successes'] += cur_successes
-                        stats['failures'] += len(batch) - cur_successes
-                        t.set_postfix(stats)
-
-        if args.simple_model_kernel is not None:
-            k = 12
-            kernel = np.fromstring(args.simple_model_kernel, count=k, sep=',')
-            logging.info(f'Simple model kernel: {kernel}')
-            embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
-                                                      kernel_initializer=tf.constant_initializer(kernel))
-            model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding, embedding_to_cost)
+        logging.info(f'Symbol cost model: {args.symbol_cost_model}')
+        if args.symbol_cost_model == 'direct':
+            model_symbol_cost = models.symbol_cost.Direct(questions_all)
+        elif args.symbol_cost_model == 'composite':
+            model_symbol_cost = None
+            logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
+            if args.symbol_embedding_model == 'simple':
+                model_symbol_embedding = models.symbol_features.simple.SimpleSymbolFeaturesModel(solver, args.symbol_type)
+                if args.simple_model_kernel is not None:
+                    kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
+                    logging.info(f'Simple model kernel: {kernel}')
+                    embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
+                                                              kernel_initializer=tf.constant_initializer(kernel))
+                    model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost)
+            elif args.symbol_embedding_model == 'gcn':
+                graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
+                graphs, graphs_df = get_graphs(graphifier, problems_with_questions)
+                save_df(graphs_df, 'graphs', args.output)
+                model_symbol_embedding = models.symbol_features.graph.GraphSymbolFeatures(graphifier, graphs,
+                                                                                          args.symbol_type, num_layers=4)
+            else:
+                raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
+            if model_symbol_cost is None:
+                model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding)
         else:
             model_symbol_cost = models.symbol_cost.SymbolCostModel(model_symbol_embedding)
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)

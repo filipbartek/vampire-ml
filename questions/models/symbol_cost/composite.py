@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-class SymbolCostModel(tf.keras.Model):
+class Composite(tf.keras.Model):
     def __init__(self, problem_to_embedding, embedding_to_cost=None):
         super().__init__()
         self.problem_to_embedding = problem_to_embedding
