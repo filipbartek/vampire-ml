@@ -2,8 +2,10 @@ import numpy as np
 import sklearn
 import tensorflow as tf
 
+from .symbol_cost import SymbolCostModel
 
-class Direct(tf.keras.Model):
+
+class Direct(SymbolCostModel):
     def __init__(self, questions):
         super().__init__()
         self.costs = {}

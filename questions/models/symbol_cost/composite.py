@@ -1,7 +1,9 @@
 import tensorflow as tf
 
+from .symbol_cost import SymbolCostModel
 
-class Composite(tf.keras.Model):
+
+class Composite(SymbolCostModel):
     def __init__(self, problem_to_embedding, embedding_to_cost=None):
         super().__init__()
         self.problem_to_embedding = problem_to_embedding
@@ -9,20 +11,6 @@ class Composite(tf.keras.Model):
             embedding_to_cost = tf.keras.layers.Dense(1)
         self.embedding_to_cost = embedding_to_cost
         self.symbol_cost_metrics = []
-
-    def compile(self, metrics, run_eagerly=None):
-        super().compile(run_eagerly=run_eagerly)
-        self.symbol_cost_metrics = metrics
-
-    def train_step(self, data):
-        raise NotImplementedError
-
-    def test_step(self, problems):
-        # We assume that only problems are passed, not y nor sample_weight.
-        symbol_costs_decorated = self(problems, training=False)
-        for m in self.symbol_cost_metrics:
-            m.update_state(problems, symbol_costs_decorated['costs'], symbol_costs_decorated['valid'])
-        return {m.name: m.result() for m in self.symbol_cost_metrics}
 
     def call(self, problems, training=False):
         # `Model.evaluate` pads `problems` with a length 1 axis.
