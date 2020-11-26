@@ -1,4 +1,8 @@
+import os
+
 import tensorflow as tf
+
+from vampire_ml.results import save_df
 
 
 class QuestionLogitModel(tf.keras.Model):
@@ -145,32 +149,39 @@ class QuestionLogitModel(tf.keras.Model):
 
 
 class SymbolCostEvaluationCallback(tf.keras.callbacks.Callback):
-    def __init__(self, problems=None, problems_validation=None, start=0, step=1):
+    def __init__(self, problems=None, start=0, step=1, output_dir=None):
         super().__init__()
         self.problems = problems
-        self.problems_validation = problems_validation
         if start is None and step is not None:
             start = 0
         elif step is None and start is not None:
             step = 1
         self.start = start
         self.step = step
+        self.output_dir = output_dir
 
     def on_epoch_end(self, epoch, logs=None):
         if self.start is not None and self.step is not None and epoch >= self.start and (
                 epoch - self.start) % self.step == 0:
-            logs.update(self.evaluate(self.model.symbol_cost_model))
+            logs.update(self.evaluate(self.model.symbol_cost_model, epoch))
             print(f'Metrics after epoch {epoch}: {logs}')
 
-    def evaluate(self, symbol_cost_model):
+    def evaluate(self, symbol_cost_model, epoch=None):
         logs = {}
-        if self.problems is not None and self.problems.cardinality() >= 1:
-            print(f'Evaluating symbol cost model on {self.problems.cardinality()} training problems...')
-            train_res = symbol_cost_model.evaluate(self.problems, return_dict=True)
-            logs.update({k: v for k, v in train_res.items() if k != 'loss'})
-        if self.problems_validation is not None and self.problems_validation.cardinality() >= 1:
-            print(
-                f'Evaluating symbol cost model on {self.problems_validation.cardinality()} validation problems...')
-            validation_res = symbol_cost_model.evaluate(self.problems_validation, return_dict=True)
-            logs.update({f'val_{k}': v for k, v in validation_res.items() if k != 'loss'})
+        for dataset_name, dataset_problems in self.problems.items():
+            if dataset_problems is not None and dataset_problems.cardinality() >= 1:
+                print(f'Evaluating symbol cost model on {dataset_problems.cardinality()} {dataset_name} problems...')
+                res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
+                records_df = symbol_cost_model.solver_metric.result_df()
+                logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
+                if self.output_dir is not None:
+                    save_df(records_df,
+                            os.path.join(self.output_dir, 'solver_evaluation', f'epoch_{epoch}', dataset_name))
         return logs
+
+    @staticmethod
+    def log_key(dataset_name, metric_name):
+        assert dataset_name in {'train', 'validation'}
+        if dataset_name == 'validation':
+            return f'val_{metric_name}'
+        return metric_name

@@ -53,8 +53,10 @@ def main():
     parser.add_argument('--validation-split', type=float, default=0.5)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
+    parser.add_argument('--solver-evaluation-initial', action='store_true')
     parser.add_argument('--solver-evaluation-start', type=int, default=None)
     parser.add_argument('--solver-evaluation-step', type=int, default=None)
+    parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--run-eagerly', action='store_true')
@@ -209,7 +211,8 @@ def main():
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding)
         else:
             raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
-        model_symbol_cost.compile(metrics=[models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)])
+        solver_success_rate = models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)
+        model_symbol_cost.compile(solver_success_rate, [models.symbol_cost.ValidityRate()])
 
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
@@ -220,11 +223,19 @@ def main():
             print(f'{k}: {eval_res}')
 
         symbol_cost_evaluation_callback = models.question_logit.SymbolCostEvaluationCallback(
-            problems=problems['train'].batch(1),
-            problems_validation=problems['validation'].batch(1),
+            problems={k: v.batch(1) for k, v in problems.items()},
             start=args.solver_evaluation_start,
-            step=args.solver_evaluation_step)
-        print(symbol_cost_evaluation_callback.evaluate(model_symbol_cost))
+            step=args.solver_evaluation_step,
+            output_dir=args.output)
+
+        if args.evaluate_baseline:
+            model_symbol_cost_baseline = models.symbol_cost.Baseline()
+            model_symbol_cost_baseline.compile(solver_success_rate)
+            print('Solver baseline:',
+                  symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost_baseline))
+
+        if args.solver_evaluation_initial:
+            print('Initial model:', symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost))
 
         if args.initial_evaluation_extra:
             initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
