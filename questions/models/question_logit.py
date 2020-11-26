@@ -159,15 +159,18 @@ class SymbolCostEvaluationCallback(tf.keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None):
         if self.start is not None and self.step is not None and epoch >= self.start and (
                 epoch - self.start) % self.step == 0:
-            assert logs is not None
-            symbol_cost_model = self.model.symbol_cost_model
-            if self.problems is not None and self.problems.cardinality() >= 1:
-                print(f'Evaluating symbol cost model on {self.problems.cardinality()} training problems...')
-                train_res = symbol_cost_model.evaluate(self.problems, return_dict=True)
-                logs.update({k: v for k, v in train_res.items() if k != 'loss'})
-            if self.problems_validation is not None and self.problems_validation.cardinality() >= 1:
-                print(
-                    f'Evaluating symbol cost model on {self.problems_validation.cardinality()} validation problems...')
-                validation_res = symbol_cost_model.evaluate(self.problems_validation, return_dict=True)
-                logs.update({f'val_{k}': v for k, v in validation_res.items() if k != 'loss'})
+            logs.update(self.evaluate(self.model.symbol_cost_model))
             print(f'Metrics after epoch {epoch}: {logs}')
+
+    def evaluate(self, symbol_cost_model):
+        logs = {}
+        if self.problems is not None and self.problems.cardinality() >= 1:
+            print(f'Evaluating symbol cost model on {self.problems.cardinality()} training problems...')
+            train_res = symbol_cost_model.evaluate(self.problems, return_dict=True)
+            logs.update({k: v for k, v in train_res.items() if k != 'loss'})
+        if self.problems_validation is not None and self.problems_validation.cardinality() >= 1:
+            print(
+                f'Evaluating symbol cost model on {self.problems_validation.cardinality()} validation problems...')
+            validation_res = symbol_cost_model.evaluate(self.problems_validation, return_dict=True)
+            logs.update({f'val_{k}': v for k, v in validation_res.items() if k != 'loss'})
+        return logs
