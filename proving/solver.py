@@ -1,5 +1,7 @@
 import copy
+import functools
 import logging
+import warnings
 
 from joblib import Parallel, delayed
 
@@ -78,5 +80,17 @@ class Solver:
     def call(self, problem, options=None, precedences=None, get_symbols=False, get_clauses=False, get_stdout=True):
         if options is None:
             options = self.options
-        return vampire.call(problem, options=options, timeout=self.timeout, precedences=precedences,
-                            get_symbols=get_symbols, get_clauses=get_clauses, get_stdout=get_stdout)
+        call = functools.partial(vampire.call.call_and_shelve,
+                                 problem, options=options, timeout=self.timeout, precedences=precedences,
+                                 get_symbols=get_symbols, get_clauses=get_clauses, get_stdout=get_stdout)
+        for i in range(2):
+            memo_result = call()
+            result = memo_result.get()
+            if result.returncode in (0, 1):
+                break
+            # Known return codes:
+            # 3: SIGINT
+            # 4: Invalid input precedence element (index)
+            warnings.warn(f'Unsupported return code on problem {problem} (attempt {i}): {result.returncode}')
+            memo_result.clear()
+        return result
