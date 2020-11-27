@@ -58,6 +58,8 @@ def main():
     parser.add_argument('--solver-evaluation-start', type=int, default=None)
     parser.add_argument('--solver-evaluation-step', type=int, default=None)
     parser.add_argument('--solver-evaluation-batch-size', type=int, default=32)
+    parser.add_argument('--solver-evaluation-train-problems', type=int, default=1000)
+    parser.add_argument('--solver-evaluation-validation-problems', type=int, default=1000)
     parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
@@ -184,6 +186,27 @@ def main():
                 batches = batches.cache()
             questions[k] = batches
 
+        callbacks = [
+            tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+                                           embeddings_freq=1)
+        ]
+
+        symbol_cost_evaluation_callback = None
+        if args.solver_evaluation_initial or args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
+            solver_eval_problems = {
+                'validation': problems['validation'].take(args.solver_evaluation_validation_problems),
+                'train': problems['validation'].take(args.solver_evaluation_train_problems)
+            }
+            problems_to_graphify.update(py_str(e) for e in solver_eval_problems['validation'])
+            problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
+
+            symbol_cost_evaluation_callback = models.question_logit.SymbolCostEvaluationCallback(
+                problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in solver_eval_problems.items()},
+                start=args.solver_evaluation_start,
+                step=args.solver_evaluation_step,
+                output_dir=args.output)
+            callbacks.append(symbol_cost_evaluation_callback)
+
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
         if args.symbol_cost_model == 'direct':
             model_symbol_cost = models.symbol_cost.Direct(questions_all)
@@ -224,30 +247,19 @@ def main():
             eval_res = model_logit.evaluate(x, return_dict=True)
             print(f'{k}: {eval_res}')
 
-        symbol_cost_evaluation_callback = models.question_logit.SymbolCostEvaluationCallback(
-            problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in problems.items()},
-            start=args.solver_evaluation_start,
-            step=args.solver_evaluation_step,
-            output_dir=args.output)
-
-        if args.evaluate_baseline:
-            model_symbol_cost_baseline = models.symbol_cost.Baseline()
-            model_symbol_cost_baseline.compile(solver_success_rate)
-            print('Solver baseline:',
-                  symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost_baseline))
-
-        if args.solver_evaluation_initial:
-            print('Initial model:', symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost))
+        if symbol_cost_evaluation_callback is not None:
+            if args.evaluate_baseline:
+                model_symbol_cost_baseline = models.symbol_cost.Baseline()
+                model_symbol_cost_baseline.compile(solver_success_rate)
+                print('Solver baseline:',
+                      symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost_baseline))
+            if args.solver_evaluation_initial:
+                print('Initial model:', symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost))
 
         if args.initial_evaluation_extra:
             initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
 
         if args.epochs >= 1:
-            callbacks = [
-                tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
-                                               embeddings_freq=1),
-                symbol_cost_evaluation_callback
-            ]
             print('Training...')
             model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
                             callbacks=callbacks)
