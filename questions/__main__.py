@@ -77,6 +77,8 @@ def main():
     tf.random.set_seed(0)
     tf.config.run_functions_eagerly(args.run_eagerly)
     tf.summary.experimental.set_step(0)
+    logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
+    logging.info('TensorFlow intra-op parallelism threads: %d', tf.config.threading.get_intra_op_parallelism_threads())
 
     logging.info(f'Joblib cache location: {memory.cachedir}')
 
