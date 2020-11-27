@@ -37,7 +37,7 @@ def save_problems(problems, filename):
     logging.info(f'List of {problems.cardinality()} problems saved: {filename}')
 
 
-@memory.cache(verbose=1)
+@memory.cache(verbose=2)
 def get_graphs(graphifier, problems):
     return graphifier.problems_to_graphs_dict(problems)
 
