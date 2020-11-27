@@ -81,7 +81,7 @@ class Graphifier:
             with open(filename_record) as fp:
                 record = json.load(fp)
             if record['error'] == 'clausify':
-                if record['clausify_returncode'] < 0:
+                if record['clausify_returncode'] is not None and record['clausify_returncode'] < 0:
                     raise RuntimeError('Clausification failed with negative return code: %d',
                                        record['clausify_returncode'])
                 logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
