@@ -4,12 +4,14 @@ import os
 
 import tensorflow as tf
 
+from proving.utils import py_str
+
 
 def dict_to_dataset(questions, problems, normalize=True, dtype=tf.float32):
     def gen():
         for problem in problems:
             try:
-                q = tf.constant(questions[bytes.decode(problem.numpy())], dtype=dtype)
+                q = tf.constant(questions[py_str(problem)], dtype=dtype)
                 # Let n be the number of symbols in the problem.
                 n = tf.shape(q)[1]
                 n = tf.cast(n, q.dtype)
@@ -36,7 +38,7 @@ def dict_to_dataset(questions, problems, normalize=True, dtype=tf.float32):
 def get_dataset(question_dir, problems, dtype=tf.float32):
     def gen():
         for problem in problems:
-            pattern = os.path.join(question_dir, f'{bytes.decode(problem.numpy())}_*.q')
+            pattern = os.path.join(question_dir, f'{py_str(problem)}_*.q')
             filenames = tf.io.gfile.glob(pattern)
             questions_iterator = map(functools.partial(filename_to_question, dtype=dtype), filenames)
             questions_list = list(questions_iterator)

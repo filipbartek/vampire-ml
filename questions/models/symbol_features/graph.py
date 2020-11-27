@@ -1,6 +1,7 @@
 import dgl
 import tensorflow as tf
 
+from proving.utils import py_str
 from .heterographconv import HeteroGCN
 from .symbol_features import SymbolFeatures
 
@@ -27,7 +28,7 @@ class GraphSymbolFeatures(SymbolFeatures, HeteroGCN):
         def gen():
             for p in problems:
                 try:
-                    yield self.graphs[bytes.decode(p.numpy())], True
+                    yield self.graphs[py_str(p)], True
                 except KeyError:
                     yield self.graphifier.empty_graph(), False
         graphs, valid = zip(*gen())

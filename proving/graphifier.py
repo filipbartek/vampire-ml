@@ -14,6 +14,7 @@ from joblib import Parallel, delayed
 
 from proving import config
 from proving import tptp
+from proving.utils import py_str
 
 
 class Graphifier:
@@ -131,8 +132,7 @@ class Graphifier:
         return problem_graphs, df
 
     def graphify(self, problem):
-        if isinstance(problem, tf.Tensor):
-            problem = bytes.decode(problem.numpy())
+        problem = py_str(problem)
         logging.debug(f'Graphifying problem {problem}...')
         time_start = time.time()
         clausify_result = self.solver.clausify(problem)

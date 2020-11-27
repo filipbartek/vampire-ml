@@ -2,6 +2,7 @@ import numpy as np
 import sklearn
 import tensorflow as tf
 
+from proving.utils import py_str
 from .symbol_cost import SymbolCostModel
 
 
@@ -25,7 +26,7 @@ class Direct(SymbolCostModel):
         return tf.py_function(self._predict_one, [problem], (self.dtype, tf.bool))
 
     def _predict_one(self, problem):
-        problem = bytes.decode(problem.numpy())
+        problem = py_str(problem)
         try:
             return self.costs[problem], True
         except KeyError:

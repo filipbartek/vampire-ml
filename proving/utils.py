@@ -3,6 +3,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 
 def type_len(s):
@@ -63,3 +64,9 @@ def path_join(dirname, base, makedir=False):
     if makedir:
         os.makedirs(dirname, exist_ok=True)
     return os.path.join(dirname, base)
+
+
+def py_str(t):
+    if isinstance(t, tf.Tensor):
+        return bytes.decode(t.numpy())
+    return str(t)

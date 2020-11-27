@@ -18,6 +18,7 @@ from tqdm import tqdm
 from proving.graphifier import Graphifier
 from proving.memory import memory
 from proving.solver import Solver
+from proving.utils import py_str
 from questions import datasets
 from questions import models
 from questions import plot
@@ -32,7 +33,7 @@ def hash_digest(o):
 def save_problems(problems, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
-        f.writelines(f'{bytes.decode(p.numpy())}\n' for p in problems)
+        f.writelines(f'{py_str(p)}\n' for p in problems)
     logging.info(f'List of {problems.cardinality()} problems saved: {filename}')
 
 
@@ -265,7 +266,7 @@ def initial_evaluation(model_logit, questions_all, problems_all, batch_size, pri
     batch_losses = []
     logit_lists = []
     for batch in tqdm(ds_batches, disable=print_each_problem):
-        problem_names = [bytes.decode(p.numpy()) for p in batch['problems']]
+        problem_names = [py_str(p) for p in batch['problems']]
         eval_res = model_logit.evaluate(tf.data.Dataset.from_tensors(batch), return_dict=True, verbose=0)
         call_res = model_logit(batch, training=False)
         if print_each_problem:

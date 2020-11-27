@@ -4,12 +4,13 @@ import tensorflow as tf
 
 from proving import config
 from proving import file_path_list
+from proving.utils import py_str
 
 
 def get_datasets_split(patterns, validation_split, max_problems=None):
     problems_all = get_dataset(patterns)
     logging.info('Number of problems available: %d', problems_all.cardinality())
-    logging.debug('Leading 10 problems: %s', [bytes.decode(p.numpy()) for p in problems_all.take(10)])
+    logging.debug('Leading 10 problems: %s', [py_str(p) for p in problems_all.take(10)])
     if max_problems is not None:
         problems_all = problems_all.take(max_problems)
     logging.info('Number of problems taken: %d', problems_all.cardinality())

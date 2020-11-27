@@ -18,6 +18,7 @@ from tqdm import tqdm
 from proving import symbols
 from proving import utils
 from proving.memory import memory
+from proving.utils import py_str
 from vampire_ml.results import save_df
 
 dtype_tf_float = np.float32
@@ -73,7 +74,7 @@ def matrices_to_ragged_precursors(tensors, row_lengths_dtype=tf.int64):
 def get_dataset(question_dir, problems, dtype=tf.float32):
     def gen():
         for problem in problems:
-            pattern = os.path.join(question_dir, f'{bytes.decode(problem.numpy())}_*.q')
+            pattern = os.path.join(question_dir, f'{py_str(problem)}_*.q')
             filenames = tf.io.gfile.glob(pattern)
             questions_iterator = map(functools.partial(filename_to_question, dtype=dtype), filenames)
             questions_list = list(questions_iterator)

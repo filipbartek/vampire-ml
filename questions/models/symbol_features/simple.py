@@ -1,6 +1,7 @@
 import tensorflow as tf
 
 from .symbol_features import SymbolFeatures
+from proving.utils import py_str
 
 
 class SimpleSymbolFeaturesModel(SymbolFeatures):
@@ -30,7 +31,7 @@ class SimpleSymbolFeaturesModel(SymbolFeatures):
 
     def _predict_one(self, problem):
         # https://stackoverflow.com/a/56122892/4054250
-        problem = bytes.decode(problem.numpy())
+        problem = py_str(problem)
         try:
             df = self.solver.symbols_of_type(problem, self.symbol_type)
             if self.columns is not None:
