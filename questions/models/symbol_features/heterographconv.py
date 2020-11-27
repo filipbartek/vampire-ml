@@ -2,6 +2,7 @@ import functools
 
 import dgl
 import tensorflow as tf
+from ordered_set import OrderedSet
 
 dtype_tf_float = tf.float32
 
@@ -17,8 +18,8 @@ class HeteroGCN(tf.keras.layers.Layer):
         self.output_ntypes = output_ntypes
 
         layers_list_reversed = []
-        contributing_srctypes = set()
-        contributing_dsttypes = set(output_ntypes)
+        contributing_srctypes = OrderedSet()
+        contributing_dsttypes = OrderedSet(output_ntypes)
         for i in range(num_layers):
             # Every node contributes to itself.
             contributing_srctypes = contributing_dsttypes.copy()
