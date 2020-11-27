@@ -170,7 +170,7 @@ class SymbolCostEvaluationCallback(tf.keras.callbacks.Callback):
         logs = {}
         for dataset_name, dataset_problems in self.problems.items():
             if dataset_problems is not None and dataset_problems.cardinality() >= 1:
-                print(f'Evaluating symbol cost model on {dataset_name} problems...')
+                print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on {dataset_name} problems...')
                 res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
                 records_df = symbol_cost_model.solver_metric.result_df()
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
