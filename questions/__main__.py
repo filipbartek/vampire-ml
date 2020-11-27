@@ -142,9 +142,6 @@ def main():
             }, index=df_index)
             save_df(df, os.path.join(args.output, 'problems', 'with_questions'))
 
-            tf.summary.histogram('Question counts', question_counts)
-            tf.summary.histogram('Signature lengths of problems with some questions', signature_lengths)
-            tf.summary.histogram('Question array sizes', [q.size for q in questions_all.values()])
             figure = plt.figure(figsize=(8, 8))
             plt.title('Problems with questions')
             sns.scatterplot(x=signature_lengths, y=question_counts)
