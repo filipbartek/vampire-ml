@@ -175,8 +175,24 @@ class SymbolCostEvaluationCallback(tf.keras.callbacks.Callback):
                 records_df = symbol_cost_model.solver_metric.result_df()
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
                 if self.output_dir is not None:
-                    save_df(records_df,
-                            os.path.join(self.output_dir, 'solver_evaluation', f'epoch_{epoch}', dataset_name))
+                    output_dir = os.path.join(self.output_dir, 'solver_evaluation', symbol_cost_model.name,
+                                              f'epoch_{epoch}', dataset_name)
+                    save_df(records_df, os.path.join(output_dir, 'problems'))
+                    for subset_name, subset_df in {'all': records_df,
+                                                   'successful': records_df[records_df['returncode'] == 0]}.items():
+                        subset_dir = os.path.join(output_dir, subset_name)
+                        os.makedirs(subset_dir, exist_ok=True)
+                        for column_name in ['time_elapsed', 'saturation_iterations']:
+                            plt.figure()
+                            sns.ecdfplot(subset_df, x=column_name)
+                            plt.savefig(os.path.join(subset_dir, f'{column_name}.svg'))
+                            plt.close()
+                        for x, y in [('time_elapsed', 'saturation_iterations')]:
+                            plt.figure()
+                            sns.scatterplot(data=subset_df, x=x, y=y)
+                            plt.savefig(os.path.join(subset_dir, f'{x}_vs_{y}.svg'))
+                            plt.close()
+
         return logs
 
     @staticmethod
