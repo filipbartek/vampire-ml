@@ -195,7 +195,7 @@ def main():
         if args.solver_evaluation_initial or args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
             solver_eval_problems = {
                 'validation': problems['validation'].take(args.solver_evaluation_validation_problems),
-                'train': problems['validation'].take(args.solver_evaluation_train_problems)
+                'train': problems['train'].take(args.solver_evaluation_train_problems)
             }
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['validation'])
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
