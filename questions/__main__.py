@@ -250,11 +250,11 @@ def main():
         if symbol_cost_evaluation_callback is not None:
             if args.evaluate_baseline:
                 model_symbol_cost_baseline = models.symbol_cost.Baseline()
-                model_symbol_cost_baseline.compile(solver_success_rate)
-                print('Solver baseline:',
-                      symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost_baseline))
+                model_symbol_cost_baseline.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type,
+                                                                                        baseline=True))
+                symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost_baseline)
             if args.solver_evaluation_initial:
-                print('Initial model:', symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost))
+                symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
 
         if args.initial_evaluation_extra:
             initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)

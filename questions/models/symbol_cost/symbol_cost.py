@@ -22,14 +22,6 @@ class SymbolCostModel(tf.keras.Model):
 
 
 class Baseline(SymbolCostModel):
-    def test_step(self, problems):
-        # We assume that only problems are passed, not y nor sample_weight.
-        logs = super().test_step(problems)
-        for metric in self.symbol_cost_metrics:
-            metric.update_state(problems)
-            logs[metric.name] = metric.result()
-        return logs
-
     def call(self, problems):
         # `Model.test_step` pads `problems` with a length 1 axis.
         if len(problems.shape) == 2:
