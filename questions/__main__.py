@@ -57,6 +57,7 @@ def main():
     parser.add_argument('--solver-evaluation-initial', action='store_true')
     parser.add_argument('--solver-evaluation-start', type=int, default=None)
     parser.add_argument('--solver-evaluation-step', type=int, default=None)
+    parser.add_argument('--solver-evaluation-batch-size', type=int, default=32)
     parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
@@ -224,7 +225,7 @@ def main():
             print(f'{k}: {eval_res}')
 
         symbol_cost_evaluation_callback = models.question_logit.SymbolCostEvaluationCallback(
-            problems={k: v.batch(1) for k, v in problems.items()},
+            problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in problems.items()},
             start=args.solver_evaluation_start,
             step=args.solver_evaluation_step,
             output_dir=args.output)
