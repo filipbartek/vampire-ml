@@ -86,7 +86,7 @@ class Graphifier:
                                        record['clausify_returncode'])
                 logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
                 graph = None
-            elif record['error'] == 'node_count' and record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
+            elif record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
                 logging.debug(f'Skipping graphification of {problem_name} because it has at least %d nodes.',
                               record['graph_nodes_lower_bound'])
                 graph = None
