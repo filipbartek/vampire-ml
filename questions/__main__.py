@@ -244,8 +244,8 @@ def main():
 
         print('Initial evaluation...')
         for k, x in questions.items():
-            eval_res = model_logit.evaluate(x, return_dict=True)
-            print(f'{k}: {eval_res}')
+            print(f'Evaluating logit model on {k} questions...')
+            model_logit.evaluate(x)
 
         if symbol_cost_evaluation_callback is not None:
             if args.evaluate_baseline:
