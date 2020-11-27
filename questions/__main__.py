@@ -162,8 +162,7 @@ def main():
                                  f'validation_split_{args.validation_split}')
 
         questions = {}
-        problems_with_questions = set(bytes.decode(qq['problem'].numpy()) for qq in
-                                      datasets.questions.individual.dict_to_dataset(questions_all, problems_all))
+        problems_to_graphify = set()
         for k, p in problems.items():
             # Cache identification parameters:
             # - problem sets (patterns, validation_split, max_problems)
@@ -175,6 +174,7 @@ def main():
             q = datasets.questions.individual.dict_to_dataset(questions_all, p)
             os.makedirs(cache_dir_dataset, exist_ok=True)
             q = q.cache(os.path.join(cache_dir_dataset, 'questions_individual'))
+            problems_to_graphify.update(py_str(e['problem']) for e in q)
             batches = datasets.questions.batch.batch(q, args.batch_size)
             cache_dir_batches = os.path.join(cache_dir_dataset, f'batch_size_{args.batch_size}')
             os.makedirs(cache_dir_batches, exist_ok=True)
@@ -200,7 +200,8 @@ def main():
                     model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost)
             elif args.symbol_embedding_model == 'gcn':
                 graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
-                graphs, graphs_df = get_graphs(graphifier, problems_with_questions)
+                # problems_to_graphify = set(map(py_str, problems_all))
+                graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
                 save_df(graphs_df, os.path.join(args.output, 'graphs'))
                 model_symbol_embedding = models.symbol_features.graph.GraphSymbolFeatures(graphifier, graphs,
                                                                                           args.symbol_type,
