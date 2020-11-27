@@ -31,6 +31,7 @@ class GraphSymbolFeatures(SymbolFeatures, HeteroGCN):
                     yield self.graphs[py_str(p)], True
                 except KeyError:
                     yield self.graphifier.empty_graph(), False
+
         graphs, valid = zip(*gen())
         batch_graph = dgl.batch(graphs)
         valid = tf.convert_to_tensor(valid, dtype=tf.bool)
