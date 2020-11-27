@@ -13,16 +13,16 @@ def dict_to_dataset(questions, problems, normalize=True, dtype=tf.float32):
             try:
                 q = tf.constant(questions[py_str(problem)], dtype=dtype)
                 # Let n be the number of symbols in the problem.
-                n = tf.shape(q)[1]
-                n = tf.cast(n, q.dtype)
-                tf.debugging.assert_greater_equal(n, tf.reduce_max(q))
-                tf.debugging.assert_less_equal(-n, tf.reduce_min(q))
+                n_symbols = tf.shape(q)[1]
+                n_symbols = tf.cast(n_symbols, q.dtype)
+                tf.debugging.assert_greater_equal(n_symbols, tf.reduce_max(q))
+                tf.debugging.assert_less_equal(-n_symbols, tf.reduce_min(q))
                 if normalize:
                     # We scale the question matrix by a factor that makes questions from problems of various sizes commensurable.
                     # We set the factor so that if symbol cost is 1 for all symbols, then precedence cost is 1 for all precedences.
-                    q *= 2 / (n * (n + 1))
-                    tf.debugging.assert_greater_equal(2 / (n + 1), tf.reduce_max(q))
-                    tf.debugging.assert_less_equal(-2 / (n + 1), tf.reduce_min(q))
+                    q *= 2 / (n_symbols * (n_symbols + 1))
+                    tf.debugging.assert_greater_equal(2 / (n_symbols + 1), tf.reduce_max(q))
+                    tf.debugging.assert_less_equal(-2 / (n_symbols + 1), tf.reduce_min(q))
                 yield {'problem': problem, 'questions': q}
             except KeyError:
                 pass
