@@ -1,5 +1,7 @@
 import os
 
+import matplotlib.pyplot as plt
+import seaborn as sns
 import tensorflow as tf
 
 from vampire_ml.results import save_df
