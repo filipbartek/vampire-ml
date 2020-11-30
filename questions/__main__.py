@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 
 import joblib
 import matplotlib.pyplot as plt
@@ -74,6 +75,7 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--initial-evaluation-extra', action='store_true')
+    parser.add_argument('--recursion-limit', type=int, default=2000)
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -81,6 +83,9 @@ def main():
     tf.random.set_seed(0)
     tf.config.run_functions_eagerly(args.run_eagerly)
     tf.summary.experimental.set_step(0)
+    if args.recursion_limit is not None:
+        sys.setrecursionlimit(args.recursion_limit)
+    logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
     logging.info('TensorFlow intra-op parallelism threads: %d', tf.config.threading.get_intra_op_parallelism_threads())
 
