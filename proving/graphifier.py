@@ -104,7 +104,8 @@ class Graphifier:
             if graph is not None:
                 joblib.dump(graph, filename_graph)
         except Exception as e:
-            raise RuntimeError(f'Failed to produce graph of problem {problem_name}.') from e
+            raise RuntimeError(
+                f'Failed to produce graph of problem {problem_name}. Graph file: {filename_graph}') from e
         assert graph is None or graph.num_nodes() <= self.max_number_of_nodes
         return graph, record
 
