@@ -92,10 +92,11 @@ class Graphifier:
                 graph = None
             else:
                 assert 'graph_nodes' not in record or record['graph_nodes'] <= self.max_number_of_nodes
+                # Raises ValueError if reading reaches an unexpected EOF.
                 graph = joblib.load(filename_graph)
                 logging.debug(f'Graph of {problem_name} loaded.')
                 assert graph.num_nodes() == record['graph_nodes']
-        except (FileNotFoundError, RuntimeError, EOFError):
+        except (FileNotFoundError, RuntimeError, ValueError):
             logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
             graph, record = self.graphify(problem_name)
             os.makedirs(cache_dir_full, exist_ok=True)
