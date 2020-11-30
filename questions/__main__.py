@@ -19,6 +19,7 @@ from proving.graphifier import Graphifier
 from proving.memory import memory
 from proving.solver import Solver
 from proving.utils import py_str
+from questions import callbacks
 from questions import datasets
 from questions import models
 from questions import plot
@@ -186,9 +187,11 @@ def main():
                 batches = batches.cache()
             questions[k] = batches
 
-        callbacks = [
-            tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
-                                           embeddings_freq=1)
+        callback_tensorboard = tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch,
+                                                              histogram_freq=1, embeddings_freq=1)
+        cbs = [
+            callback_tensorboard,
+            callbacks.Time(callback_tensorboard)
         ]
 
         symbol_cost_evaluation_callback = None
@@ -205,7 +208,7 @@ def main():
                 start=args.solver_evaluation_start,
                 step=args.solver_evaluation_step,
                 output_dir=args.output)
-            callbacks.append(symbol_cost_evaluation_callback)
+            cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
         if args.symbol_cost_model == 'direct':
@@ -262,7 +265,7 @@ def main():
         if args.epochs >= 1:
             print('Training...')
             model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
-                            callbacks=callbacks)
+                            callbacks=cbs)
 
 
 def initial_evaluation(model_logit, questions_all, problems_all, batch_size, print_each_problem=False):
