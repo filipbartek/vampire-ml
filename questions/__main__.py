@@ -187,11 +187,9 @@ def main():
                 batches = batches.cache()
             questions[k] = batches
 
-        callback_tensorboard = tf.keras.callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch,
-                                                              histogram_freq=1, embeddings_freq=1)
         cbs = [
-            callback_tensorboard,
-            callbacks.Time(callback_tensorboard)
+            callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+                                  embeddings_freq=1)
         ]
 
         symbol_cost_evaluation_callback = None

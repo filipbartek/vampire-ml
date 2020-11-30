@@ -1,1 +1,1 @@
-from .time import Time
+from .time import TensorBoard
