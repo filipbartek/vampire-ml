@@ -95,7 +95,7 @@ class Graphifier:
                 graph = joblib.load(filename_graph)
                 logging.debug(f'Graph of {problem_name} loaded.')
                 assert graph.num_nodes() == record['graph_nodes']
-        except (FileNotFoundError, RuntimeError):
+        except (FileNotFoundError, RuntimeError, EOFError):
             logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
             graph, record = self.graphify(problem_name)
             os.makedirs(cache_dir_full, exist_ok=True)
