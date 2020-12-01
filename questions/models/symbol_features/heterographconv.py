@@ -87,7 +87,12 @@ class HeteroGraphConv(tf.keras.layers.Layer):
     @classmethod
     def create_layers(cls, layer_sizes, create_layer=None):
         if create_layer is None:
-            create_layer = functools.partial(tf.keras.layers.Dense, activation='relu')
+            def create_layer(units, name):
+                return tf.keras.Sequential([
+                    tf.keras.layers.Dropout(0.5),
+                    tf.keras.layers.Dense(units, activation='relu')
+                ], name=name)
+
         return {layer_id: create_layer(units, name=cls.layer_id_to_name(layer_id)) for layer_id, units in
                 layer_sizes.items()}
 
