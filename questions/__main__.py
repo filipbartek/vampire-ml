@@ -2,6 +2,7 @@
 
 import argparse
 import datetime
+import glob
 import hashlib
 import json
 import logging
@@ -77,6 +78,7 @@ def main():
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--initial-evaluation-extra', action='store_true')
     parser.add_argument('--recursion-limit', type=int, default=2000)
+    parser.add_argument('--restore-checkpoint')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -208,9 +210,17 @@ def main():
                 batches = batches.cache()
             questions[k] = batches
 
+        checkpoint_dir = os.path.join(args.output, 'tf_ckpts')
+        os.makedirs(checkpoint_dir, exist_ok=True)
+        for f in glob.iglob(os.path.join(checkpoint_dir, 'weights.*.tf.*')):
+            os.remove(f)
         cbs = [
             callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
-                                  embeddings_freq=1)
+                                  embeddings_freq=1),
+            tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'log.csv')),
+            tf.keras.callbacks.ModelCheckpoint(
+                os.path.join(args.output, 'tf_ckpts', 'weights.{epoch:04d}-{val_loss:.2f}.tf'),
+                save_weights_only=True, verbose=1)
         ]
 
         symbol_cost_evaluation_callback = None
@@ -261,6 +271,9 @@ def main():
 
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
+
+        if args.restore_checkpoint is not None:
+            model_logit.load_weights(args.restore_checkpoint)
 
         print('Initial evaluation...')
         for k, x in questions.items():
