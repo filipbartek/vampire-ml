@@ -2,6 +2,9 @@ import tensorflow as tf
 
 
 class SymbolCostModel(tf.keras.Model):
+    def __init__(self, name='symbol_cost'):
+        super().__init__(name=name)
+
     def compile(self, solver_metric=None, metrics=None, **kwargs):
         super().compile(**kwargs)
         self.solver_metric = solver_metric

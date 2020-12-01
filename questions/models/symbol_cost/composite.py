@@ -8,7 +8,7 @@ class Composite(SymbolCostModel):
         super().__init__()
         self.problem_to_embedding = problem_to_embedding
         if embedding_to_cost is None:
-            embedding_to_cost = tf.keras.layers.Dense(1)
+            embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost')
         self.embedding_to_cost = embedding_to_cost
         self.symbol_cost_metrics = []
 

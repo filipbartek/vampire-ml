@@ -8,8 +8,8 @@ from vampire_ml.results import save_df
 
 
 class QuestionLogitModel(tf.keras.Model):
-    def __init__(self, symbol_cost_model):
-        super().__init__()
+    def __init__(self, symbol_cost_model, name='question_logit'):
+        super().__init__(name=name)
         self.symbol_cost_model = symbol_cost_model
 
     def compile(self, weighted_metrics=None, **kwargs):

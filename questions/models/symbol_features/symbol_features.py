@@ -2,6 +2,9 @@ import tensorflow as tf
 
 
 class SymbolFeatures(tf.keras.layers.Layer):
+    def __init__(self, name='problem_to_embedding', **kwargs):
+        tf.keras.layers.Layer.__init__(self, name=name, **kwargs)
+
     def call(self, problems):
         """
         :param problems: Tensor of problem names. Shape: `[None]`. Dtype: `tf.string`.
