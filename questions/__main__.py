@@ -211,16 +211,31 @@ def main():
             questions[k] = batches
 
         checkpoint_dir = os.path.join(args.output, 'tf_ckpts')
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        for f in glob.iglob(os.path.join(checkpoint_dir, 'weights.*.tf.*')):
+        epoch_ckpt_dir = os.path.join(checkpoint_dir, 'epoch')
+        os.makedirs(epoch_ckpt_dir, exist_ok=True)
+        for f in glob.iglob(os.path.join(epoch_ckpt_dir, 'weights.*.tf.*')):
+            os.remove(f)
+        acc_ckpt_dir = os.path.join(checkpoint_dir, 'val_binary_accuracy')
+        os.makedirs(acc_ckpt_dir, exist_ok=True)
+        for f in glob.iglob(os.path.join(acc_ckpt_dir, 'weights.*.tf.*')):
+            os.remove(f)
+        success_ckpt_dir = os.path.join(checkpoint_dir, 'val_solver_success_rate')
+        os.makedirs(success_ckpt_dir, exist_ok=True)
+        for f in glob.iglob(os.path.join(success_ckpt_dir, 'weights.*.tf.*')):
             os.remove(f)
         cbs = [
             callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
                                   embeddings_freq=1),
             tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'log.csv')),
             tf.keras.callbacks.ModelCheckpoint(
-                os.path.join(args.output, 'tf_ckpts', 'weights.{epoch:04d}-{val_loss:.2f}.tf'),
-                save_weights_only=True, verbose=1)
+                os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
+                save_weights_only=True, verbose=0),
+            tf.keras.callbacks.ModelCheckpoint(
+                os.path.join(acc_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
+                save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True),
+            tf.keras.callbacks.ModelCheckpoint(
+                os.path.join(acc_ckpt_dir, 'weights.{epoch:05d}-{val_solver_success_rate:.2f}.tf'),
+                save_weights_only=True, verbose=1, monitor='val_solver_success_rate', save_best_only=True)
         ]
 
         symbol_cost_evaluation_callback = None
