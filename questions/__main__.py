@@ -89,7 +89,7 @@ def main():
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
     logging.info('TensorFlow intra-op parallelism threads: %d', tf.config.threading.get_intra_op_parallelism_threads())
 
-    logging.info(f'Joblib cache location: {memory.cachedir}')
+    logging.info(f'Joblib cache location: {memory.location}')
 
     log_dir = os.path.join(args.logs_dir, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
     logging.info(f'Log directory: {log_dir}')
