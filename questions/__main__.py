@@ -224,7 +224,8 @@ def main():
         for f in glob.iglob(os.path.join(success_ckpt_dir, 'weights.*.tf.*')):
             os.remove(f)
         cbs = [
-            callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+            callbacks.TensorBoard(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items()},
+                                  log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
                                   embeddings_freq=1),
             tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'log.csv')),
             tf.keras.callbacks.ModelCheckpoint(

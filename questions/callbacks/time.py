@@ -19,8 +19,9 @@ class Timer(tf.keras.metrics.Sum):
 
 
 class TensorBoard(tf.keras.callbacks.TensorBoard):
-    def __init__(self, **kwargs):
+    def __init__(self, problems, **kwargs):
         super().__init__(**kwargs)
+        self.problems = problems
         self.timer_epoch = Timer()
         self.timer_epoch_complete = Timer()
         self.timer_test = Timer()
@@ -46,9 +47,17 @@ class TensorBoard(tf.keras.callbacks.TensorBoard):
             self.timer_epoch_complete.begin()
             tf.summary.scalar('time_batch_sum', self.timer_train_batch.pop_result(), step=epoch)
             tf.summary.scalar('time', time_epoch - self.timer_test.result(), step=epoch)
+            self.log_symbol_cost_histogram(self.problems['train'], epoch)
         with self._val_writer.as_default():
             tf.summary.scalar('time', self.timer_test.pop_result(), step=epoch)
             tf.summary.scalar('time_batch_sum', self.timer_test_batch.pop_result(), step=epoch)
+            self.log_symbol_cost_histogram(self.problems['validation'], epoch)
+
+    def log_symbol_cost_histogram(self, problems, epoch):
+        symbol_costs_decorated = self.model.symbol_cost_model(problems)
+        symbol_costs_valid = tf.ragged.boolean_mask(symbol_costs_decorated['costs'],
+                                                    symbol_costs_decorated['valid'])
+        tf.summary.histogram('sample_symbol_costs', symbol_costs_valid.flat_values, step=epoch)
 
     def on_test_begin(self, logs=None):
         self.timer_test.begin()
