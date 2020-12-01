@@ -6,6 +6,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import sys
 
 import joblib
@@ -104,9 +105,24 @@ def main():
     if patterns is None or len(patterns) == 0:
         patterns = ['**/*-*.p', '**/*+*.p']
         logging.info('Defaulting problem patterns to: %s', patterns)
-    for i, pattern in enumerate(patterns):
-        if pattern[-2:] != '.p':
-            patterns[i] = f'{pattern[:3]}/{pattern}.p'
+
+    def normalize_pattern(pattern):
+        if re.match(
+                r'^(?P<name>(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*))$',
+                pattern):
+            # Pattern is a problem name without file extension.
+            # Prepend the file extension '.p'.
+            pattern = f'{pattern}.p'
+        m = re.match(
+            r'^(?P<name>(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*))(?:\.[pg])$',
+            pattern)
+        if m:
+            # Pattern is a problem base name without domain directory name.
+            # Prepend domain directory name.
+            pattern = os.path.join(m['domain'], pattern)
+        return pattern
+
+    patterns = list(map(normalize_pattern, patterns))
 
     solver = Solver(timeout=20)
 
