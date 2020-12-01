@@ -4,7 +4,7 @@ from .symbol_features import SymbolFeatures
 from proving.utils import py_str
 
 
-class SimpleSymbolFeaturesModel(SymbolFeatures):
+class Simple(SymbolFeatures):
     def __init__(self, solver, symbol_type, columns=None, dtype=None):
         super().__init__(trainable=False, dtype=dtype)
         self.solver = solver

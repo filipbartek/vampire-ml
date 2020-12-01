@@ -6,7 +6,7 @@ from .heterographconv import HeteroGCN
 from .symbol_features import SymbolFeatures
 
 
-class GraphSymbolFeatures(SymbolFeatures, HeteroGCN):
+class Graph(SymbolFeatures, HeteroGCN):
     def __init__(self, graphifier, graphs, symbol_type, edge_layer_sizes=64, node_layer_sizes=64, num_layers=1):
         SymbolFeatures.__init__(self, dynamic=True)
         if isinstance(edge_layer_sizes, int):
