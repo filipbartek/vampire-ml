@@ -257,6 +257,7 @@ def main():
                 graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
                 # problems_to_graphify = set(map(py_str, problems_all))
                 graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
+                logging.info(f'Number of problems graphified: {len(graphs)}')
                 save_df(graphs_df, os.path.join(args.output, 'graphs'))
                 model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
                                                                       num_layers=4)
