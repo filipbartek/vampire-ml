@@ -8,7 +8,8 @@ dtype_tf_float = tf.float32
 
 
 class HeteroGCN(tf.keras.layers.Layer):
-    def __init__(self, edge_layer_sizes, node_layer_sizes, num_layers=1, output_ntypes=None, dynamic=False):
+    def __init__(self, edge_layer_sizes, node_layer_sizes, num_layers=1, output_ntypes=None, dynamic=False,
+                 activation='relu', dropout=0.5):
         super().__init__(dynamic=dynamic)
 
         assert num_layers >= 1
@@ -29,7 +30,8 @@ class HeteroGCN(tf.keras.layers.Layer):
             cur_edge_layer_sizes = {k: v for k, v in edge_layer_sizes.items() if
                                     k[0] in contributing_srctypes and k[2] in contributing_dsttypes}
             cur_node_layer_sizes = {k: node_layer_sizes[k] for k in contributing_dsttypes}
-            layers_list_reversed.append(self.create_layer(cur_edge_layer_sizes, cur_node_layer_sizes))
+            layers_list_reversed.append(self.create_layer(cur_edge_layer_sizes, cur_node_layer_sizes,
+                                                          activation=activation, dropout=dropout))
             contributing_dsttypes = contributing_srctypes
         self.layers_list = list(reversed(layers_list_reversed))
 
@@ -40,9 +42,15 @@ class HeteroGCN(tf.keras.layers.Layer):
                                                         trainable=True) for ntype in contributing_srctypes}
 
     @staticmethod
-    def create_layer(edge_layer_sizes, node_layer_sizes):
-        edge_layers = HeteroGraphConv.create_layers(edge_layer_sizes)
-        node_layers = HeteroGraphConv.create_layers(node_layer_sizes)
+    def create_layer(edge_layer_sizes, node_layer_sizes, activation='relu', dropout=0.5):
+        def cr(units, name):
+            return tf.keras.Sequential([
+                tf.keras.layers.Dropout(dropout),
+                tf.keras.layers.Dense(units, activation=activation)
+            ], name=name)
+
+        edge_layers = HeteroGraphConv.create_layers(edge_layer_sizes, cr)
+        node_layers = HeteroGraphConv.create_layers(node_layer_sizes, cr)
         return HeteroGraphConv(edge_layers, node_layers)
 
     def initial_node_embeddings(self, g):
@@ -85,14 +93,7 @@ class HeteroGraphConv(tf.keras.layers.Layer):
         return f'{self.__class__.__name__}({list(self.node_layers.keys())}, {list(self.edge_layers.keys())})'
 
     @classmethod
-    def create_layers(cls, layer_sizes, create_layer=None):
-        if create_layer is None:
-            def create_layer(units, name):
-                return tf.keras.Sequential([
-                    tf.keras.layers.Dropout(0.5),
-                    tf.keras.layers.Dense(units, activation='relu')
-                ], name=name)
-
+    def create_layers(cls, layer_sizes, create_layer):
         return {layer_id: create_layer(units, name=cls.layer_id_to_name(layer_id)) for layer_id, units in
                 layer_sizes.items()}
 

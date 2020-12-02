@@ -7,14 +7,15 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures, HeteroGCN):
-    def __init__(self, graphifier, graphs, symbol_type, edge_layer_sizes=64, node_layer_sizes=64, num_layers=1):
+    def __init__(self, graphifier, graphs, symbol_type, edge_layer_sizes=64, node_layer_sizes=64, num_layers=1,
+                 activation='relu', dropout=0.5):
         SymbolFeatures.__init__(self, dynamic=True)
         if isinstance(edge_layer_sizes, int):
             edge_layer_sizes = {canonical_etype: edge_layer_sizes for canonical_etype in graphifier.canonical_etypes}
         if isinstance(node_layer_sizes, int):
             node_layer_sizes = {ntype: node_layer_sizes for ntype in graphifier.ntypes}
         HeteroGCN.__init__(self, edge_layer_sizes, node_layer_sizes, num_layers, output_ntypes=[symbol_type],
-                           dynamic=True)
+                           dynamic=True, activation=activation, dropout=dropout)
         self.graphifier = graphifier
         self.graphs = graphs
         self.symbol_type = symbol_type

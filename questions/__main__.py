@@ -79,6 +79,11 @@ def main():
     parser.add_argument('--initial-evaluation-extra', action='store_true')
     parser.add_argument('--recursion-limit', type=int, default=2000)
     parser.add_argument('--restore-checkpoint')
+    parser.add_argument('--gcn-depth', type=int, default=4)
+    parser.add_argument('--gcn-node-embedding-size', type=int, default=64)
+    parser.add_argument('--gcn-edge-message-size', type=int, default=64)
+    parser.add_argument('--gcn-activation', default='relu', choices=['relu', 'sigmoid'])
+    parser.add_argument('--gcn-dropout', type=float, default=0.5)
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -275,8 +280,13 @@ def main():
                 graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
                 logging.info(f'Number of problems graphified: {len(graphs)}')
                 save_df(graphs_df, os.path.join(args.output, 'graphs'))
+
                 model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
-                                                                      num_layers=4)
+                                                                      edge_layer_sizes=args.gcn_edge_message_size,
+                                                                      node_layer_sizes=args.gcn_node_embedding_size,
+                                                                      num_layers=args.gcn_depth,
+                                                                      activation=args.gcn_activation,
+                                                                      dropout=args.gcn_dropout)
             else:
                 raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
             if model_symbol_cost is None:
