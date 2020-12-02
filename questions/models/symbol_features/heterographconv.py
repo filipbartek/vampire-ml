@@ -1,5 +1,3 @@
-import functools
-
 import dgl
 import tensorflow as tf
 from ordered_set import OrderedSet
