@@ -21,6 +21,7 @@ from tqdm import tqdm
 from proving.graphifier import Graphifier
 from proving.memory import memory
 from proving.solver import Solver
+from proving.utils import cardinality_finite
 from proving.utils import py_str
 from questions import callbacks
 from questions import datasets
@@ -38,7 +39,7 @@ def save_problems(problems, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
         f.writelines(f'{py_str(p)}\n' for p in problems)
-    logging.info(f'List of {problems.cardinality()} problems saved: {filename}')
+    logging.info(f'List of problems saved: {filename}')
 
 
 @memory.cache(verbose=2)
@@ -49,6 +50,9 @@ def get_graphs(graphifier, problems):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('problem', nargs='*')
+    parser.add_argument('--problems', action='append')
+    parser.add_argument('--problems-validation', action='append')
+    parser.add_argument('--problems-train', action='append')
     parser.add_argument('--questions-dir')
     parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--max-problems', type=int, default=None)
@@ -136,26 +140,38 @@ def main():
     solver = Solver(timeout=20)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs):
-        logging.info('Collecting available problems...')
-        problems_all = datasets.problems.get_dataset(patterns)
-        logging.info('Number of problems available: %d', problems_all.cardinality())
-        save_problems(problems_all, os.path.join(args.output, 'problems', 'all.txt'))
-        if args.max_problems is not None:
-            problems_all = problems_all.take(args.max_problems)
-        logging.info('Number of problems taken: %d', problems_all.cardinality())
-        save_problems(problems_all, os.path.join(args.output, 'problems', 'taken.txt'))
         # We need to split problems first and then collect questions for each of the datasets
         # because not all problems have questions and we only generate questions samples
         # for problems with at least one question.
-        assert 0 <= args.validation_split <= 1
-        problems_validation_count = tf.cast(tf.cast(problems_all.cardinality(), tf.float32) * args.validation_split,
-                                            tf.int64)
-        problems = {
-            'validation': problems_all.take(problems_validation_count),
-            'train': problems_all.skip(problems_validation_count)
-        }
+        if args.problems_train is not None and args.problems_validation is not None:
+            problems = {
+                'validation': tf.data.TextLineDataset(args.problems_validation),
+                'train': tf.data.TextLineDataset(args.problems_train)
+            }
+            problems_all = problems['validation'].concatenate(problems['train'])
+        else:
+            logging.info('Collecting available problems...')
+            if args.problems is None:
+                problems_all = datasets.problems.get_dataset(patterns)
+            else:
+                problems_all = tf.data.TextLineDataset(args.problems)
+            save_problems(problems_all, os.path.join(args.output, 'problems', 'all.txt'))
+            if args.max_problems is not None:
+                problems_all = problems_all.take(args.max_problems)
+            save_problems(problems_all, os.path.join(args.output, 'problems', 'taken.txt'))
+            n_problems = cardinality_finite(problems_all)
+            logging.info('Number of problems available: %d', n_problems)
+            assert 0 <= args.validation_split <= 1
+            problems_validation_count = tf.cast(tf.round(tf.cast(n_problems, tf.float32) * args.validation_split),
+                                                tf.int64)
+            assert problems_validation_count >= 0
+            problems = {
+                'validation': problems_all.take(problems_validation_count),
+                'train': problems_all.skip(problems_validation_count)
+            }
+        logging.info('Number of problems taken: %d', cardinality_finite(problems_all))
         for k, p in problems.items():
-            logging.info(f'Number of {k} problems: {p.cardinality()}')
+            logging.info(f'Number of {k} problems: {cardinality_finite(p)}')
             save_problems(p, os.path.join(args.output, 'problems', 'dataset', f'{k}.txt'))
 
         # TODO?: Only load questions if the batches are not cached.

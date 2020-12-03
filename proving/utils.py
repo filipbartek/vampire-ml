@@ -1,3 +1,5 @@
+import collections
+import itertools
 import os
 import warnings
 
@@ -70,3 +72,19 @@ def py_str(t):
     if isinstance(t, tf.Tensor):
         return bytes.decode(t.numpy())
     return str(t)
+
+
+# https://stackoverflow.com/a/44500834/4054250
+def count_iter_items(iterable):
+    counter = itertools.count()
+    collections.deque(zip(iterable, counter), maxlen=0)
+    return next(counter)
+
+
+def cardinality_finite(dataset):
+    n = dataset.cardinality()
+    if n == tf.data.UNKNOWN_CARDINALITY:
+        n = count_iter_items(dataset)
+    elif n == tf.data.INFINITE_CARDINALITY:
+        raise RuntimeError('The dataset has infinite cardinality.')
+    return n
