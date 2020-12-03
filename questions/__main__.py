@@ -140,7 +140,7 @@ def main():
 
     solver = Solver(timeout=20)
 
-    with joblib.parallel_backend('threading', n_jobs=args.jobs):
+    with joblib.parallel_backend('threading', n_jobs=args.jobs), joblib.Parallel(verbose=10) as parallel:
         # We need to split problems first and then collect questions for each of the datasets
         # because not all problems have questions and we only generate questions samples
         # for problems with at least one question.
@@ -282,7 +282,7 @@ def main():
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
         if args.symbol_cost_model == 'baseline':
             model_symbol_cost = models.symbol_cost.Baseline()
-            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, baseline=True))
+            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel, baseline=True))
         else:
             if args.symbol_cost_model == 'direct':
                 model_symbol_cost = models.symbol_cost.Direct(questions_all)
@@ -316,7 +316,7 @@ def main():
                                                                  l2=args.symbol_cost_l2)
             else:
                 raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
-            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type),
+            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel),
                                       [models.symbol_cost.ValidityRate()])
 
         if args.solver_evaluation_initial:

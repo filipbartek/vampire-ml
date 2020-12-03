@@ -23,10 +23,13 @@ class SolverSuccessRate(tf.keras.metrics.Mean):
         **vampire.Result.pd_dtypes
     }
 
-    def __init__(self, solver, symbol_type, baseline=False, name='solver_success_rate', **kwargs):
+    def __init__(self, solver, symbol_type, parallel=None, baseline=False, name='solver_success_rate', **kwargs):
         super().__init__(name=name, **kwargs)
         self.solver = solver
         self.symbol_type = symbol_type
+        if parallel is None:
+            parallel = Parallel(verbose=1)
+        self.parallel = parallel
         self.baseline = baseline
         self.records = []
 
@@ -44,7 +47,8 @@ class SolverSuccessRate(tf.keras.metrics.Mean):
 
     def solve_multiple(self, problems, flat_values, row_splits):
         symbol_costs = tf.RaggedTensor.from_row_splits(flat_values, row_splits)
-        records = Parallel(verbose=0)(
+        print(f'Evaluating on a batch of {tf.shape(problems)[0]} problems...')
+        records = self.parallel(
             delayed(self.solve_one)(problem, symbol_cost) for problem, symbol_cost in zip(problems, symbol_costs))
         self.records.extend(records)
         values = [r['returncode'] == 0 for r in records]
