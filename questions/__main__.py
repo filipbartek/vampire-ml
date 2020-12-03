@@ -73,7 +73,7 @@ def main():
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
-    parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct'])
+    parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct', 'baseline'])
     parser.add_argument('--symbol-cost-l2', type=float, default=0.001,
                         help='Factor of L2 regularization penalty on symbol cost values')
     parser.add_argument('--simple-model-kernel')
@@ -280,68 +280,67 @@ def main():
             cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
-        if args.symbol_cost_model == 'direct':
-            model_symbol_cost = models.symbol_cost.Direct(questions_all)
-        elif args.symbol_cost_model == 'composite':
-            embedding_to_cost = None
-            logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
-            if args.symbol_embedding_model == 'simple':
-                model_symbol_embedding = models.symbol_features.Simple(solver, args.symbol_type)
-                if args.simple_model_kernel is not None:
-                    kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
-                    logging.info(f'Simple model kernel: {kernel}')
-                    embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
-                                                              kernel_initializer=tf.constant_initializer(kernel))
-
-            elif args.symbol_embedding_model == 'gcn':
-                graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
-                # problems_to_graphify = set(map(py_str, problems_all))
-                graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
-                logging.info(f'Number of problems graphified: {len(graphs)}')
-                save_df(graphs_df, os.path.join(args.output, 'graphs'))
-
-                model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
-                                                                      edge_layer_sizes=args.gcn_edge_message_size,
-                                                                      node_layer_sizes=args.gcn_node_embedding_size,
-                                                                      num_layers=args.gcn_depth,
-                                                                      activation=args.gcn_activation,
-                                                                      dropout=args.gcn_dropout)
-            else:
-                raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
-            model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
-                                                             l2=args.symbol_cost_l2)
+        if args.symbol_cost_model == 'baseline':
+            model_symbol_cost = models.symbol_cost.Baseline()
+            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, baseline=True))
         else:
-            raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
-        solver_success_rate = models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)
-        model_symbol_cost.compile(solver_success_rate, [models.symbol_cost.ValidityRate()])
+            if args.symbol_cost_model == 'direct':
+                model_symbol_cost = models.symbol_cost.Direct(questions_all)
+            elif args.symbol_cost_model == 'composite':
+                embedding_to_cost = None
+                logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
+                if args.symbol_embedding_model == 'simple':
+                    model_symbol_embedding = models.symbol_features.Simple(solver, args.symbol_type)
+                    if args.simple_model_kernel is not None:
+                        kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
+                        logging.info(f'Simple model kernel: {kernel}')
+                        embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
+                                                                  kernel_initializer=tf.constant_initializer(kernel))
 
-        model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-        model_logit.compile(optimizer=args.optimizer)
+                elif args.symbol_embedding_model == 'gcn':
+                    graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
+                    # problems_to_graphify = set(map(py_str, problems_all))
+                    graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
+                    logging.info(f'Number of problems graphified: {len(graphs)}')
+                    save_df(graphs_df, os.path.join(args.output, 'graphs'))
 
-        if args.restore_checkpoint is not None:
-            model_logit.load_weights(args.restore_checkpoint)
+                    model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
+                                                                          edge_layer_sizes=args.gcn_edge_message_size,
+                                                                          node_layer_sizes=args.gcn_node_embedding_size,
+                                                                          num_layers=args.gcn_depth,
+                                                                          activation=args.gcn_activation,
+                                                                          dropout=args.gcn_dropout)
+                else:
+                    raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
+                model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
+                                                                 l2=args.symbol_cost_l2)
+            else:
+                raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
+            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type),
+                                      [models.symbol_cost.ValidityRate()])
 
-        print('Initial evaluation...')
-        for k, x in questions.items():
-            print(f'Evaluating logit model on {k} questions...')
-            model_logit.evaluate(x)
+        if args.solver_evaluation_initial:
+            symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
 
-        if symbol_cost_evaluation_callback is not None:
-            if args.evaluate_baseline:
-                model_symbol_cost_baseline = models.symbol_cost.Baseline()
-                model_symbol_cost_baseline.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type,
-                                                                                        baseline=True))
-                symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost_baseline)
-            if args.solver_evaluation_initial:
-                symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
+        if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
+            model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+            model_logit.compile(optimizer=args.optimizer)
 
-        if args.initial_evaluation_extra:
-            initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
+            if args.restore_checkpoint is not None:
+                model_logit.load_weights(args.restore_checkpoint)
 
-        if args.epochs >= 1:
-            print('Training...')
-            model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
-                            callbacks=cbs)
+            print('Initial evaluation...')
+            for k, x in questions.items():
+                print(f'Evaluating logit model on {k} questions...')
+                model_logit.evaluate(x)
+
+            if args.initial_evaluation_extra:
+                initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
+
+            if args.epochs >= 1:
+                print('Training...')
+                model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
+                                callbacks=cbs)
 
 
 def initial_evaluation(model_logit, questions_all, problems_all, batch_size, print_each_problem=False):
