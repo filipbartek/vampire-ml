@@ -25,6 +25,9 @@ class SymbolCostModel(tf.keras.Model):
 
 
 class Baseline(SymbolCostModel):
+    def __init__(self, name='baseline'):
+        super().__init__(name=name)
+
     def call(self, problems):
         # `Model.test_step` pads `problems` with a length 1 axis.
         if len(problems.shape) == 2:
