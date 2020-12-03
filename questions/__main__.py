@@ -65,7 +65,7 @@ def main():
     parser.add_argument('--solver-evaluation-initial', action='store_true')
     parser.add_argument('--solver-evaluation-start', type=int, default=None)
     parser.add_argument('--solver-evaluation-step', type=int, default=None)
-    parser.add_argument('--solver-evaluation-batch-size', type=int, default=32)
+    parser.add_argument('--solver-evaluation-batch-size', type=int, default=1000)
     parser.add_argument('--solver-evaluation-train-problems', type=int, default=1000)
     parser.add_argument('--solver-evaluation-validation-problems', type=int, default=1000)
     parser.add_argument('--evaluate-baseline', action='store_true')
