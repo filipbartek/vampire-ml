@@ -65,7 +65,7 @@ class SolverSuccessRate(tf.keras.metrics.Mean):
             precedence = precedence.numpy()
             precedences = {self.symbol_type: precedence}
             record['n_symbols'] = len(precedence)
-        solver_res = self.solver.solve(problem, precedences=precedences)
+        solver_res = self.solver.solve(problem, precedences=precedences, cache=False)
         record.update(solver_res.as_record())
         return record
 

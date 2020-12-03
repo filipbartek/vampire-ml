@@ -58,7 +58,6 @@ class Result(process.Result):
             return None
 
 
-@memory.cache
 def call(problem, options=None, timeout=None, precedences=None, get_symbols=False, get_clauses=False, get_stdout=True,
          get_stderr=True):
     try:
