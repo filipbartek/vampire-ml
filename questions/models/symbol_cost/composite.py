@@ -25,5 +25,5 @@ class Composite(SymbolCostModel):
         costs = tf.RaggedTensor.from_nested_row_splits(costs_flat_values, embeddings['embeddings'].nested_row_splits)
         # For each problem, its regularization loss is the l2-norm of the symbol cost vector.
         valid_costs = tf.ragged.boolean_mask(costs, embeddings['valid'])
-        self.add_loss(self.l2 * tf.reduce_mean(tf.sqrt(tf.reduce_mean(tf.square(valid_costs), axis=1))))
+        self.add_loss(self.l2 * tf.reduce_mean(tf.reduce_mean(tf.square(valid_costs), axis=1)))
         return {'costs': costs, 'valid': embeddings['valid']}
