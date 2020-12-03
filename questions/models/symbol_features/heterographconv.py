@@ -131,7 +131,7 @@ class HeteroGraphConv(tf.keras.layers.Layer):
                 t = tf.squeeze(t, axis=1)
             except KeyError:
                 edge_layer = self.get_edge_layer(canonical_etype)
-                t = tf.zeros((len(nodes), edge_layer.units))
+                t = tf.zeros((len(nodes), edge_layer.output_shape[1]))
             assert len(t.shape) == 2
             input_tensors.append(t)
         layer = self.node_layers[nodes.ntype]
