@@ -75,16 +75,23 @@ def py_str(t):
 
 
 # https://stackoverflow.com/a/44500834/4054250
-def count_iter_items(iterable):
-    counter = itertools.count()
+def count_iter_items(iterable, max_items=None):
+    if max_items is None:
+        counter = itertools.count()
+    else:
+        counter = iter(range(max_items))
     collections.deque(zip(iterable, counter), maxlen=0)
-    return next(counter)
+    try:
+        return next(counter)
+    except StopIteration:
+        # We return a lower bound on the number of items.
+        return max_items
 
 
-def cardinality_finite(dataset):
+def cardinality_finite(dataset, max_cardinality=None):
     n = dataset.cardinality()
     if n == tf.data.UNKNOWN_CARDINALITY:
-        n = count_iter_items(dataset)
+        n = count_iter_items(dataset, max_cardinality)
     elif n == tf.data.INFINITE_CARDINALITY:
         raise RuntimeError('The dataset has infinite cardinality.')
     return n

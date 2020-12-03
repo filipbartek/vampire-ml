@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import tensorflow as tf
 
+from proving.utils import cardinality_finite
 from vampire_ml.results import save_df
 
 
@@ -30,7 +31,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.Callback):
     def evaluate(self, symbol_cost_model, epoch=None):
         logs = {}
         for dataset_name, dataset_problems in self.problems.items():
-            if dataset_problems is not None and dataset_problems.cardinality() >= 1:
+            if dataset_problems is not None and cardinality_finite(dataset_problems, 1) >= 1:
                 print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on {dataset_name} problems...')
                 res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
                 records_df = symbol_cost_model.solver_metric.result_df()
