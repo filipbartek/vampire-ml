@@ -264,7 +264,7 @@ def main():
         if args.symbol_cost_model == 'direct':
             model_symbol_cost = models.symbol_cost.Direct(questions_all)
         elif args.symbol_cost_model == 'composite':
-            model_symbol_cost = None
+            embedding_to_cost = None
             logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
             if args.symbol_embedding_model == 'simple':
                 model_symbol_embedding = models.symbol_features.Simple(solver, args.symbol_type)
@@ -273,7 +273,7 @@ def main():
                     logging.info(f'Simple model kernel: {kernel}')
                     embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
                                                               kernel_initializer=tf.constant_initializer(kernel))
-                    model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost)
+
             elif args.symbol_embedding_model == 'gcn':
                 graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
                 # problems_to_graphify = set(map(py_str, problems_all))
@@ -289,8 +289,7 @@ def main():
                                                                       dropout=args.gcn_dropout)
             else:
                 raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
-            if model_symbol_cost is None:
-                model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding)
+            model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost)
         else:
             raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
         solver_success_rate = models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)
