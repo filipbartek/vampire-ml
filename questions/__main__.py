@@ -272,7 +272,7 @@ def main():
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['validation'])
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
 
-            symbol_cost_evaluation_callback = models.question_logit.SymbolCostEvaluationCallback(
+            symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
                 problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in solver_eval_problems.items()},
                 start=args.solver_evaluation_start,
                 step=args.solver_evaluation_step,
