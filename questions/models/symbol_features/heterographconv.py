@@ -77,6 +77,7 @@ class HeteroGraphConv(tf.keras.layers.Layer):
             # Jan Hula suggested that sum is better than mean since it allows the destination node to determine the number of source nodes.
             reduce_func_template = dgl.function.sum
         # Message models
+        # The keys are strings so that TensorFlow can automatically save the weights.
         self.edge_layers = {self.canonical_etype_id(k): v for k, v in edge_layers.items()}
         self.node_layers = node_layers
         self.etype_dict = {}
