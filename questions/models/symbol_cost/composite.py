@@ -4,7 +4,7 @@ from .symbol_cost import SymbolCostModel
 
 
 class Composite(SymbolCostModel):
-    def __init__(self, problem_to_embedding, embedding_to_cost=None, l2=0.01):
+    def __init__(self, problem_to_embedding, embedding_to_cost=None, l2=0.001):
         super().__init__()
         self.problem_to_embedding = problem_to_embedding
         if embedding_to_cost is None:

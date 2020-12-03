@@ -70,6 +70,8 @@ def main():
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
     parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct'])
+    parser.add_argument('--symbol-cost-l2', type=float, default=0.001,
+                        help='Factor of L2 regularization penalty on symbol cost values')
     parser.add_argument('--simple-model-kernel')
     parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
@@ -289,7 +291,8 @@ def main():
                                                                       dropout=args.gcn_dropout)
             else:
                 raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
-            model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost)
+            model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
+                                                             l2=args.symbol_cost_l2)
         else:
             raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
         solver_success_rate = models.symbol_cost.SolverSuccessRate(solver, args.symbol_type)
