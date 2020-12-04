@@ -35,15 +35,22 @@ class SymbolCostEvaluation(tf.keras.callbacks.Callback):
             if dataset_problems is not None and cardinality_finite(dataset_problems, 1) >= 1:
                 print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on \'{dataset_name}\' problems...')
                 res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
+                records_df = symbol_cost_model.solver_metric.result_df()
                 try:
                     with self.tensorboard.writers[dataset_name].as_default():
                         for k, v in res.items():
                             if k == 'loss':
                                 continue
                             tf.summary.scalar(k, v, step=epoch)
+                        for column_name in ['time_elapsed', 'saturation_iterations']:
+                            values = records_df[column_name].astype(float)
+                            tf.summary.histogram(column_name, values, step=epoch)
+                            tf.summary.histogram(f'{column_name}_succ', values[records_df['returncode'] == 0],
+                                                 step=epoch)
+                            tf.summary.histogram(f'{column_name}_fail', values[records_df['returncode'] != 0],
+                                                 step=epoch)
                 except (AttributeError, KeyError):
                     pass
-                records_df = symbol_cost_model.solver_metric.result_df()
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
                 if self.output_dir is not None:
                     output_dir = os.path.join(self.output_dir, 'solver_evaluation', symbol_cost_model.name,
