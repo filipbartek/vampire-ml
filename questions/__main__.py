@@ -285,7 +285,8 @@ def main():
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
         if args.symbol_cost_model == 'baseline':
             model_symbol_cost = models.symbol_cost.Baseline()
-            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel, baseline=True))
+            model_symbol_cost.compile(
+                models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel, baseline=True))
         else:
             if args.symbol_cost_model == 'direct':
                 model_symbol_cost = models.symbol_cost.Direct(questions_all)
