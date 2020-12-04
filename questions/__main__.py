@@ -268,17 +268,18 @@ def main():
         symbol_cost_evaluation_callback = None
         if args.solver_evaluation_initial or args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
             solver_eval_problems = {
-                'validation': problems['validation'].take(args.solver_evaluation_validation_problems),
+                'val': problems['validation'].take(args.solver_evaluation_validation_problems),
                 'train': problems['train'].take(args.solver_evaluation_train_problems)
             }
-            problems_to_graphify.update(py_str(e) for e in solver_eval_problems['validation'])
+            problems_to_graphify.update(py_str(e) for e in solver_eval_problems['val'])
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
 
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
                 problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in solver_eval_problems.items()},
                 start=args.solver_evaluation_start,
                 step=args.solver_evaluation_step,
-                output_dir=args.output)
+                output_dir=args.output,
+                tensorboard=tensorboard)
             cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')

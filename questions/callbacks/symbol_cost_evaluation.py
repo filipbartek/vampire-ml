@@ -9,7 +9,7 @@ from vampire_ml.results import save_df
 
 
 class SymbolCostEvaluation(tf.keras.callbacks.Callback):
-    def __init__(self, problems=None, start=0, step=1, output_dir=None):
+    def __init__(self, problems=None, start=0, step=1, output_dir=None, tensorboard=None):
         super().__init__()
         self.problems = problems
         if start is None and step is not None:
@@ -19,6 +19,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.Callback):
         self.start = start
         self.step = step
         self.output_dir = output_dir
+        self.tensorboard = tensorboard
 
     def on_epoch_end(self, epoch, logs=None):
         if logs is None:
@@ -32,8 +33,16 @@ class SymbolCostEvaluation(tf.keras.callbacks.Callback):
         logs = {}
         for dataset_name, dataset_problems in self.problems.items():
             if dataset_problems is not None and cardinality_finite(dataset_problems, 1) >= 1:
-                print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on {dataset_name} problems...')
+                print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on \'{dataset_name}\' problems...')
                 res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
+                try:
+                    with self.tensorboard.writers[dataset_name].as_default():
+                        for k, v in res.items():
+                            if k == 'loss':
+                                continue
+                            tf.summary.scalar(k, v, step=epoch)
+                except (AttributeError, KeyError):
+                    pass
                 records_df = symbol_cost_model.solver_metric.result_df()
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
                 if self.output_dir is not None:
@@ -59,7 +68,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.Callback):
 
     @staticmethod
     def log_key(dataset_name, metric_name):
-        assert dataset_name in {'train', 'validation'}
-        if dataset_name == 'validation':
+        assert dataset_name in {'train', 'val'}
+        if dataset_name == 'val':
             return f'val_{metric_name}'
         return metric_name
