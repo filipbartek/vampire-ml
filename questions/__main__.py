@@ -247,10 +247,12 @@ def main():
         os.makedirs(success_ckpt_dir, exist_ok=True)
         for f in glob.iglob(os.path.join(success_ckpt_dir, 'weights.*.tf.*')):
             os.remove(f)
+        tensorboard = callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+                                            embeddings_freq=1)
         cbs = [
-            callbacks.TensorBoard(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items()},
-                                  log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
-                                  embeddings_freq=1),
+            tensorboard,
+            callbacks.Time(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items()},
+                           tensorboard=tensorboard),
             tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'log.csv')),
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
@@ -319,17 +321,21 @@ def main():
             model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel),
                                       [models.symbol_cost.ValidityRate()])
 
+        model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+        model_logit.compile(optimizer=args.optimizer)
+
+        if args.restore_checkpoint is not None:
+            model_logit.load_weights(args.restore_checkpoint)
+
+        # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
+        tensorboard.set_model(model_logit)
+
+        print('Initial evaluation...')
         if args.solver_evaluation_initial:
+            print('Evaluating symbol cost model...')
             symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-            model_logit.compile(optimizer=args.optimizer)
-
-            if args.restore_checkpoint is not None:
-                model_logit.load_weights(args.restore_checkpoint)
-
-            print('Initial evaluation...')
             for k, x in questions.items():
                 print(f'Evaluating logit model on {k} questions...')
                 model_logit.evaluate(x)

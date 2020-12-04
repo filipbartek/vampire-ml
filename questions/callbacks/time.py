@@ -18,10 +18,11 @@ class Timer(tf.keras.metrics.Sum):
         self.update_state(tf.timestamp() - self.time_begin)
 
 
-class TensorBoard(tf.keras.callbacks.TensorBoard):
-    def __init__(self, problems, **kwargs):
-        super().__init__(**kwargs)
+class Time(tf.keras.callbacks.Callback):
+    def __init__(self, problems, tensorboard):
+        super().__init__()
         self.problems = problems
+        self.tensorboard = tensorboard
         self.timer_epoch = Timer()
         self.timer_epoch_complete = Timer()
         self.timer_test = Timer()
@@ -39,7 +40,7 @@ class TensorBoard(tf.keras.callbacks.TensorBoard):
     def on_epoch_end(self, epoch, logs=None):
         super().on_epoch_end(epoch, logs=logs)
         self.timer_epoch.end()
-        with self._train_writer.as_default():
+        with self.tensorboard.train_writer.as_default():
             time_epoch = self.timer_epoch.pop_result()
             tf.summary.scalar('time_epoch', time_epoch, step=epoch)
             self.timer_epoch_complete.end()
@@ -48,7 +49,7 @@ class TensorBoard(tf.keras.callbacks.TensorBoard):
             tf.summary.scalar('time_batch_sum', self.timer_train_batch.pop_result(), step=epoch)
             tf.summary.scalar('time', time_epoch - self.timer_test.result(), step=epoch)
             self.log_symbol_cost_histogram(self.problems['train'], epoch)
-        with self._val_writer.as_default():
+        with self.tensorboard.val_writer.as_default():
             tf.summary.scalar('time', self.timer_test.pop_result(), step=epoch)
             tf.summary.scalar('time_batch_sum', self.timer_test_batch.pop_result(), step=epoch)
             self.log_symbol_cost_histogram(self.problems['validation'], epoch)

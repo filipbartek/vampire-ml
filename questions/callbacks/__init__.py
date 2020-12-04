@@ -1,2 +1,3 @@
 from .symbol_cost_evaluation import SymbolCostEvaluation
-from .time import TensorBoard
+from .tensorboard import TensorBoard
+from .time import Time
