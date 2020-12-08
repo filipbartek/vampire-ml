@@ -22,8 +22,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         self.tensorboard = tensorboard
 
     def on_epoch_end(self, epoch, logs=None):
-        if logs is None:
-            logs = {}
+        logs = logs or {}
         if self.start is not None and self.step is not None and epoch >= self.start and (
                 epoch - self.start) % self.step == 0:
             logs.update(self.evaluate(self.model.symbol_cost_model, epoch))
