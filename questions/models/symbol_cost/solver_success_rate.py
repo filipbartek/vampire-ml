@@ -57,14 +57,16 @@ class SolverSuccessRate(tf.keras.metrics.Mean):
 
     def solve_one(self, problem, symbol_cost):
         problem = py_str(problem)
-        record = {'problem': problem}
+        n_symbols = symbol_cost.shape[0]
+        record = {'problem': problem, 'n_symbols': n_symbols}
         precedences = None
         if not self.baseline:
             # We sort the symbols by cost in non-decreasing order.
-            precedence = tf.argsort(symbol_cost)
+            precedence = tf.argsort(symbol_cost, direction='DESCENDING')
+            precedence_cost = tf.tensordot(tf.gather(symbol_cost, precedence), tf.range(n_symbols, dtype=symbol_cost.dtype), 1)
+            record['precedence_cost'] = precedence_cost.numpy()
             precedence = precedence.numpy()
             precedences = {self.symbol_type: precedence}
-            record['n_symbols'] = len(precedence)
         solver_res = self.solver.solve(problem, precedences=precedences, cache=False)
         record.update(solver_res.as_record())
         return record
