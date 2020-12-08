@@ -8,9 +8,9 @@ from proving.utils import cardinality_finite
 from vampire_ml.results import save_df
 
 
-class SymbolCostEvaluation(tf.keras.callbacks.Callback):
-    def __init__(self, problems=None, start=0, step=1, output_dir=None, tensorboard=None):
-        super().__init__()
+class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
+    def __init__(self, csv_filename, problems=None, start=0, step=1, output_dir=None, tensorboard=None, **kwargs):
+        super().__init__(csv_filename, **kwargs)
         self.problems = problems
         if start is None and step is not None:
             start = 0
@@ -28,6 +28,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.Callback):
                 epoch - self.start) % self.step == 0:
             logs.update(self.evaluate(self.model.symbol_cost_model, epoch))
             print(f'Metrics after epoch {epoch}: {logs}')
+            super().on_epoch_end(epoch, logs=logs)
 
     def evaluate(self, symbol_cost_model, epoch=None):
         logs = {}

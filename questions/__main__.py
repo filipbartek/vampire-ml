@@ -253,7 +253,7 @@ def main():
             tensorboard,
             callbacks.Time(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items()},
                            tensorboard=tensorboard),
-            tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'log.csv')),
+            tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'epochs.csv')),
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
                 save_weights_only=True, verbose=0),
@@ -275,6 +275,7 @@ def main():
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
 
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
+                os.path.join(args.output, 'epochs_solver_eval.csv'),
                 problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in solver_eval_problems.items()},
                 start=args.solver_evaluation_start,
                 step=args.solver_evaluation_step,
