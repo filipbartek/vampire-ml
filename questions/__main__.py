@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import re
+import socket
 import sys
 
 import joblib
@@ -114,6 +115,8 @@ def main():
         args_series = pd.Series(args.__dict__, name='value')
         args_series.index.name = 'argument'
         tf.summary.text('args', args_series.to_markdown())
+        tf.summary.text('hostname', socket.gethostname())
+        logging.info(f'Hostname: {socket.gethostname()}')
 
     patterns = args.problem
     if patterns is None or len(patterns) == 0:
