@@ -36,6 +36,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                 print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on \'{dataset_name}\' problems...')
                 res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
                 records_df = symbol_cost_model.solver_metric.result_df()
+                res['success_count'] = (records_df['returncode'] == 0).sum()
+                res['problem_count'] = len(records_df)
                 try:
                     with self.tensorboard.writers[dataset_name].as_default():
                         for k, v in res.items():
