@@ -179,7 +179,9 @@ def main():
             save_problems(p, os.path.join(args.output, 'problems', 'dataset', f'{k}.txt'))
 
         # TODO?: Only load questions if the batches are not cached.
-        questions_file = os.path.join(args.cache_dir, f'max_questions_per_problem_{args.max_questions_per_problem}',
+        questions_file = os.path.join(args.cache_dir,
+                                      f'symbol_type_{args.symbol_type}',
+                                      f'max_questions_per_problem_{args.max_questions_per_problem}',
                                       'questions.pkl')
         with writer_train.as_default():
             # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
