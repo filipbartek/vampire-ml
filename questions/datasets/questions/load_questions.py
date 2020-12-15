@@ -35,6 +35,9 @@ def load(file, questions_dir, max_questions_per_problem=None):
 
 
 def get_problem_questions(question_dir, max_questions_per_problem):
+    if question_dir is None:
+        raise RuntimeError('No question directory was specified.')
+
     # Collect question paths
     # We use absolute path because the call is cached.
     question_entry_list = get_question_paths(os.path.abspath(question_dir))
