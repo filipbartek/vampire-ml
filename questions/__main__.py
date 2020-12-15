@@ -75,7 +75,7 @@ def main():
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
     parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct', 'baseline'])
-    parser.add_argument('--symbol-cost-l2', type=float, default=0.001,
+    parser.add_argument('--symbol-cost-l2', type=float, default=0,
                         help='Factor of L2 regularization penalty on symbol cost values')
     parser.add_argument('--simple-model-kernel')
     parser.add_argument('--cache-dir', default='cache')
