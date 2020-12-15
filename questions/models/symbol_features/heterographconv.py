@@ -1,3 +1,5 @@
+import functools
+
 import dgl
 import tensorflow as tf
 from ordered_set import OrderedSet
@@ -54,10 +56,10 @@ class HeteroGCN(tf.keras.layers.Layer):
     def initial_node_embeddings(self, g):
         return {ntype: tf.tile(e, (g.num_nodes(ntype), 1)) for ntype, e in self.ntype_embeddings.items()}
 
-    def call(self, g):
+    def call(self, g, training=False):
         x = self.initial_node_embeddings(g)
         for layer in self.layers_list:
-            x = layer(g, x)
+            x = layer(g, x, training=training)
         return {k: x[k] for k in self.output_ntypes}
 
 
@@ -80,13 +82,11 @@ class HeteroGraphConv(tf.keras.layers.Layer):
         # The keys are strings so that TensorFlow can automatically save the weights.
         self.edge_layers = {self.canonical_etype_id(k): v for k, v in edge_layers.items()}
         self.node_layers = node_layers
-        self.etype_dict = {}
+        self.reduce_functions = {}
         for canonical_etype in edge_layers.keys():
             srctype, etype, dsttype = canonical_etype
-            msg_func = self.message_func
-            reduce_func = reduce_func_template(('m', srctype, etype), ('m', srctype, etype))
-            self.etype_dict[canonical_etype] = msg_func, reduce_func
-        assert set(tuple(zip(*self.etype_dict.keys()))[2]) == set(self.node_layers.keys())
+            self.reduce_functions[canonical_etype] = reduce_func_template(('m', srctype, etype), ('m', srctype, etype))
+        assert set(tuple(zip(*self.reduce_functions.keys()))[2]) == set(self.node_layers.keys())
 
     def __repr__(self):
         return f'{self.__class__.__name__}({list(self.node_layers.keys())}, {list(self.edge_layers.keys())})'
@@ -102,7 +102,12 @@ class HeteroGraphConv(tf.keras.layers.Layer):
             return '_'.join(layer_id)
         return str(layer_id)
 
-    def message_func(self, edges):
+    @functools.lru_cache(maxsize=2)
+    def etype_dict(self, training):
+        return {canonical_etype: (functools.partial(self.message_func, training=training), reduce_func) for
+                canonical_etype, reduce_func in self.reduce_functions.items()}
+
+    def message_func(self, edges, training):
         layer = self.get_edge_layer(edges.canonical_etype)
         input_tensors = [edges.src['h']]
         try:
@@ -114,13 +119,13 @@ class HeteroGraphConv(tf.keras.layers.Layer):
         except KeyError:
             pass
         srctype, etype, dsttype = edges.canonical_etype
-        v = layer(tf.concat(input_tensors, 1))
+        v = layer(tf.concat(input_tensors, 1), training=training)
         return {('m', srctype, etype): v}
 
-    def apply_node_func(self, nodes):
+    def apply_node_func(self, nodes, training):
         """Aggregates incoming reduced messages across edge types."""
         input_tensors = [nodes.data['h']]
-        for canonical_etype in self.etype_dict.keys():
+        for canonical_etype in self.reduce_functions.keys():
             srctype, etype, dsttype = canonical_etype
             if dsttype != nodes.ntype:
                 continue
@@ -135,7 +140,7 @@ class HeteroGraphConv(tf.keras.layers.Layer):
             assert len(t.shape) == 2
             input_tensors.append(t)
         layer = self.node_layers[nodes.ntype]
-        v = layer(tf.concat(input_tensors, 1))
+        v = layer(tf.concat(input_tensors, 1), training=training)
         return {'out': v}
 
     def get_edge_layer(self, canonical_etype):
@@ -145,7 +150,7 @@ class HeteroGraphConv(tf.keras.layers.Layer):
     def canonical_etype_id(canonical_etype):
         return '_'.join(canonical_etype)
 
-    def call(self, g, x):
+    def call(self, g, x, training=False):
         """
         Forward computation
 
@@ -155,11 +160,13 @@ class HeteroGraphConv(tf.keras.layers.Layer):
         :param x dict: Input node features. Maps each node type to a feature tensor.
         :return dict: New node features
         """
-        assert set(x.keys()) == set(tuple(zip(*self.etype_dict.keys()))[0])
+        etype_dict = self.etype_dict(training)
+        assert set(x.keys()) == set(tuple(zip(*etype_dict.keys()))[0])
+        apply_node_func = functools.partial(self.apply_node_func, training=training)
         with g.local_scope():
             for ntype in x.keys():
                 assert ntype in g.ntypes
                 assert g.num_nodes(ntype) == len(x[ntype])
                 g.nodes[ntype].data['h'] = x[ntype]
-            g.multi_update_all(self.etype_dict, 'stack', self.apply_node_func)
+            g.multi_update_all(etype_dict, 'stack', apply_node_func)
             return {ntype: g.nodes[ntype].data['out'] for ntype in self.node_layers.keys()}
