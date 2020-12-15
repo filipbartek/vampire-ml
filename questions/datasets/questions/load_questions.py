@@ -73,6 +73,9 @@ def get_problem_questions(question_dir, max_questions_per_problem):
 
 @memory.cache(verbose=2)
 def get_question_paths(question_dir):
+    if question_dir is None:
+        raise RuntimeError('No question directory was specified.')
+
     def parse_question_dir_entry(dir_entry):
         m = re.search(r'^(?P<problem_name>[A-Z]{3}[0-9]{3}[-+^=_][1-9][0-9]*(\.[0-9]{3})*)_\d+\.q$', dir_entry.name,
                       re.MULTILINE)
