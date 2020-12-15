@@ -82,8 +82,8 @@ def main():
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--initial-evaluation-extra', action='store_true')
-    # Python default is 1000. 2000 is enough to parse all TPTP problems.
-    parser.add_argument('--recursion-limit', type=int, default=2000)
+    # Python default is 1000. 10000 is enough to parse all TPTP problems.
+    parser.add_argument('--recursion-limit', type=int, default=10000)
     parser.add_argument('--restore-checkpoint')
     parser.add_argument('--gcn-depth', type=int, default=4)
     parser.add_argument('--gcn-node-embedding-size', type=int, default=64)
