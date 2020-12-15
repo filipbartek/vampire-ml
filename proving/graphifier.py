@@ -148,7 +148,6 @@ class Graphifier:
                   'clausify_returncode': clausify_result.returncode,
                   'clausify_time': time_elapsed,
                   'error': None}
-        record.update(tptp.problem_properties(problem))
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
             logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
             record['error'] = 'clausify'
