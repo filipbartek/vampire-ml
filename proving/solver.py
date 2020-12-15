@@ -93,8 +93,8 @@ class Solver:
                     # Raises KeyError if the file 'output.pkl' does not exist.
                     result = memo_result.get()
                 except KeyError as e:
-                    warnings.warn(f'Problem {problem}: Attempt {i}: Exception: {e}')
-                    result = None
+                    raise RuntimeError(
+                        f'Problem {problem}: Attempt {i}: Failed to get memoized result. Try to increase the recursion limit.') from e
                 if result is not None:
                     if result.returncode in (0, 1):
                         break
