@@ -19,10 +19,12 @@ import seaborn as sns
 import tensorflow as tf
 from tqdm import tqdm
 
+from proving import tptp
 from proving.graphifier import Graphifier
 from proving.memory import memory
 from proving.solver import Solver
 from proving.utils import cardinality_finite
+from proving.utils import dataframe_from_records
 from proving.utils import py_str
 from questions import callbacks
 from questions import datasets
@@ -175,9 +177,14 @@ def main():
                 'train': problems_all.skip(problems_validation_count)
             }
         logging.info('Number of problems taken: %d', cardinality_finite(problems_all))
+
+        problem_records = {p: {**tptp.problem_properties(p), **{f'dataset_{k}': False for k in problems}} for p in map(py_str, problems_all)}
+        problem_records_types = {**tptp.property_types, **{f'dataset_{k}': np.bool for k in problems}}
         for k, p in problems.items():
             logging.info(f'Number of {k} problems: {cardinality_finite(p)}')
             save_problems(p, os.path.join(args.output, 'problems', 'dataset', f'{k}.txt'))
+            for pp in map(py_str, p):
+                problem_records[pp][f'dataset_{k}'] = True
 
         # TODO?: Only load questions if the batches are not cached.
         questions_file = os.path.join(args.cache_dir,
@@ -209,6 +216,14 @@ def main():
             plt.savefig(os.path.join(args.output, 'problems', 'with_questions.png'))
             image = plot.plot_to_image(figure)
             tf.summary.image('Problems with questions', image)
+
+        for k, v in problem_records.items():
+            if k in questions_all:
+                v['num_questions'] = questions_all[k].shape[0]
+                v['num_symbols'] = questions_all[k].shape[1]
+            else:
+                v['num_questions'] = 0
+        problem_records_types.update({'num_questions': pd.UInt32Dtype(), 'num_symbols': pd.UInt32Dtype()})
 
         cache_patterns = os.path.join(args.cache_dir,
                                       f'symbol_type_{args.symbol_type}',
@@ -318,6 +333,8 @@ def main():
                     graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
                     # problems_to_graphify = set(map(py_str, problems_all))
                     graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
+                    for problem_name, rec in graphs_df.iterrows():
+                        problem_records[problem_name].update(rec.to_dict())
                     logging.info(f'Number of problems graphified: {len(graphs)}')
                     save_df(graphs_df, os.path.join(args.output, 'graphs'))
 
@@ -336,6 +353,9 @@ def main():
                 raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
             model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel),
                                       [models.symbol_cost.ValidityRate()])
+
+        save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
+                os.path.join(args.output, 'problems'))
 
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
         model_logit.compile(optimizer=args.optimizer)
