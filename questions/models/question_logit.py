@@ -122,17 +122,18 @@ class QuestionLogitModel(tf.keras.Model):
         tf.debugging.assert_equal(logits.row_splits, questions.row_splits)
         return logits
 
-    @staticmethod
+    @classmethod
     @tf.function
-    def costs_to_logits(symbol_costs, questions):
-        # assert symbol_costs.nrows() == questions.nrows()
-        n_questions = questions.row_lengths()
-        starts = tf.repeat(symbol_costs.row_splits[:-1], n_questions)
-        limits = tf.repeat(symbol_costs.row_splits[1:], n_questions)
-        indices = tf.ragged.range(starts, limits)
-        sc_tiled = tf.gather(symbol_costs.flat_values, indices)
-        sc_like_questions = tf.RaggedTensor.from_row_splits(sc_tiled, questions.row_splits)
-        # assert all(tf.reduce_all(sc_split == q_split) for sc_split, q_split in zip(sc_like_questions.nested_row_splits, questions.nested_row_splits))
+    def costs_to_logits(cls, symbol_costs, questions):
+        """
+        :param symbol_costs: Shape: `[num_problems, (num_symbols)]`
+        :param questions: Shape: `[num_problems, (num_questions), (num_symbols)]`
+        """
+        tf.debugging.assert_equal(symbol_costs.nrows(), questions.nrows())
+        sc_like_questions = cls.tile_like(symbol_costs, questions)
+        tf.debugging.assert_equal(questions.nested_row_splits[0], sc_like_questions.nested_row_splits[0])
+        # This assertion fails if there is a mismatch in signature sizes, namely if there is a mismatch of symbol type.
+        tf.debugging.assert_equal(questions.nested_row_splits[1], sc_like_questions.nested_row_splits[1])
         tf.debugging.assert_greater_equal(2 / (tf.cast(symbol_costs.row_lengths(), questions.dtype) + 1),
                                           tf.reduce_max(questions, axis=(1, 2)))
         tf.debugging.assert_less_equal(-2 / (tf.cast(symbol_costs.row_lengths(), questions.dtype) + 1),
@@ -142,3 +143,16 @@ class QuestionLogitModel(tf.keras.Model):
         # assert (logits.shape + (None,)).as_list() == questions.shape.as_list()
         # assert tf.reduce_all(logits.row_splits == questions.row_splits)
         return logits
+
+    @staticmethod
+    @tf.function
+    def tile_like(symbol_costs, questions):
+        tf.debugging.assert_equal(symbol_costs.nrows(), questions.nrows())
+        n_questions = questions.row_lengths()
+        starts = tf.repeat(symbol_costs.row_splits[:-1], n_questions)
+        limits = tf.repeat(symbol_costs.row_splits[1:], n_questions)
+        indices = tf.ragged.range(starts, limits)
+        # Shape: `[num_questions, (num_symbols)]` where `num_questions` is the total number of questions.
+        sc_tiled = tf.gather(symbol_costs.flat_values, indices)
+        sc_like_questions = tf.RaggedTensor.from_row_splits(sc_tiled, questions.row_splits)
+        return sc_like_questions
