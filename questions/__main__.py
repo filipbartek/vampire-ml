@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 from proving import tptp
 from proving.graphifier import Graphifier
+from proving.graphifier import get_graphs
 from proving.memory import memory
 from proving.solver import Solver
 from proving.utils import cardinality_finite
@@ -43,11 +44,6 @@ def save_problems(problems, filename):
     with open(filename, 'w') as f:
         f.writelines(f'{py_str(p)}\n' for p in problems)
     logging.info(f'List of problems saved: {filename}')
-
-
-@memory.cache(verbose=2)
-def get_graphs(graphifier, problems):
-    return graphifier.problems_to_graphs_dict(problems)
 
 
 def main():

@@ -13,8 +13,13 @@ import tensorflow as tf
 from joblib import Parallel, delayed
 
 from proving import config
-from proving import tptp
+from proving.memory import memory
 from proving.utils import py_str
+
+
+@memory.cache(verbose=2)
+def get_graphs(graphifier, problems):
+    return graphifier.problems_to_graphs_dict(problems)
 
 
 class Graphifier:
