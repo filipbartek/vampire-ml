@@ -222,6 +222,7 @@ def main():
 
         questions = {}
         problems_to_graphify = set()
+        problems_with_questions = {}
         for k, p in problems.items():
             # Cache identification parameters:
             # - problem sets (patterns, validation_split, max_problems)
@@ -241,6 +242,8 @@ def main():
             if args.cache_mem:
                 batches = batches.cache()
             questions[k] = batches
+            problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
+            logging.info(f'Number of {k} problems with questions: {len(problems_with_questions[k])}')
 
         checkpoint_dir = os.path.join(args.output, 'tf_ckpts')
         epoch_ckpt_dir = os.path.join(checkpoint_dir, 'epoch')
@@ -277,7 +280,8 @@ def main():
         if args.solver_evaluation_initial or args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
             solver_eval_problems = {
                 'val': problems['validation'].take(args.solver_evaluation_validation_problems),
-                'train': problems['train'].take(args.solver_evaluation_train_problems)
+                'train': tf.data.Dataset.from_tensor_slices(problems_with_questions['train']).take(
+                    args.solver_evaluation_train_problems)
             }
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['val'])
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
