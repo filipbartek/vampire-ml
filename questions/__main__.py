@@ -209,7 +209,9 @@ def main():
             image = plot.plot_to_image(figure)
             tf.summary.image('Problems with questions', image)
 
-        cache_patterns = os.path.join(args.cache_dir, f'patterns_{hash_digest(patterns)}')
+        cache_patterns = os.path.join(args.cache_dir,
+                                      f'symbol_type_{args.symbol_type}',
+                                      f'patterns_{hash_digest(patterns)}')
         os.makedirs(cache_patterns, exist_ok=True)
         with open(os.path.join(cache_patterns, 'patterns.json'), 'w') as fp:
             json.dump(patterns, fp, indent=4)
