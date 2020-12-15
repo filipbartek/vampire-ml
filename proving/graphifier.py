@@ -155,8 +155,8 @@ class Graphifier:
         else:
             symbol_types = ('predicate', 'function')
             symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
-            record['clause_count'] = len(clausify_result.clauses)
-            record.update({f'{symbol_type}_count': len(symbols[symbol_type]) for symbol_type in symbol_types})
+            record['num_clauses'] = len(clausify_result.clauses)
+            record.update({f'num_{symbol_type}': len(symbols[symbol_type]) for symbol_type in symbol_types})
             time_start = time.time()
             try:
                 g = self.clausify_result_to_graph(clausify_result)
