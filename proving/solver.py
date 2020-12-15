@@ -89,13 +89,19 @@ class Solver:
             call = functools.partial(memory.cache(vampire.call).call_and_shelve, *args, **kwargs)
             for i in range(2):
                 memo_result = call()
-                result = memo_result.get()
-                if result.returncode in (0, 1):
-                    break
-                # Known return codes:
-                # 3: SIGINT
-                # 4: Invalid input precedence element (index)
-                warnings.warn(f'Unsupported return code on problem {problem} (attempt {i}): {result.returncode}')
+                try:
+                    # Raises KeyError if the file 'output.pkl' does not exist.
+                    result = memo_result.get()
+                except KeyError as e:
+                    warnings.warn(f'Problem {problem}: Attempt {i}: Exception: {e}')
+                    result = None
+                if result is not None:
+                    if result.returncode in (0, 1):
+                        break
+                    # Known return codes:
+                    # 3: SIGINT
+                    # 4: Invalid input precedence element (index)
+                    warnings.warn(f'Problem {problem}: Attempt {i}: Unsupported return code: {result.returncode}')
                 memo_result.clear()
         else:
             result = vampire.call(*args, **kwargs)
