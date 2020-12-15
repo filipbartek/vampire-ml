@@ -8,8 +8,12 @@ dtype_tf_float = tf.float32
 
 
 class HeteroGCN(tf.keras.layers.Layer):
+    """
+    For dropout, we follow good practices outlined here: https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+    """
+
     def __init__(self, edge_layer_sizes, node_layer_sizes, num_layers=1, output_ntypes=None, dynamic=False,
-                 activation='relu', dropout=0.5):
+                 activation='relu', dropout=0, kernel_max_norm=None):
         super().__init__(dynamic=dynamic)
 
         assert num_layers >= 1
@@ -31,7 +35,8 @@ class HeteroGCN(tf.keras.layers.Layer):
                                     k[0] in contributing_srctypes and k[2] in contributing_dsttypes}
             cur_node_layer_sizes = {k: node_layer_sizes[k] for k in contributing_dsttypes}
             layers_list_reversed.append(self.create_layer(cur_edge_layer_sizes, cur_node_layer_sizes,
-                                                          activation=activation, dropout=dropout))
+                                                          activation=activation, dropout=dropout,
+                                                          kernel_max_norm=kernel_max_norm))
             contributing_dsttypes = contributing_srctypes
         self.layers_list = list(reversed(layers_list_reversed))
 
@@ -42,11 +47,14 @@ class HeteroGCN(tf.keras.layers.Layer):
                                                         trainable=True) for ntype in contributing_srctypes}
 
     @staticmethod
-    def create_layer(edge_layer_sizes, node_layer_sizes, activation='relu', dropout=0.5):
+    def create_layer(edge_layer_sizes, node_layer_sizes, activation, dropout, kernel_max_norm):
         def cr(units, name):
+            kernel_constraint = None
+            if kernel_max_norm is not None and kernel_max_norm >= 0:
+                kernel_constraint = tf.keras.constraints.max_norm(kernel_max_norm)
             return tf.keras.Sequential([
                 tf.keras.layers.Dropout(dropout),
-                tf.keras.layers.Dense(units, activation=activation)
+                tf.keras.layers.Dense(units, activation=activation, kernel_constraint=kernel_constraint)
             ], name=name)
 
         edge_layers = HeteroGraphConv.create_layers(edge_layer_sizes, cr)

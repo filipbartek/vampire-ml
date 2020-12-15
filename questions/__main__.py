@@ -91,7 +91,8 @@ def main():
     parser.add_argument('--gcn-node-embedding-size', type=int, default=64)
     parser.add_argument('--gcn-edge-message-size', type=int, default=64)
     parser.add_argument('--gcn-activation', default='relu', choices=['relu', 'sigmoid'])
-    parser.add_argument('--gcn-dropout', type=float, default=0.5)
+    parser.add_argument('--gcn-dropout', type=float, default=0.2)
+    parser.add_argument('--gcn-kernel-max-norm', type=float, default=4)
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -321,7 +322,8 @@ def main():
                                                                           node_layer_sizes=args.gcn_node_embedding_size,
                                                                           num_layers=args.gcn_depth,
                                                                           activation=args.gcn_activation,
-                                                                          dropout=args.gcn_dropout)
+                                                                          dropout=args.gcn_dropout,
+                                                                          kernel_max_norm=args.gcn_kernel_max_norm)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
