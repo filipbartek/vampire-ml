@@ -36,7 +36,8 @@ def load(file, questions_dir, max_questions_per_problem=None):
 
 def get_problem_questions(question_dir, max_questions_per_problem):
     # Collect question paths
-    question_entry_list = get_question_paths(question_dir)
+    # We use absolute path because the call is cached.
+    question_entry_list = get_question_paths(os.path.abspath(question_dir))
     logging.info(f'Total number of questions: {len(question_entry_list)}')
 
     # Limit the number of questions per problem
