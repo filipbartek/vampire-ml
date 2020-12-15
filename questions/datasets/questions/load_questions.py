@@ -59,14 +59,14 @@ def get_problem_questions(question_dir, max_questions_per_problem):
     question_problem_names = itertools.chain.from_iterable(
         itertools.repeat(problem_name, len(vv)) for problem_name, vv in question_path_lists.items())
     question_lists = collections.defaultdict(list)
-    for problem_name, question in tqdm(zip(question_problem_names, question_list), unit='question',
-                                       desc='Sorting questions by problem', total=len(question_list)):
+    # Takes 1 second for 1866537 questions in 4080 problems.
+    for problem_name, question in zip(question_problem_names, question_list):
         assert problem_name is not None
         question_lists[problem_name].append(question)
 
     # Convert per-problem questions into an array
-    question_arrays = {k: np.asarray(v) for k, v in tqdm(question_lists.items(), unit='problem',
-                                                         desc='Converting questions to arrays')}
+    # Takes 3 seconds for 1866537 questions in 4080 problems.
+    question_arrays = {k: np.asarray(v) for k, v in question_lists.items()}
 
     return question_arrays
 
