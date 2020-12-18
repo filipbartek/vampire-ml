@@ -53,7 +53,8 @@ class Solver:
             cost = None
         return precedences, cost
 
-    def random_precedence(self, length, symbol_type, seed):
+    @staticmethod
+    def random_precedence(length, symbol_type, seed):
         return vampire.random_precedence(symbol_type=symbol_type, length=length, seed=seed)
 
     def symbols_of_type(self, problem, symbol_type):
