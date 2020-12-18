@@ -13,7 +13,6 @@ from proving import config
 from proving import process
 from proving import symbols
 from proving import utils
-from proving.memory import memory
 
 log = logging.getLogger(__name__)
 supported_precedence_names = ['predicate', 'function']
