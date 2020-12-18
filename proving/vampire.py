@@ -88,9 +88,11 @@ def call(problem, options=None, timeout=None, precedences=None, get_symbols=Fals
 
 def random_precedence(symbol_type, length, seed=None, dtype=np.uint32):
     if seed is not None:
+        if not isinstance(seed, tuple):
+            seed = (seed,)
         salt = supported_precedence_names.index(symbol_type)
         # Salt the seed for the given symbol type.
-        seed = (salt, seed)
+        seed = (salt, *seed)
     rng = np.random.RandomState(seed)
     if symbol_type == 'predicate':
         # The equality symbol should be placed first in all the predicate precedences.
