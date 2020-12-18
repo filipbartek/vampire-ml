@@ -31,6 +31,7 @@ from questions import callbacks
 from questions import datasets
 from questions import models
 from questions import plot
+from questions.generate import generate
 from vampire_ml.results import save_df
 
 
@@ -188,6 +189,12 @@ def main():
                                       f'max_questions_per_problem_{args.max_questions_per_problem}',
                                       'questions.pkl')
         with writer_train.as_default():
+            if args.questions_dir is None:
+                questions_generated = generate(solver, parallel, list(map(py_str, problems_all)),
+                                               num_questions_per_batch=1000,
+                                               output=os.path.join(args.output, 'problem_questions.joblib'))
+                return
+
             # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
             questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
                                                                    args.max_questions_per_problem)
