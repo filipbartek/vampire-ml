@@ -22,22 +22,25 @@ def generate(clausifier, solver, parallel, problems, num_questions=None, num_que
             return None
         # TODO: Pivot.
         problem_name = problems[problem_i]
-        precedences = [
-            {symbol_type: vampire.random_precedence(symbol_type=symbol_type, length=signature_size[symbol_type],
-                                                    seed=(case, i)) for symbol_type
-             in symbol_types} for i in (0, 1)]
-        results = [solver.solve(problem_name, precedences[i]) for i in (0, 1)]
-        if is_better(results[0], results[1]):
-            return {
-                'precedences': precedences,
-                'results': results
-            }
-        elif is_better(results[1], results[0]):
-            return {
-                'precedences': [precedences[1], precedences[0]],
-                'results': [results[1], results[0]]
-            }
-        return None
+        try:
+            precedences = [
+                {symbol_type: vampire.random_precedence(symbol_type=symbol_type, length=signature_size[symbol_type],
+                                                        seed=(case, i)) for symbol_type
+                 in symbol_types} for i in (0, 1)]
+            results = [solver.solve(problem_name, precedences[i]) for i in (0, 1)]
+            if is_better(results[0], results[1]):
+                return {
+                    'precedences': precedences,
+                    'results': results
+                }
+            elif is_better(results[1], results[0]):
+                return {
+                    'precedences': [precedences[1], precedences[0]],
+                    'results': [results[1], results[0]]
+                }
+            return None
+        except Exception as e:
+            raise RuntimeError(f'Failed to generate question {case} for problem {problem_name}.') from e
 
     num_problems = len(problems)
     problem_attempts = np.zeros(num_problems, dtype=np.uint32)
