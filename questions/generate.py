@@ -15,6 +15,7 @@ symbol_types = ('predicate', 'function')
 
 def generate(clausifier, solver, parallel, problems, num_questions=None, num_questions_per_batch=32, output=None):
     signature_sizes = get_signature_sizes(problems, clausifier, parallel)
+    assert len(signature_sizes) == len(problems)
 
     def generate_one_question(problem_i, case):
         signature_size = signature_sizes[problem_i]
