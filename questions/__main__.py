@@ -141,7 +141,8 @@ def main():
 
     patterns = list(map(normalize_pattern, patterns))
 
-    solver = Solver(timeout=20)
+    clausifier = Solver()
+    solver = Solver(options={**Solver.default_options, 'time_limit': '10'}, timeout=20)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), joblib.Parallel(verbose=10) as parallel:
         # We need to split problems first and then collect questions for each of the datasets
@@ -323,7 +324,7 @@ def main():
                 embedding_to_cost = None
                 logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
                 if args.symbol_embedding_model == 'simple':
-                    model_symbol_embedding = models.symbol_features.Simple(solver, args.symbol_type)
+                    model_symbol_embedding = models.symbol_features.Simple(clausifier, args.symbol_type)
                     if args.simple_model_kernel is not None:
                         kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
                         logging.info(f'Simple model kernel: {kernel}')
@@ -331,7 +332,7 @@ def main():
                                                                   kernel_initializer=tf.constant_initializer(kernel))
 
                 elif args.symbol_embedding_model == 'gcn':
-                    graphifier = Graphifier(solver, max_number_of_nodes=args.max_num_nodes)
+                    graphifier = Graphifier(clausifier, max_number_of_nodes=args.max_num_nodes)
                     # problems_to_graphify = set(map(py_str, problems_all))
                     graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
                     for problem_name, rec in graphs_df.iterrows():

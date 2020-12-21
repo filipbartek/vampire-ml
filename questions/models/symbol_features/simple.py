@@ -5,9 +5,9 @@ from proving.utils import py_str
 
 
 class Simple(SymbolFeatures):
-    def __init__(self, solver, symbol_type, columns=None, dtype=None):
+    def __init__(self, clausifier, symbol_type, columns=None, dtype=None):
         super().__init__(trainable=False, dtype=dtype)
-        self.solver = solver
+        self.clausifier = clausifier
         self.symbol_type = symbol_type
         self.columns = columns
 
@@ -33,7 +33,7 @@ class Simple(SymbolFeatures):
         # https://stackoverflow.com/a/56122892/4054250
         problem = py_str(problem)
         try:
-            df = self.solver.symbols_of_type(problem, self.symbol_type)
+            df = self.clausifier.symbols_of_type(problem, self.symbol_type)
             if self.columns is not None:
                 df_filtered = df[self.columns]
             else:

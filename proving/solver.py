@@ -21,8 +21,7 @@ class Solver:
         'symbol_precedence': 'frequency',
         'saturation_algorithm': 'discount',
         'age_weight_ratio': '10',
-        'avatar': 'off',
-        'time_limit': '10'
+        'avatar': 'off'
     }
 
     def __init__(self, options=None, timeout=None):

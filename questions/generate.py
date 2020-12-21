@@ -7,13 +7,14 @@ import numpy as np
 import tensorflow as tf
 from joblib import delayed
 
+from proving import vampire
 from proving.memory import memory
 
 symbol_types = ('predicate', 'function')
 
 
-def generate(solver, parallel, problems, num_questions=None, num_questions_per_batch=32, output=None):
-    signature_sizes = get_signature_sizes(problems, solver, parallel)
+def generate(clausifier, solver, parallel, problems, num_questions=None, num_questions_per_batch=32, output=None):
+    signature_sizes = get_signature_sizes(problems, clausifier, parallel)
 
     def generate_one_question(problem_i, case):
         signature_size = signature_sizes[problem_i]
@@ -22,7 +23,8 @@ def generate(solver, parallel, problems, num_questions=None, num_questions_per_b
         # TODO: Pivot.
         problem_name = problems[problem_i]
         precedences = [
-            {symbol_type: solver.random_precedence(signature_size[symbol_type], symbol_type, (case, i)) for symbol_type
+            {symbol_type: vampire.random_precedence(symbol_type=symbol_type, length=signature_size[symbol_type],
+                                                    seed=(case, i)) for symbol_type
              in symbol_types} for i in (0, 1)]
         results = [solver.solve(problem_name, precedences[i]) for i in (0, 1)]
         if is_better(results[0], results[1]):

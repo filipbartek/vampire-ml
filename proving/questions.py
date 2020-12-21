@@ -554,13 +554,13 @@ def evaluate_with_vampire_on_problem_using_model(problem_name, model, graphifier
         # Graphification failed.
         return {'time_graphification': time_graphification}
     x = {'batch_graph': graph}
-    clausify_result = graphifier.solver.clausify(problem_name)
+    clausify_result = graphifier.clausifier.clausify(problem_name)
     for symbol_type in ('predicate', 'function'):
         sym_selected = clausify_result.symbols_of_type(symbol_type)
         a = sym_selected.drop('name', axis='columns').astype(dtype_tf_float).values
         x[f'symbol_embeddings_{symbol_type}'] = a
     symbol_costs = model.predict_symbol_costs(x)
-    res = evaluate_with_vampire_on_problem(problem_name, symbol_costs, graphifier.solver)
+    res = evaluate_with_vampire_on_problem(problem_name, symbol_costs, graphifier.clausifier)
     res['time_graphification'] = time_graphification
     return res
 

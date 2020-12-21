@@ -28,9 +28,9 @@ class Graphifier:
     edge_type_backward = 'backward'
     edge_type_self = 'self'
 
-    def __init__(self, solver, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
+    def __init__(self, clausifier, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
                  output_ntypes=('predicate', 'function')):
-        self.solver = solver
+        self.clausifier = clausifier
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
         self.equality = equality
@@ -68,7 +68,8 @@ class Graphifier:
 
     @functools.lru_cache(maxsize=1)
     def get_config(self):
-        return {k: getattr(self, k) for k in ['solver', 'arg_order', 'arg_backedge', 'equality', 'output_ntypes']}
+        attrs = ('clausifier', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
+        return {k: getattr(self, k) for k in attrs}
 
     @functools.lru_cache(maxsize=1)
     def cache_dir(self):
@@ -125,8 +126,7 @@ class Graphifier:
         return list(itertools.chain(res_standard, res_self))
 
     def __repr__(self):
-        attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
-        return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={getattr(self, k)}' for k in attrs)
+        return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={v}' for k, v in self.get_config().items())
 
     def problems_to_graphs_dict(self, problems):
         logging.info(f'Graphifying {len(problems)} problems...')
@@ -142,7 +142,7 @@ class Graphifier:
         problem = py_str(problem)
         logging.debug(f'Graphifying problem {problem}...')
         time_start = time.time()
-        clausify_result = self.solver.clausify(problem)
+        clausify_result = self.clausifier.clausify(problem)
         time_elapsed = time.time() - time_start
         record = {'problem': problem,
                   'clausify_returncode': clausify_result.returncode,
