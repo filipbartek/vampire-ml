@@ -192,7 +192,7 @@ def main():
                                       'questions.pkl')
         with writer_train.as_default():
             if args.questions_dir is None:
-                questions_generated = generate(solver, parallel, list(map(py_str, problems_all)),
+                questions_generated = generate(clausifier, solver, parallel, list(map(py_str, problems_all)),
                                                num_questions_per_batch=1000,
                                                output=os.path.join(args.output, 'problem_questions.joblib'))
                 return
