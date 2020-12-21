@@ -68,7 +68,8 @@ def generate(clausifier, solver, parallel, problems, num_questions=None, num_que
                     problem_hits[problem_i] += 1
                     problem_name = problems[problem_i]
                     problem_questions[problem_name].append(question)
-            logging.info(f'Problems with a question: {len(problem_questions)}. Total questions: {np.sum(problem_hits)}/{num_attempts}/{num_questions}.')
+            logging.info(
+                f'Problems with a question: {len(problem_questions)}. Total questions: {np.sum(problem_hits)}/{num_attempts}/{num_questions}.')
             problem_ucbs = problem_hits / problem_attempts + np.sqrt(2 * np.log(num_attempts) / problem_attempts)
             problem_ucbs = np.nan_to_num(problem_ucbs, nan=np.inf)
             tf.summary.scalar('problems_with_questions', len(problem_questions))
