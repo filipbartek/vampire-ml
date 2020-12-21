@@ -78,11 +78,15 @@ def call(problem, options=None, timeout=None, precedences=None, get_symbols=Fals
                 result_symbols = option_manager.symbols()
             except FileNotFoundError:
                 pass
+            except Exception as e:
+                raise RuntimeError(f'Failed to load symbols of problem {problem}.') from e
         if get_clauses:
             try:
                 clauses = option_manager.clauses()
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
+            except Exception as e:
+                raise RuntimeError(f'Failed to load clauses of problem {problem}.') from e
     return Result(result, result_symbols, clauses)
 
 
