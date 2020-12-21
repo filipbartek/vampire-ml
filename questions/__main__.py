@@ -175,7 +175,8 @@ def main():
             }
         logging.info('Number of problems taken: %d', cardinality_finite(problems_all))
 
-        problem_records = {p: {**tptp.problem_properties(p), **{f'dataset_{k}': False for k in problems}} for p in map(py_str, problems_all)}
+        problem_records = {p: {**tptp.problem_properties(p), **{f'dataset_{k}': False for k in problems}} for p in
+                           map(py_str, problems_all)}
         problem_records_types = {**tptp.property_types, **{f'dataset_{k}': np.bool for k in problems}}
         for k, p in problems.items():
             logging.info(f'Number of {k} problems: {cardinality_finite(p)}')
