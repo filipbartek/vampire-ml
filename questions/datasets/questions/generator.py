@@ -162,7 +162,7 @@ def get_signature_sizes(problems, clausifier):
             return None
 
     logging.info(f'Collecting signature sizes of {len(problems)} problems...')
-    return Parallel()(delayed(get_signature_size)(problem_name) for problem_name in problems)
+    return Parallel(verbose=10)(delayed(get_signature_size)(problem_name) for problem_name in problems)
 
 
 def is_better(r0, r1):
