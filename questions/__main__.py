@@ -31,7 +31,7 @@ from questions import callbacks
 from questions import datasets
 from questions import models
 from questions import plot
-from questions.generate import generate
+from questions.datasets.questions import Generator
 from vampire_ml.results import save_df
 
 
@@ -141,7 +141,7 @@ def main():
 
     patterns = list(map(normalize_pattern, patterns))
 
-    clausifier = Solver()
+    clausifier = Solver(options={**Solver.default_options, 'time_limit': '300'})
     solver = Solver(options={**Solver.default_options, 'time_limit': '10'}, timeout=20)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), joblib.Parallel(verbose=10) as parallel:
@@ -192,9 +192,9 @@ def main():
                                       'questions.pkl')
         with writer_train.as_default():
             if args.questions_dir is None:
-                questions_generated = generate(clausifier, solver, parallel, list(map(py_str, problems_all)),
-                                               num_questions_per_batch=1000,
-                                               output=os.path.join(args.output, 'problem_questions.joblib'))
+                generator = Generator.fresh(list(map(py_str, problems_all)), clausifier)
+                with writer_train.as_default():
+                    questions_generated = generator.generate(solver, num_questions_per_batch=1000, basename=os.path.join(args.output, 'questions_generated'))
                 return
 
             # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
