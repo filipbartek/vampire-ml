@@ -7,11 +7,12 @@ import re
 import tempfile
 
 import numpy as np
+import pandas as pd
 
 from proving import config
 from proving import process
 from proving import symbols
-from proving.memory import memory
+from proving import utils
 
 log = logging.getLogger(__name__)
 supported_precedence_names = ['predicate', 'function']
@@ -23,6 +24,13 @@ class Result(process.Result):
         super().__init__(**process_result.__dict__)
         self.symbols = result_symbols
         self.clauses = clauses
+
+    pd_dtypes = {
+        **process.Result.pd_dtypes,
+        'time_elapsed_vampire': float,
+        'saturation_iterations': pd.UInt32Dtype(),
+        'memory_used': pd.UInt32Dtype()
+    }
 
     def symbols_of_type(self, symbol_type):
         return symbols.symbols_of_type(self.symbols, symbol_type)
@@ -49,9 +57,16 @@ class Result(process.Result):
             return None
 
 
-@memory.cache
 def call(problem, options=None, timeout=None, precedences=None, get_symbols=False, get_clauses=False, get_stdout=True,
          get_stderr=True):
+    try:
+        mode = options['mode']
+    except KeyError:
+        mode = None
+    precedence_strings = None
+    if precedences is not None:
+        precedence_strings = {k: utils.type_len(v) for k, v in precedences.items()}
+    log.debug(f'Running Vampire. Problem: {problem}. Mode: {mode}. Precedences: {precedence_strings}.')
     result_symbols = None
     clauses = None
     with OptionManager(problem, base_options=options, precedences=precedences, get_symbols=get_symbols,
@@ -63,19 +78,25 @@ def call(problem, options=None, timeout=None, precedences=None, get_symbols=Fals
                 result_symbols = option_manager.symbols()
             except FileNotFoundError:
                 pass
+            except Exception as e:
+                raise RuntimeError(f'Failed to load symbols of problem {problem}.') from e
         if get_clauses:
             try:
                 clauses = option_manager.clauses()
             except (FileNotFoundError, json.JSONDecodeError):
                 pass
+            except Exception as e:
+                raise RuntimeError(f'Failed to load clauses of problem {problem}.') from e
     return Result(result, result_symbols, clauses)
 
 
 def random_precedence(symbol_type, length, seed=None, dtype=np.uint32):
     if seed is not None:
+        if not isinstance(seed, tuple):
+            seed = (seed,)
         salt = supported_precedence_names.index(symbol_type)
         # Salt the seed for the given symbol type.
-        seed = (salt, seed)
+        seed = (salt, *seed)
     rng = np.random.RandomState(seed)
     if symbol_type == 'predicate':
         # The equality symbol should be placed first in all the predicate precedences.
@@ -169,8 +190,10 @@ def load_clauses(file):
     # Throws FileNotFoundError if `file` does not exist.
     log.debug(f'Loading {file} of size {os.path.getsize(file)}.')
     # Throws json.JSONDecodeError if the content is malformed.
-    return json.load(open(file))
+    with open(file) as f:
+        return json.load(f)
 
 
 def save_clauses(clauses, file):
-    json.dump(clauses, open(file, 'w'))
+    with open(file, 'w') as f:
+        json.dump(clauses, f)

@@ -27,20 +27,13 @@ def save_all(df_solve, df_clausify, output, df_custom=None):
         save_terminations(df_custom, os.path.join(output, 'runs_custom_terminations.txt'))
 
 
-def save_df(df, base_name, output_dir=None, index=True):
-    if df is None:
-        return
-    assert base_name is not None
-    path_common = base_name
-    if output_dir is not None:
-        os.makedirs(output_dir, exist_ok=True)
-        path_common = os.path.join(output_dir, path_common)
-    if len(os.path.dirname(path_common)) > 0:
-        os.makedirs(os.path.dirname(path_common), exist_ok=True)
-    df.to_pickle(f'{path_common}.pkl')
+def save_df(df, basename, index=True):
+    if len(os.path.dirname(basename)) > 0:
+        os.makedirs(os.path.dirname(basename), exist_ok=True)
+    df.to_pickle(f'{basename}.pkl')
     with np.printoptions(threshold=sys.maxsize, linewidth=sys.maxsize):
-        df.to_csv(f'{path_common}.csv', index=index, header=df.columns.values)
-    logging.info(f'DataFrame of length {len(df.index)} saved: {path_common}.{{pkl,csv}}')
+        df.to_csv(f'{basename}.csv', index=index, header=df.columns.values)
+    logging.info(f'DataFrame of length {len(df.index)} saved: {basename}.{{pkl,csv}}')
 
 
 def save_terminations(solve_runs_df, output_batch):

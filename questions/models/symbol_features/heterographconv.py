@@ -1,0 +1,180 @@
+import functools
+
+import dgl
+import tensorflow as tf
+from ordered_set import OrderedSet
+
+dtype_tf_float = tf.float32
+
+
+class HeteroGCN(tf.keras.layers.Layer):
+    """
+    For dropout, we follow good practices outlined here: https://machinelearningmastery.com/dropout-regularization-deep-learning-models-keras/
+    """
+
+    def __init__(self, edge_layer_sizes, node_layer_sizes, num_layers=1, output_ntypes=None, dynamic=False,
+                 activation='relu', dropout=0, kernel_max_norm=None):
+        super().__init__(dynamic=dynamic)
+
+        assert num_layers >= 1
+
+        if output_ntypes is None:
+            output_ntypes = node_layer_sizes.keys()
+        self.output_ntypes = output_ntypes
+
+        layers_list_reversed = []
+        contributing_srctypes = OrderedSet()
+        contributing_dsttypes = OrderedSet(output_ntypes)
+        for i in range(num_layers):
+            # Every node contributes to itself.
+            contributing_srctypes = contributing_dsttypes.copy()
+            for srctype, etype, dsttype in edge_layer_sizes.keys():
+                if dsttype in contributing_dsttypes:
+                    contributing_srctypes.add(srctype)
+            cur_edge_layer_sizes = {k: v for k, v in edge_layer_sizes.items() if
+                                    k[0] in contributing_srctypes and k[2] in contributing_dsttypes}
+            cur_node_layer_sizes = {k: node_layer_sizes[k] for k in contributing_dsttypes}
+            layers_list_reversed.append(self.create_layer(cur_edge_layer_sizes, cur_node_layer_sizes,
+                                                          activation=activation, dropout=dropout,
+                                                          kernel_max_norm=kernel_max_norm))
+            contributing_dsttypes = contributing_srctypes
+        self.layers_list = list(reversed(layers_list_reversed))
+
+        assert contributing_srctypes <= set(node_layer_sizes.keys())
+        # TensorFlow requires the initial value of a variable to have at least 2-dimensional shape.
+        self.ntype_embeddings = {ntype: self.add_weight(name=ntype, shape=(1, node_layer_sizes[ntype]),
+                                                        dtype=dtype_tf_float, initializer='random_normal',
+                                                        trainable=True) for ntype in contributing_srctypes}
+
+    @staticmethod
+    def create_layer(edge_layer_sizes, node_layer_sizes, activation, dropout, kernel_max_norm):
+        def cr(units, name):
+            kernel_constraint = None
+            if kernel_max_norm is not None and kernel_max_norm >= 0:
+                kernel_constraint = tf.keras.constraints.max_norm(kernel_max_norm)
+            return tf.keras.Sequential([
+                tf.keras.layers.Dropout(dropout),
+                tf.keras.layers.Dense(units, activation=activation, kernel_constraint=kernel_constraint)
+            ], name=name)
+
+        edge_layers = HeteroGraphConv.create_layers(edge_layer_sizes, cr)
+        node_layers = HeteroGraphConv.create_layers(node_layer_sizes, cr)
+        return HeteroGraphConv(edge_layers, node_layers)
+
+    def initial_node_embeddings(self, g):
+        return {ntype: tf.tile(e, (g.num_nodes(ntype), 1)) for ntype, e in self.ntype_embeddings.items()}
+
+    def call(self, g, training=False):
+        x = self.initial_node_embeddings(g)
+        for layer in self.layers_list:
+            x = layer(g, x, training=training)
+        return {k: x[k] for k in self.output_ntypes}
+
+
+class HeteroGraphConv(tf.keras.layers.Layer):
+    # https://docs.dgl.ai/en/0.4.x/tutorials/basics/5_hetero.html
+    # https://docs.dgl.ai/_modules/dgl/nn/tensorflow/conv/relgraphconv.html#RelGraphConv
+    # TODO: Add global state. Currently only node states are supported.
+    # TODO: Add node features: argument: argument id (or log of the id)
+
+    def __init__(self, edge_layers, node_layers, reduce_func_template=None):
+        """
+        :param reduce_func_template: A DGL built-in reduce function.
+        """
+        # This layer is dynamic because DGLGraph.multi_update_all only works in eager mode.
+        super().__init__(dynamic=True)
+        if reduce_func_template is None:
+            # Jan Hula suggested that sum is better than mean since it allows the destination node to determine the number of source nodes.
+            reduce_func_template = dgl.function.sum
+        # Message models
+        # The keys are strings so that TensorFlow can automatically save the weights.
+        self.edge_layers = {self.canonical_etype_id(k): v for k, v in edge_layers.items()}
+        self.node_layers = node_layers
+        self.reduce_functions = {}
+        for canonical_etype in edge_layers.keys():
+            srctype, etype, dsttype = canonical_etype
+            self.reduce_functions[canonical_etype] = reduce_func_template(('m', srctype, etype), ('m', srctype, etype))
+        assert set(tuple(zip(*self.reduce_functions.keys()))[2]) == set(self.node_layers.keys())
+
+    def __repr__(self):
+        return f'{self.__class__.__name__}({list(self.node_layers.keys())}, {list(self.edge_layers.keys())})'
+
+    @classmethod
+    def create_layers(cls, layer_sizes, create_layer):
+        return {layer_id: create_layer(units, name=cls.layer_id_to_name(layer_id)) for layer_id, units in
+                layer_sizes.items()}
+
+    @staticmethod
+    def layer_id_to_name(layer_id):
+        if type(layer_id) is tuple:
+            return '_'.join(layer_id)
+        return str(layer_id)
+
+    @functools.lru_cache(maxsize=2)
+    def etype_dict(self, training):
+        return {canonical_etype: (functools.partial(self.message_func, training=training), reduce_func) for
+                canonical_etype, reduce_func in self.reduce_functions.items()}
+
+    def message_func(self, edges, training):
+        layer = self.get_edge_layer(edges.canonical_etype)
+        input_tensors = [edges.src['h']]
+        try:
+            input_tensors.append(edges.src['feat'])
+        except KeyError:
+            pass
+        try:
+            input_tensors.append(edges.data['feat'])
+        except KeyError:
+            pass
+        srctype, etype, dsttype = edges.canonical_etype
+        v = layer(tf.concat(input_tensors, 1), training=training)
+        return {('m', srctype, etype): v}
+
+    def apply_node_func(self, nodes, training):
+        """Aggregates incoming reduced messages across edge types."""
+        input_tensors = [nodes.data['h']]
+        for canonical_etype in self.reduce_functions.keys():
+            srctype, etype, dsttype = canonical_etype
+            if dsttype != nodes.ntype:
+                continue
+            try:
+                t = nodes.data[('m', srctype, etype)]
+                assert len(t.shape) == 3
+                assert t.shape[1] == 1
+                t = tf.squeeze(t, axis=1)
+            except KeyError:
+                edge_layer = self.get_edge_layer(canonical_etype)
+                t = tf.zeros((len(nodes), edge_layer.output_shape[1]))
+            assert len(t.shape) == 2
+            input_tensors.append(t)
+        layer = self.node_layers[nodes.ntype]
+        v = layer(tf.concat(input_tensors, 1), training=training)
+        return {'out': v}
+
+    def get_edge_layer(self, canonical_etype):
+        return self.edge_layers[self.canonical_etype_id(canonical_etype)]
+
+    @staticmethod
+    def canonical_etype_id(canonical_etype):
+        return '_'.join(canonical_etype)
+
+    def call(self, g, x, training=False):
+        """
+        Forward computation
+
+        This cannot be declared as tf.function. g.multi_update_all fails in such case.
+
+        :param g dgl.DGLHeteroGraph: The graph
+        :param x dict: Input node features. Maps each node type to a feature tensor.
+        :return dict: New node features
+        """
+        etype_dict = self.etype_dict(training)
+        assert set(x.keys()) == set(tuple(zip(*etype_dict.keys()))[0])
+        apply_node_func = functools.partial(self.apply_node_func, training=training)
+        with g.local_scope():
+            for ntype in x.keys():
+                assert ntype in g.ntypes
+                assert g.num_nodes(ntype) == len(x[ntype])
+                g.nodes[ntype].data['h'] = x[ntype]
+            g.multi_update_all(etype_dict, 'stack', apply_node_func)
+            return {ntype: g.nodes[ntype].data['out'] for ntype in self.node_layers.keys()}

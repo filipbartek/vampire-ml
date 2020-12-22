@@ -1,11 +1,13 @@
 appdirs
 binpacking
+dgl
 flatten-dict
 guppy3
 joblib
 matplotlib
 memory-profiler
 methodtools
+more-itertools
 networkx
 numpy
 ordered-set

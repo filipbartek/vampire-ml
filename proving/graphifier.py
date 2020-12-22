@@ -1,21 +1,25 @@
+import functools
 import itertools
 import json
 import logging
+import os
 import time
 
 import dgl
+import joblib
 import numpy as np
+import pandas as pd
 import tensorflow as tf
 from joblib import Parallel, delayed
 
-from proving import tptp
+from proving import config
 from proving.memory import memory
+from proving.utils import py_str
 
 
-# For example HWV091_1 takes 21.1s to graphify.
-@memory.cache
-def problem_to_graph(graphifier, problem):
-    return graphifier.problem_to_graph(problem)
+@memory.cache(verbose=2)
+def get_graphs(graphifier, problems):
+    return graphifier.problems_to_graphs_dict(problems)
 
 
 class Graphifier:
@@ -24,12 +28,14 @@ class Graphifier:
     edge_type_backward = 'backward'
     edge_type_self = 'self'
 
-    def __init__(self, solver, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None):
-        self.solver = solver
+    def __init__(self, clausifier, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
+                 output_ntypes=('predicate', 'function')):
+        self.clausifier = clausifier
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
         self.equality = equality
         self.max_number_of_nodes = max_number_of_nodes
+        self.output_ntypes = output_ntypes
 
         self.ntypes = ['clause', 'term', 'predicate', 'function', 'variable']
         self.ntype_pairs = [
@@ -57,7 +63,58 @@ class Graphifier:
                 ('equality', 'term'),
                 ('equality', 'variable')
             ])
-        assert all(ntype in self.ntypes for ntype in itertools.chain.from_iterable(self.ntype_pairs))
+        assert set(self.output_ntypes) <= set(self.ntypes)
+        assert set(itertools.chain.from_iterable(self.ntype_pairs)) <= set(self.ntypes)
+
+    @functools.lru_cache(maxsize=1)
+    def get_config(self):
+        attrs = ('clausifier', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
+        return {k: getattr(self, k) for k in attrs}
+
+    @functools.lru_cache(maxsize=1)
+    def cache_dir(self):
+        cache_dir = os.path.join(config.cache_dir(), type(self).__name__, joblib.hash(self.get_config()))
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(os.path.join(cache_dir, 'config.json'), 'w') as fp:
+            json.dump(self.get_config(), fp, indent=4, default=vars)
+        return cache_dir
+
+    def problem_to_graph(self, problem_name):
+        cache_dir_full = os.path.join(self.cache_dir(), problem_name)
+        filename_graph = os.path.join(cache_dir_full, 'graph.joblib')
+        filename_record = os.path.join(cache_dir_full, 'record.json')
+        try:
+            with open(filename_record) as fp:
+                record = json.load(fp)
+            if record['error'] == 'clausify':
+                if record['clausify_returncode'] is not None and record['clausify_returncode'] < 0:
+                    raise RuntimeError('Clausification failed with negative return code: %d',
+                                       record['clausify_returncode'])
+                logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
+                graph = None
+            elif record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
+                logging.debug(f'Skipping graphification of {problem_name} because it has at least %d nodes.',
+                              record['graph_nodes_lower_bound'])
+                graph = None
+            else:
+                assert 'graph_nodes' not in record or record['graph_nodes'] <= self.max_number_of_nodes
+                # Raises ValueError if reading reaches an unexpected EOF.
+                graph = joblib.load(filename_graph)
+                logging.debug(f'Graph of {problem_name} loaded.')
+                assert graph.num_nodes() == record['graph_nodes']
+        except (FileNotFoundError, RuntimeError, ValueError):
+            logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
+            graph, record = self.graphify(problem_name)
+            os.makedirs(cache_dir_full, exist_ok=True)
+            with open(filename_record, 'w') as fp:
+                json.dump(record, fp, indent=4, default=int)
+            if graph is not None:
+                joblib.dump(graph, filename_graph)
+        except Exception as e:
+            raise RuntimeError(
+                f'Failed to produce graph of problem {problem_name}. Graph file: {filename_graph}') from e
+        assert graph is None or graph.num_nodes() <= self.max_number_of_nodes
+        return graph, record
 
     def __getitem__(self, problem):
         return problem_to_graph(self, problem)[0]
@@ -67,47 +124,64 @@ class Graphifier:
         res_standard = itertools.chain.from_iterable(
             ((srctype, self.edge_type_forward, dsttype), (dsttype, self.edge_type_backward, srctype)) for
             srctype, dsttype in self.ntype_pairs)
-        res_self = ((ntype, self.edge_type_self, ntype) for ntype in ('predicate', 'function'))
+        # We add loops to potential output ntypes to ensure that their embeddings are always computed.
+        res_self = ((ntype, self.edge_type_self, ntype) for ntype in self.output_ntypes)
         return list(itertools.chain(res_standard, res_self))
 
     def __repr__(self):
-        attrs = ('solver', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes')
-        return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={getattr(self, k)}' for k in attrs)
+        return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={v}' for k, v in self.get_config().items())
 
-    def problems_to_graphs(self, problems):
+    def problems_to_graphs_dict(self, problems):
         logging.info(f'Graphifying {len(problems)} problems...')
-        res = Parallel(verbose=1)(delayed(problem_to_graph)(self, problem) for problem in problems)
-        logging.info(
-            f'Problems graphified. {sum(g is not None for g, record in res)}/{len(res)} graphified successfully.')
-        return res
+        graphs_records = Parallel(verbose=1)(delayed(self.problem_to_graph)(problem) for problem in problems)
+        graphs, records = zip(*graphs_records)
+        problem_graphs = {p: g for p, g, r in zip(problems, graphs, records) if
+                          g is not None and r is not None and r['error'] is None}
+        logging.info(f'Problems graphified. {len(problem_graphs)}/{len(graphs_records)} graphified successfully.')
+        df = pd.DataFrame.from_records(records, index='problem')
+        return problem_graphs, df
 
-    def problem_to_graph(self, problem):
+    def graphify(self, problem):
+        problem = py_str(problem)
+        logging.debug(f'Graphifying problem {problem}...')
         time_start = time.time()
-        clausify_result = self.solver.clausify(problem)
+        clausify_result = self.clausifier.clausify(problem)
         time_elapsed = time.time() - time_start
         record = {'problem': problem,
                   'clausify_returncode': clausify_result.returncode,
-                  'clausify_time': time_elapsed}
-        record.update(tptp.problem_properties(problem))
+                  'clausify_time': time_elapsed,
+                  'error': None}
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
-            return None, record
-        symbol_types = ('predicate', 'function')
-        symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
-        record['clause_count'] = len(clausify_result.clauses)
-        record.update({f'{symbol_type}_count': len(symbols[symbol_type]) for symbol_type in symbol_types})
-        time_start = time.time()
-        try:
-            g = self.clausify_result_to_graph(clausify_result)
-        except RuntimeError:
-            # The graph would be too large (too many nodes).
+            logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
+            record['error'] = 'clausify'
             g = None
-        time_elapsed = time.time() - time_start
-        record['graph_time'] = time_elapsed
-        if g is not None:
-            record['graph_nodes'] = g.num_nodes()
-            record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
-            record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
+        else:
+            symbol_types = ('predicate', 'function')
+            symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
+            record['num_clauses'] = len(clausify_result.clauses)
+            record.update({f'num_{symbol_type}': len(symbols[symbol_type]) for symbol_type in symbol_types})
+            time_start = time.time()
+            try:
+                g = self.clausify_result_to_graph(clausify_result)
+            except TermVisitor.NumNodesError as e:
+                # The graph would be too large (too many nodes).
+                logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
+                record['error'] = 'node_count'
+                g = None
+                record['graph_nodes_lower_bound'] = e.actual
+            time_elapsed = time.time() - time_start
+            record['graph_time'] = time_elapsed
+            if g is not None:
+                record['graph_nodes'] = g.num_nodes()
+                record['graph_nodes_lower_bound'] = g.num_nodes()
+                record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
+                record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
+                logging.debug(f'Problem {problem} graphified.')
         return g, record
+
+    @functools.lru_cache(maxsize=1)
+    def empty_graph(self):
+        return TermVisitor(self).get_graph()
 
     def clausify_result_to_graph(self, clausify_result):
         symbol_features = {symbol_type: clausify_result.symbols_of_type(symbol_type)[['inGoal', 'introduced']] for
@@ -120,7 +194,13 @@ class Graphifier:
 class TermVisitor:
     """Stateful. Must be instantiated for each new graph."""
 
-    def __init__(self, template, node_features, feature_dtype=tf.float32):
+    class NumNodesError(RuntimeError):
+        def __init__(self, actual, expected):
+            super().__init__(f'Invalid number of nodes. Actual: {actual}. Expected: {expected}.')
+            self.actual = actual
+            self.expected = expected
+
+    def __init__(self, template, node_features=None, feature_dtype=tf.float32):
         # TODO: Allow limiting term sharing to inside a clause, letting every clause to use a separate set of variables.
         # TODO: Add a root "formula" node that connects to all clauses.
         # TODO: Allow introducing separate node types for predicates and functions.
@@ -134,6 +214,8 @@ class TermVisitor:
         self.template = template
         self.feature_dtype = feature_dtype
         self.node_counts = {node_type: 0 for node_type in self.template.ntypes}
+        if node_features is None:
+            node_features = {}
         for ntype, feat in node_features.items():
             self.node_counts[ntype] = len(feat)
         self.edges = {ntype_pair: {'src': [], 'dst': []} for ntype_pair in self.template.ntype_pairs}
@@ -150,7 +232,7 @@ class TermVisitor:
 
     def check_number_of_nodes(self):
         if self.max_number_of_nodes is not None and self.number_of_nodes > self.max_number_of_nodes:
-            raise RuntimeError('Too many nodes.')
+            raise self.NumNodesError(self.number_of_nodes, self.max_number_of_nodes)
 
     @property
     def edge_type_forward(self):
@@ -195,7 +277,8 @@ class TermVisitor:
                 feat = self.convert_to_feature_matrix(d['feat'])
                 edge_features[canonical_etype_fw] = feat
                 edge_features[canonical_etype_bw] = feat
-        for ntype in self.node_features:
+        # Loops
+        for ntype in self.template.output_ntypes:
             r = tf.range(self.node_counts[ntype], dtype=dtype)
             data_dict[ntype, self.edge_type_self, ntype] = (r, r)
         g = dgl.heterograph(data_dict, self.node_counts)
