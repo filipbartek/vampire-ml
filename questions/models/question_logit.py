@@ -77,6 +77,7 @@ class QuestionLogitModel(tf.keras.Model):
         y_pred = tf.reshape(self(x, training=False).flat_values, (-1, 1))
 
         # Updates stateful loss metrics.
+        # TODO: Collect per-sample loss values across an epoch and then log their histogram.
         self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions), regularization_losses=self.losses)
 
         return self.update_metrics(y, y_pred, questions)
