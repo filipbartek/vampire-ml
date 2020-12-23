@@ -92,6 +92,8 @@ def main():
     parser.add_argument('--gcn-activation', default='relu', choices=['relu', 'sigmoid'])
     parser.add_argument('--gcn-dropout', type=float, default=0.2)
     parser.add_argument('--gcn-kernel-max-norm', type=float, default=4)
+    parser.add_argument('--questions-per-batch', type=int, default=1000)
+    parser.add_argument('--questions-per-problem', type=int, default=1000)
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -192,9 +194,17 @@ def main():
                                       'questions.pkl')
         with writer_train.as_default():
             if args.questions_dir is None:
-                generator = Generator.fresh(list(map(py_str, problems_all)), clausifier)
+                try:
+                    generator = Generator.load(os.path.join(args.output, 'questions_generated'))
+                    logging.info('Generated questions loaded. Continuing.')
+                except FileNotFoundError:
+                    generator = Generator.fresh(list(map(py_str, problems_all)), clausifier)
+                    logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
-                    questions_generated = generator.generate(solver, num_questions_per_batch=1000, basename=os.path.join(args.output, 'questions_generated'))
+                    questions_generated = generator.generate(solver,
+                                                             num_questions_per_batch=args.questions_per_batch,
+                                                             num_questions_per_problem=args.questions_per_problem,
+                                                             dir=os.path.join(args.output, 'questions_generated'))
                 return
 
             # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).

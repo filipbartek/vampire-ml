@@ -1,9 +1,12 @@
 import collections
 import logging
+import os
 import warnings
 
+import joblib
 import numpy as np
 import pandas as pd
+import statsmodels.stats.proportion
 import tensorflow as tf
 from joblib import delayed, Parallel
 
@@ -16,8 +19,11 @@ symbol_types = ('predicate', 'function')
 
 
 class Generator:
-    def __init__(self, df):
+    def __init__(self, df, problem_questions=None):
         self.df = df
+        if problem_questions is None:
+            problem_questions = collections.defaultdict(list)
+        self.problem_questions = problem_questions
 
     @classmethod
     def fresh(cls, problems, clausifier):
@@ -40,12 +46,15 @@ class Generator:
         df = dataframe_from_records(records, index_keys='problem', dtypes=dtypes)
         return cls(df)
 
-    def save(self, basename):
-        save_df(self.df, basename)
+    def save(self, dir):
+        save_df(self.df, os.path.join(dir, 'problems'))
+        joblib.dump(self.problem_questions, os.path.join(dir, 'questions.joblib'))
 
     @classmethod
-    def load(cls, basename):
-        return cls(pd.read_pickle(f'{basename}.pkl'))
+    def load(cls, dir):
+        df = pd.read_pickle(os.path.join(dir, 'problems.pkl'))
+        problem_questions = joblib.load(os.path.join(dir, 'questions.joblib'))
+        return cls(df, problem_questions)
 
     @property
     def num_attempts(self):
@@ -73,16 +82,21 @@ class Generator:
 
     @property
     def problem_ucbs(self):
-        with np.errstate(all='raise'):
-            # https://medium.com/analytics-vidhya/multi-armed-bandit-analysis-of-upper-confidence-bound-algorithm-4b84be516047
-            res = self.problem_mean_rewards + np.sqrt(np.log(self.num_attempts) / self.problem_attempts)
-            res = np.nan_to_num(res, nan=np.inf)
-        return res
+        # https://medium.com/analytics-vidhya/multi-armed-bandit-analysis-of-upper-confidence-bound-algorithm-4b84be516047
+        # https://lilianweng.github.io/lil-log/2018/01/23/the-multi-armed-bandit-problem-and-its-solutions.html
+        # https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+        ci_low, ci_upp = statsmodels.stats.proportion.proportion_confint(self.problem_hits.astype(np.uint32),
+                                                                         self.problem_attempts.astype(np.uint32),
+                                                                         method='wilson')
+        return ci_upp
 
-    def generate(self, solver, num_questions_per_batch=1, num_questions=None, basename=None):
-        problem_questions = collections.defaultdict(list)
+    def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=1000, num_questions=None,
+                 dir=None):
         step = 0
         while num_questions is None or self.num_attempts < num_questions:
+            if np.all(self.problem_hits >= num_questions_per_problem):
+                logging.info('All problems have been saturated.')
+                break
             if self.num_attempts == 0:
                 batch = [(i, i) for i in range(self.num_problems)]
                 for i in range(self.num_problems):
@@ -93,21 +107,24 @@ class Generator:
                 if num_questions is not None:
                     cur_batch_size = min(cur_batch_size, num_questions - self.num_attempts)
                 for case in range(self.num_attempts, self.num_attempts + cur_batch_size):
-                    best = np.argmax(self.problem_ucbs)
+                    problem_ucbs = self.problem_ucbs.copy()
+                    problem_ucbs[self.problem_hits >= num_questions_per_problem] = np.NINF
+                    best = np.argmax(problem_ucbs)
                     # We specify the case number uniquely across problems.
                     # If we maintained case id for each problem independently,
                     batch.append((best, case))
                     self.problem_attempts[best] += 1
             logging.info(f'Generating {len(batch)} questions...')
-            questions = Parallel(verbose=10)(delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
+            questions = Parallel(verbose=10)(
+                delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
             for (problem_i, case), question in zip(batch, questions):
                 if question is not None:
                     self.problem_hits[problem_i] += 1
                     problem_name = self.problems[problem_i]
-                    problem_questions[problem_name].append(question)
+                    self.problem_questions[problem_name].append(question)
             logging.info(
-                f'Problems with at least one question: {len(problem_questions)}. Total questions: {np.sum(self.problem_hits)}/{self.num_attempts}/{num_questions}.')
-            tf.summary.scalar('num_problems_with_questions', len(problem_questions), step=step)
+                f'Problems with at least one question: {len(self.problem_questions)}. Total questions: {np.sum(self.problem_hits)}/{self.num_attempts}/{num_questions}.')
+            tf.summary.scalar('num_problems_with_questions', len(self.problem_questions), step=step)
             tf.summary.scalar('num_questions', np.sum(self.problem_hits), step=step)
             tf.summary.scalar('num_attempts', self.num_attempts, step=step)
             tf.summary.scalar('batch_questions', sum(question is not None for question in questions), step=step)
@@ -116,10 +133,10 @@ class Generator:
             tf.summary.histogram('hits', self.problem_hits.astype(np.uint32), step=step)
             tf.summary.histogram('hit_rates', self.problem_mean_rewards, step=step)
             tf.summary.histogram('confidence_margins', self.problem_ucbs - self.problem_mean_rewards, step=step)
-            if basename is not None:
-                self.save(basename)
+            if dir is not None:
+                self.save(dir)
             step += 1
-        return problem_questions
+        return self.problem_questions
 
     def generate_one(self, problem_i, case, solver):
         # TODO: Pivot.
