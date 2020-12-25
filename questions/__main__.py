@@ -94,6 +94,7 @@ def main():
     parser.add_argument('--gcn-kernel-max-norm', type=float, default=4)
     parser.add_argument('--questions-per-batch', type=int, default=1000)
     parser.add_argument('--questions-per-problem', type=int, default=1000)
+    parser.add_argument('--questions-randomize', nargs='+')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -198,7 +199,8 @@ def main():
                     generator = Generator.load(os.path.join(args.output, 'questions_generated'))
                     logging.info('Generated questions loaded. Continuing.')
                 except FileNotFoundError:
-                    generator = Generator.fresh(list(map(py_str, problems_all)), clausifier)
+                    generator = Generator.fresh(list(map(py_str, problems_all)), clausifier,
+                                                randomize=args.questions_randomize)
                     logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
                     questions_generated = generator.generate(solver,

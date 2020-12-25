@@ -19,14 +19,17 @@ symbol_types = ('predicate', 'function')
 
 
 class Generator:
-    def __init__(self, df, problem_questions=None):
+    def __init__(self, df, randomize=None, problem_questions=None):
         self.df = df
+        if randomize is None:
+            randomize = symbol_types
+        self.randomize = randomize
         if problem_questions is None:
             problem_questions = collections.defaultdict(list)
         self.problem_questions = problem_questions
 
     @classmethod
-    def fresh(cls, problems, clausifier):
+    def fresh(cls, problems, clausifier, randomize=None):
         signature_sizes = get_signature_sizes(problems, clausifier)
         assert len(signature_sizes) == len(problems)
         records = [{
@@ -44,17 +47,19 @@ class Generator:
             'hits': pd.UInt32Dtype()
         }
         df = dataframe_from_records(records, index_keys='problem', dtypes=dtypes)
-        return cls(df)
+        return cls(df, randomize)
 
     def save(self, dir):
         save_df(self.df, os.path.join(dir, 'problems'))
+        joblib.dump(self.randomize, os.path.join(dir, 'randomize.joblib'))
         joblib.dump(self.problem_questions, os.path.join(dir, 'questions.joblib'))
 
     @classmethod
     def load(cls, dir):
         df = pd.read_pickle(os.path.join(dir, 'problems.pkl'))
+        randomize = joblib.load(os.path.join(dir, 'randomize.joblib'))
         problem_questions = joblib.load(os.path.join(dir, 'questions.joblib'))
-        return cls(df, problem_questions)
+        return cls(df, randomize, problem_questions)
 
     @property
     def num_attempts(self):
@@ -139,10 +144,19 @@ class Generator:
         return self.problem_questions
 
     def generate_one(self, problem_i, case, solver):
-        # TODO: Pivot.
         problem_name = self.problems[problem_i]
         try:
-            precedences = [self.random_precedences(problem_i, (case, i)) for i in range(2)]
+            precedences = [{}, {}]
+            for symbol_type in symbol_types:
+                for i in range(2):
+                    if symbol_type in self.randomize:
+                        seed = (case, i)
+                    else:
+                        seed = (case, 0)
+                    precedences[i][symbol_type] = vampire.random_precedence(symbol_type=symbol_type,
+                                                                            length=self.signature_size(problem_i,
+                                                                                                       symbol_type),
+                                                                            seed=seed)
             results = [solver.solve(problem_name, precedences[i]) for i in range(2)]
             if is_better(results[0], results[1]):
                 return {
@@ -157,12 +171,6 @@ class Generator:
             return None
         except NotImplementedError as e:
             raise RuntimeError(f'Failed to generate question {case} for problem {problem_name}.') from e
-
-    def random_precedences(self, problem_i, seed):
-        return {symbol_type: vampire.random_precedence(symbol_type=symbol_type,
-                                                       length=self.signature_size(problem_i, symbol_type),
-                                                       seed=seed)
-                for symbol_type in symbol_types}
 
     def signature_size(self, problem_i, symbol_type):
         return self.df[f'{symbol_type}s'][problem_i]
