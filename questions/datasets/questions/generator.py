@@ -169,7 +169,7 @@ class Generator:
                     'results': [results[1], results[0]]
                 }
             return None
-        except NotImplementedError as e:
+        except Exception as e:
             raise RuntimeError(f'Failed to generate question {case} for problem {problem_name}.') from e
 
     def signature_size(self, problem_i, symbol_type):
