@@ -191,8 +191,12 @@ def get_signature_sizes(problems, clausifier):
 
 
 def is_better(r0, r1):
-    if r0.returncode == 0 and r1.returncode != 0 and r0.saturation_iterations <= r1.saturation_iterations:
-        return True
-    if r0.returncode == 0 and r1.returncode == 0 and r0.saturation_iterations < r1.saturation_iterations:
-        return True
+    # Sometimes a failed attempt (`returncode==1`) does not output saturation iteration count.
+    assert r0.returncode != 0 or r0.saturation_iterations is not None
+    assert r1.returncode != 0 or r1.saturation_iterations is not None
+    if r0.saturation_iterations is not None and r1.saturation_iterations is not None:
+        if r0.returncode == 0 and r1.returncode != 0 and r0.saturation_iterations <= r1.saturation_iterations:
+            return True
+        if r0.returncode == 0 and r1.returncode == 0 and r0.saturation_iterations < r1.saturation_iterations:
+            return True
     return False
