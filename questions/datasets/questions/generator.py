@@ -50,16 +50,13 @@ class Generator:
         return cls(df, randomize)
 
     def save(self, dir):
+        joblib.dump(self, os.path.join(dir, 'generator.joblib'))
         save_df(self.df, os.path.join(dir, 'problems'))
-        joblib.dump(self.randomize, os.path.join(dir, 'randomize.joblib'))
         joblib.dump(self.problem_questions, os.path.join(dir, 'questions.joblib'))
 
     @classmethod
     def load(cls, dir):
-        df = pd.read_pickle(os.path.join(dir, 'problems.pkl'))
-        randomize = joblib.load(os.path.join(dir, 'randomize.joblib'))
-        problem_questions = joblib.load(os.path.join(dir, 'questions.joblib'))
-        return cls(df, randomize, problem_questions)
+        return joblib.load(os.path.join(dir, 'generator.joblib'))
 
     @property
     def num_attempts(self):
