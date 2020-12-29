@@ -53,6 +53,7 @@ class Generator:
         return cls(df, randomize, ucb_method=ucb_method, hoeffding_exponent=hoeffding_exponent)
 
     def save(self, dir):
+        os.makedirs(dir, exist_ok=True)
         joblib.dump(self, os.path.join(dir, 'generator.joblib'))
         save_df(self.df, os.path.join(dir, 'problems'))
         joblib.dump(self.problem_questions, os.path.join(dir, 'questions.joblib'))
