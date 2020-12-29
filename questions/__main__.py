@@ -95,6 +95,7 @@ def main():
     parser.add_argument('--questions-per-batch', type=int, default=1000)
     parser.add_argument('--questions-per-problem', type=int, default=1000)
     parser.add_argument('--questions-randomize', nargs='+')
+    parser.add_argument('--hoeffding-exponent', type=float, default=4)
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -200,7 +201,8 @@ def main():
                     logging.info('Generated questions loaded. Continuing.')
                 except FileNotFoundError:
                     generator = Generator.fresh(list(map(py_str, problems_all)), clausifier,
-                                                randomize=args.questions_randomize)
+                                                randomize=args.questions_randomize,
+                                                hoeffding_exponent=args.hoeffding_exponent)
                     logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
                     questions_generated = generator.generate(solver,

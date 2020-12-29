@@ -19,7 +19,8 @@ symbol_types = ('predicate', 'function')
 
 
 class Generator:
-    def __init__(self, df, randomize=None, problem_questions=None):
+    def __init__(self, df, randomize=None, problem_questions=None, ucb_method='hoeffding', hoeffding_exponent=4):
+        # The higher the exponent, the more exploration. The value of 4 corresponds to UCB1.
         self.df = df
         if randomize is None:
             randomize = symbol_types
@@ -27,9 +28,11 @@ class Generator:
         if problem_questions is None:
             problem_questions = collections.defaultdict(list)
         self.problem_questions = problem_questions
+        self.ucb_method = ucb_method
+        self.hoeffding_exponent = hoeffding_exponent
 
     @classmethod
-    def fresh(cls, problems, clausifier, randomize=None):
+    def fresh(cls, problems, clausifier, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4):
         signature_sizes = get_signature_sizes(problems, clausifier)
         assert len(signature_sizes) == len(problems)
         records = [{
@@ -47,7 +50,7 @@ class Generator:
             'hits': pd.UInt32Dtype()
         }
         df = dataframe_from_records(records, index_keys='problem', dtypes=dtypes)
-        return cls(df, randomize)
+        return cls(df, randomize, ucb_method=ucb_method, hoeffding_exponent=hoeffding_exponent)
 
     def save(self, dir):
         joblib.dump(self, os.path.join(dir, 'generator.joblib'))
@@ -85,11 +88,17 @@ class Generator:
     def problem_ucbs(self):
         # https://medium.com/analytics-vidhya/multi-armed-bandit-analysis-of-upper-confidence-bound-algorithm-4b84be516047
         # https://lilianweng.github.io/lil-log/2018/01/23/the-multi-armed-bandit-problem-and-its-solutions.html
-        # https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
-        ci_low, ci_upp = statsmodels.stats.proportion.proportion_confint(self.problem_hits.astype(np.uint32),
-                                                                         self.problem_attempts.astype(np.uint32),
-                                                                         method='wilson')
-        return ci_upp
+        if self.ucb_method == 'hoeffding':
+            with np.errstate(all='raise'):
+                res = self.problem_mean_rewards + np.sqrt(
+                    self.hoeffding_exponent * np.log(self.num_attempts) / (2 * self.problem_attempts))
+                assert not np.any(np.isnan(res))
+        else:
+            # https://en.wikipedia.org/wiki/Binomial_proportion_confidence_interval
+            ci_low, res = statsmodels.stats.proportion.proportion_confint(self.problem_hits.astype(np.uint32),
+                                                                          self.problem_attempts.astype(np.uint32),
+                                                                          method=self.ucb_method)
+        return res
 
     def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=1000, num_questions=None,
                  dir=None):
