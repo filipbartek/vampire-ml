@@ -102,23 +102,25 @@ class Generator:
             if np.all(self.problem_hits >= num_questions_per_problem):
                 logging.info('All problems have been saturated.')
                 break
-            if self.num_attempts == 0:
-                batch = [(i, 0) for i in range(self.num_problems)]
-                for i in range(self.num_problems):
-                    self.problem_attempts[i] += 1
+            batch = []
+            bootstrap_batch = self.num_attempts == 0
+            if bootstrap_batch:
+                cur_batch_size = self.num_problems
             else:
-                batch = []
                 cur_batch_size = num_questions_per_batch
                 if num_questions is not None:
                     cur_batch_size = min(cur_batch_size, num_questions - self.num_attempts)
-                for _ in range(cur_batch_size):
+            for _ in range(cur_batch_size):
+                if bootstrap_batch:
+                    best = np.argmin(self.problem_attempts)
+                else:
                     problem_ucbs = self.problem_ucbs.copy()
                     problem_ucbs[self.problem_hits >= num_questions_per_problem] = np.NINF
                     best = np.argmax(problem_ucbs)
-                    # We specify the case number uniquely across problems.
-                    # If we maintained case id for each problem independently,
-                    batch.append((best, self.problem_attempts[best]))
-                    self.problem_attempts[best] += 1
+                # We specify the case number uniquely across problems.
+                # If we maintained case id for each problem independently,
+                batch.append((best, self.problem_attempts[best]))
+                self.problem_attempts[best] += 1
             logging.info(f'Generating {len(batch)} questions...')
             questions = Parallel(verbose=10)(
                 delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
