@@ -103,7 +103,7 @@ class Generator:
                 logging.info('All problems have been saturated.')
                 break
             if self.num_attempts == 0:
-                batch = [(i, i) for i in range(self.num_problems)]
+                batch = [(i, 0) for i in range(self.num_problems)]
                 for i in range(self.num_problems):
                     self.problem_attempts[i] += 1
             else:
@@ -111,13 +111,13 @@ class Generator:
                 cur_batch_size = num_questions_per_batch
                 if num_questions is not None:
                     cur_batch_size = min(cur_batch_size, num_questions - self.num_attempts)
-                for case in range(self.num_attempts, self.num_attempts + cur_batch_size):
+                for _ in range(cur_batch_size):
                     problem_ucbs = self.problem_ucbs.copy()
                     problem_ucbs[self.problem_hits >= num_questions_per_problem] = np.NINF
                     best = np.argmax(problem_ucbs)
                     # We specify the case number uniquely across problems.
                     # If we maintained case id for each problem independently,
-                    batch.append((best, case))
+                    batch.append((best, self.problem_attempts[best]))
                     self.problem_attempts[best] += 1
             logging.info(f'Generating {len(batch)} questions...')
             questions = Parallel(verbose=10)(
@@ -150,9 +150,9 @@ class Generator:
             for symbol_type in symbol_types:
                 for i in range(2):
                     if symbol_type in self.randomize:
-                        seed = (case, i)
+                        seed = (problem_i, case, i)
                     else:
-                        seed = (case, 0)
+                        seed = (problem_i, case, 0)
                     precedences[i][symbol_type] = vampire.random_precedence(symbol_type=symbol_type,
                                                                             length=self.signature_size(problem_i,
                                                                                                        symbol_type),
