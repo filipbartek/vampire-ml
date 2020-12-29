@@ -82,7 +82,6 @@ class Generator:
     def num_problems(self):
         return len(self.df)
 
-    @property
     def problem_ucbs(self):
         # https://medium.com/analytics-vidhya/multi-armed-bandit-analysis-of-upper-confidence-bound-algorithm-4b84be516047
         # https://lilianweng.github.io/lil-log/2018/01/23/the-multi-armed-bandit-problem-and-its-solutions.html
@@ -111,8 +110,8 @@ class Generator:
                 if bootstrap_batch:
                     best = np.argmin(self.problem_attempts)
                 else:
-                    problem_ucbs = self.problem_ucbs.copy()
-                    problem_ucbs[self.problem_hits >= num_questions_per_problem] = np.NINF
+                    problem_ucbs = self.problem_ucbs()
+                    problem_ucbs[self.problem_hits.to_numpy() >= num_questions_per_problem] = np.NINF
                     best = np.argmax(problem_ucbs)
                 # We specify the case number uniquely across problems.
                 # If we maintained case id for each problem independently,
@@ -132,11 +131,11 @@ class Generator:
             tf.summary.scalar('num_questions', np.sum(self.problem_hits), step=step)
             tf.summary.scalar('num_attempts', self.num_attempts, step=step)
             tf.summary.scalar('batch_questions', sum(question is not None for question in questions), step=step)
-            tf.summary.histogram('ucbs', self.problem_ucbs, step=step)
+            tf.summary.histogram('ucbs', self.problem_ucbs(), step=step)
             tf.summary.histogram('attempts_hist', self.problem_attempts.astype(np.uint32), step=step)
             tf.summary.histogram('hits', self.problem_hits.astype(np.uint32), step=step)
             tf.summary.histogram('hit_rates', self.problem_mean_rewards, step=step)
-            tf.summary.histogram('confidence_margins', self.problem_ucbs - self.problem_mean_rewards, step=step)
+            tf.summary.histogram('confidence_margins', self.problem_ucbs() - self.problem_mean_rewards, step=step)
             if dir is not None:
                 self.save(dir)
             step += 1
