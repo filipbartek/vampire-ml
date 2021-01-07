@@ -77,6 +77,8 @@ def main():
     parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct', 'baseline'])
     parser.add_argument('--symbol-cost-l2', type=float, default=0,
                         help='Factor of L2 regularization penalty on symbol cost values')
+    parser.add_argument('--embedding-to-cost-l1', type=float, default=0)
+    parser.add_argument('--embedding-to-cost-l2', type=float, default=0)
     parser.add_argument('--simple-model-kernel')
     parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
@@ -365,6 +367,11 @@ def main():
                                                                           kernel_max_norm=args.gcn_kernel_max_norm)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
+                if embedding_to_cost is None:
+                    embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
+                                                              kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                                  l1=args.embedding_to_cost_l1,
+                                                                  l2=args.embedding_to_cost_l2))
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
                                                                  l2=args.symbol_cost_l2)
             else:

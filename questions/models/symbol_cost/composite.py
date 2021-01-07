@@ -4,11 +4,9 @@ from .symbol_cost import SymbolCostModel
 
 
 class Composite(SymbolCostModel):
-    def __init__(self, problem_to_embedding, embedding_to_cost=None, l2=0.001):
+    def __init__(self, problem_to_embedding, embedding_to_cost, l2=0):
         super().__init__()
         self.problem_to_embedding = problem_to_embedding
-        if embedding_to_cost is None:
-            embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost')
         self.embedding_to_cost = embedding_to_cost
         self.l2 = l2
         self.symbol_cost_metrics = []
