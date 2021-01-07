@@ -38,6 +38,7 @@ class Time(tf.keras.callbacks.Callback):
         self.timer_train_batch = Timer()
 
     def on_train_begin(self, logs=None):
+        # Only called once per training (a call to `Model.fit`)
         self.timer_epoch_complete.begin()
         super().on_train_begin(logs=logs)
 
