@@ -61,7 +61,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                     pass
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
                 if self.output_dir is not None:
-                    output_dir = os.path.join(self.output_dir, 'solver_evaluation', symbol_cost_model.name,
+                    output_dir = os.path.join(self.output_dir, self.name, symbol_cost_model.name,
                                               f'epoch_{epoch}', dataset_name)
                     save_df(records_df, os.path.join(output_dir, 'problems'))
                     for subset_name, subset_df in {'all': records_df,
