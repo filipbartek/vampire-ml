@@ -71,6 +71,7 @@ def main():
     parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
+    parser.add_argument('--learning-rate', type=float, default=0.001)
     parser.add_argument('--run-eagerly', action='store_true')
     parser.add_argument('--symbol-embedding-model', default='gcn', choices=['simple', 'gcn'])
     parser.add_argument('--symbol-cost-model', default='composite', choices=['composite', 'direct', 'baseline'])
@@ -374,7 +375,15 @@ def main():
                 os.path.join(args.output, 'problems'))
 
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-        model_logit.compile(optimizer=args.optimizer)
+
+        Optimizer = {
+            'sgd': tf.keras.optimizers.SGD,
+            'adam': tf.keras.optimizers.Adam,
+            'rmsprop': tf.keras.optimizers.RMSprop
+        }[args.optimizer]
+        optimizer = Optimizer(learning_rate=args.learning_rate)
+
+        model_logit.compile(optimizer=optimizer)
 
         if args.restore_checkpoint is not None:
             model_logit.load_weights(args.restore_checkpoint)
