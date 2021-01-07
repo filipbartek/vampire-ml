@@ -79,6 +79,7 @@ def main():
                         help='Factor of L2 regularization penalty on symbol cost values')
     parser.add_argument('--embedding-to-cost-l1', type=float, default=0)
     parser.add_argument('--embedding-to-cost-l2', type=float, default=0)
+    parser.add_argument('--embedding-to-cost-hidden-layer', type=int)
     parser.add_argument('--simple-model-kernel')
     parser.add_argument('--cache-dir', default='cache')
     parser.add_argument('--cache-mem', action='store_true')
@@ -342,7 +343,8 @@ def main():
                 logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
                 if args.symbol_embedding_model == 'simple':
                     model_symbol_embedding = models.symbol_features.Simple(clausifier, args.symbol_type)
-                    cbs.append(callbacks.Weights(tensorboard))
+                    if args.embedding_to_cost_hidden_layer is None:
+                        cbs.append(callbacks.Weights(tensorboard))
                     if args.simple_model_kernel is not None:
                         kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
                         logging.info(f'Simple model kernel: {kernel}')
@@ -368,10 +370,23 @@ def main():
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
                 if embedding_to_cost is None:
-                    embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
-                                                              kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                                  l1=args.embedding_to_cost_l1,
-                                                                  l2=args.embedding_to_cost_l2))
+                    if args.embedding_to_cost_hidden_layer is None:
+                        embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
+                                                                  kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                                      l1=args.embedding_to_cost_l1,
+                                                                      l2=args.embedding_to_cost_l2))
+                    else:
+                        embedding_to_cost = tf.keras.Sequential([
+                            tf.keras.layers.Dense(args.embedding_to_cost_hidden_layer,
+                                                  activation='relu',
+                                                  kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                      l1=args.embedding_to_cost_l1,
+                                                      l2=args.embedding_to_cost_l2)),
+                            tf.keras.layers.Dense(1,
+                                                  kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                      l1=args.embedding_to_cost_l1,
+                                                      l2=args.embedding_to_cost_l2))
+                        ], name='embedding_to_cost')
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
                                                                  l2=args.symbol_cost_l2)
             else:
