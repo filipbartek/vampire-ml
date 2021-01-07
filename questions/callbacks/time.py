@@ -1,10 +1,17 @@
 import tensorflow as tf
 
 
-class Timer(tf.keras.metrics.Sum):
+class Timer:
     def __init__(self):
-        super().__init__()
+        self.results = []
         self.time_begin = None
+
+    def reset_states(self):
+        self.results = []
+        self.time_begin = None
+
+    def result(self):
+        return tf.reduce_sum(self.results)
 
     def pop_result(self):
         res = self.result()
@@ -15,7 +22,8 @@ class Timer(tf.keras.metrics.Sum):
         self.time_begin = tf.timestamp()
 
     def end(self):
-        self.update_state(tf.timestamp() - self.time_begin)
+        self.results.append(tf.timestamp() - self.time_begin)
+        self.time_begin = None
 
 
 class Time(tf.keras.callbacks.Callback):
@@ -42,16 +50,20 @@ class Time(tf.keras.callbacks.Callback):
         self.timer_epoch.end()
         with self.tensorboard.train_writer.as_default():
             time_epoch = self.timer_epoch.pop_result()
-            tf.summary.scalar('time_epoch', time_epoch, step=epoch)
+            tf.summary.scalar('time/epoch/begin_end', time_epoch, step=epoch)
             self.timer_epoch_complete.end()
-            tf.summary.scalar('time_epoch_complete', self.timer_epoch_complete.pop_result(), step=epoch)
+            time_epoch_complete = self.timer_epoch_complete.pop_result()
             self.timer_epoch_complete.begin()
-            tf.summary.scalar('time_batch_sum', self.timer_train_batch.pop_result(), step=epoch)
-            tf.summary.scalar('time', time_epoch - self.timer_test.result(), step=epoch)
+            tf.summary.scalar('time/epoch/end_end', time_epoch_complete, step=epoch)
+            tf.summary.scalar('time/epoch/overhead', time_epoch_complete - time_epoch, step=epoch)
+            tf.summary.histogram('time/batch', self.timer_train_batch.results, step=epoch)
+            tf.summary.scalar('time/batch_sum', self.timer_train_batch.pop_result(), step=epoch)
+            tf.summary.scalar('time/net', time_epoch - self.timer_test.result(), step=epoch)
             self.log_symbol_cost_histogram(self.problems['train'], epoch)
         with self.tensorboard.val_writer.as_default():
-            tf.summary.scalar('time', self.timer_test.pop_result(), step=epoch)
-            tf.summary.scalar('time_batch_sum', self.timer_test_batch.pop_result(), step=epoch)
+            tf.summary.scalar('time/net', self.timer_test.pop_result(), step=epoch)
+            tf.summary.histogram('time/batch', self.timer_test_batch.results, step=epoch)
+            tf.summary.scalar('time/batch_sum', self.timer_test_batch.pop_result(), step=epoch)
             self.log_symbol_cost_histogram(self.problems['validation'], epoch)
 
     def log_symbol_cost_histogram(self, problems, epoch):

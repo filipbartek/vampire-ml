@@ -9,6 +9,8 @@ from vampire_ml.results import save_df
 
 
 class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
+    name = 'solver_eval'
+
     def __init__(self, csv_filename, problems=None, start=0, step=1, output_dir=None, tensorboard=None, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.problems = problems
@@ -43,14 +45,14 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         for k, v in res.items():
                             if k == 'loss':
                                 continue
-                            tf.summary.scalar(k, v, step=epoch)
+                            tf.summary.scalar(f'{self.name}/{k}', v, step=epoch)
                         for column_name in ['time_elapsed', 'saturation_iterations']:
                             values = records_df[column_name].astype(float)
-                            tf.summary.histogram(column_name, values, step=epoch)
-                            tf.summary.histogram(f'{column_name}_succ', values[records_df['returncode'] == 0],
-                                                 step=epoch)
-                            tf.summary.histogram(f'{column_name}_fail', values[records_df['returncode'] != 0],
-                                                 step=epoch)
+                            tf.summary.histogram(f'{self.name}/{column_name}/all', values, step=epoch)
+                            tf.summary.histogram(f'{self.name}/{column_name}/succ',
+                                                 values[records_df['returncode'] == 0], step=epoch)
+                            tf.summary.histogram(f'{self.name}/{column_name}/fail',
+                                                 values[records_df['returncode'] != 0], step=epoch)
                 except (AttributeError, KeyError):
                     pass
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
