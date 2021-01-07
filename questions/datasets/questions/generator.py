@@ -13,6 +13,7 @@ from joblib import delayed, Parallel
 from proving import vampire
 from proving.memory import memory
 from proving.utils import dataframe_from_records
+from questions import plot
 from vampire_ml.results import save_df
 
 symbol_types = ('predicate', 'function')
@@ -105,6 +106,7 @@ class Generator:
                  dir=None):
         step = 0
         while num_questions is None or self.num_attempts < num_questions:
+            tf.summary.experimental.set_step(step)
             if np.all(self.problem_hits >= num_questions_per_problem):
                 logging.info('All problems have been saturated.')
                 break
@@ -137,15 +139,30 @@ class Generator:
                     self.problem_questions[problem_name].append(question)
             logging.info(
                 f'Problems with at least one question: {len(self.problem_questions)}. Total questions: {np.sum(self.problem_hits)}/{self.num_attempts}/{num_questions}.')
-            tf.summary.scalar('num_problems_with_questions', len(self.problem_questions), step=step)
-            tf.summary.scalar('num_questions', np.sum(self.problem_hits), step=step)
-            tf.summary.scalar('num_attempts', self.num_attempts, step=step)
-            tf.summary.scalar('batch_questions', sum(question is not None for question in questions), step=step)
-            tf.summary.histogram('ucbs', self.problem_ucbs(), step=step)
-            tf.summary.histogram('attempts_hist', self.problem_attempts.astype(np.uint32), step=step)
-            tf.summary.histogram('hits', self.problem_hits.astype(np.uint32), step=step)
-            tf.summary.histogram('hit_rates', self.problem_mean_rewards, step=step)
-            tf.summary.histogram('confidence_margins', self.problem_ucbs() - self.problem_mean_rewards, step=step)
+            tf.summary.scalar('num_problems_with_questions', len(self.problem_questions))
+            tf.summary.scalar('num_questions', np.sum(self.problem_hits))
+            tf.summary.scalar('num_attempts', self.num_attempts)
+            tf.summary.scalar('batch_questions', sum(question is not None for question in questions))
+            tf.summary.histogram('ucbs', self.problem_ucbs())
+            tf.summary.histogram('attempts', self.problem_attempts.astype(np.uint32))
+            tf.summary.histogram('hits', self.problem_hits.astype(np.uint32))
+            tf.summary.histogram('hit_rates', self.problem_mean_rewards)
+            tf.summary.histogram('confidence_margins', self.problem_ucbs() - self.problem_mean_rewards)
+            plot.scatter(self.df[f'predicates'], self.df[f'functions'], name=f'problems/predicates_functions',
+                         xlabel='predicates', ylabel='functions', xscale='log', yscale='log')
+            plot.scatter(self.problem_attempts, self.problem_hits, name=f'problems/attempts_hits',
+                         xlabel='Attempts', ylabel='Hits', xscale='log', yscale='log')
+            for symbol_type in symbol_types:
+                x_col = f'{symbol_type}s'
+                x = self.df[x_col]
+                plot.scatter(x, self.problem_attempts, name=f'problems_{x_col}/attempts',
+                             xlabel=x_col, ylabel='Attempts', xscale='log', yscale='log')
+                plot.scatter(x, self.problem_hits, name=f'problems_{x_col}/hits',
+                             xlabel=x_col, ylabel='Hits', xscale='log', yscale='log')
+                plot.scatter(x, self.problem_mean_rewards, name=f'problems_{x_col}/hit_rates',
+                             xlabel=x_col, ylabel='Hit rate', xscale='log')
+                plot.scatter(x, self.problem_ucbs(), name=f'problems_{x_col}/ucbs',
+                             xlabel=x_col, ylabel='UCB', xscale='log')
             if dir is not None:
                 self.save(dir)
             step += 1
