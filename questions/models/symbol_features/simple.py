@@ -5,10 +5,27 @@ from proving.utils import py_str
 
 
 class Simple(SymbolFeatures):
+    default_columns = [
+        'arity',
+        'usageCnt',
+        'unitUsageCnt',
+        'inGoal',
+        'inUnit',
+        'skolem',
+        'inductionSkolem',
+        'interpreted',
+        'introduced',
+        'stringConstant',
+        'numericConstant',
+        'interpretedNumber'
+    ]
+
     def __init__(self, clausifier, symbol_type, columns=None, dtype=None):
         super().__init__(trainable=False, dtype=dtype)
         self.clausifier = clausifier
         self.symbol_type = symbol_type
+        if columns is None:
+            columns = self.default_columns
         self.columns = columns
 
     @property

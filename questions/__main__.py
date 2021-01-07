@@ -340,6 +340,7 @@ def main():
                 logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
                 if args.symbol_embedding_model == 'simple':
                     model_symbol_embedding = models.symbol_features.Simple(clausifier, args.symbol_type)
+                    cbs.append(callbacks.Weights(tensorboard))
                     if args.simple_model_kernel is not None:
                         kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
                         logging.info(f'Simple model kernel: {kernel}')
