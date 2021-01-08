@@ -158,7 +158,7 @@ class Generator:
                 batch.append((best, self.problem_attempts[best]))
                 self.problem_attempts[best] += 1
             logging.info(f'Generating {len(batch)} questions...')
-            questions = Parallel(verbose=10)(
+            questions = Parallel(verbose=1)(
                 delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
             result = [(problem_i, question) for (problem_i, case), question in zip(batch, questions) if
                       question is not None]
