@@ -116,8 +116,6 @@ class Generator:
                 cur_batch_size = self.num_problems
             else:
                 cur_batch_size = num_questions_per_batch
-                if num_questions is not None:
-                    cur_batch_size = min(cur_batch_size, num_questions - self.num_attempts)
             for _ in range(cur_batch_size):
                 if bootstrap_batch:
                     best = np.argmin(self.problem_attempts)
