@@ -98,7 +98,7 @@ def main():
     parser.add_argument('--gcn-kernel-max-norm', type=float, default=4)
     parser.add_argument('--questions', type=int)
     parser.add_argument('--questions-per-batch', type=int, default=1000)
-    parser.add_argument('--questions-per-problem', type=int, default=1000)
+    parser.add_argument('--questions-per-problem', type=int)
     parser.add_argument('--questions-randomize', nargs='+')
     parser.add_argument('--hoeffding-exponent', type=float, default=4)
     args = parser.parse_args()
