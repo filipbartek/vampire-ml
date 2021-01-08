@@ -131,7 +131,7 @@ class Generator:
         return results
 
     def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=None, num_questions=None,
-                 dir=None, scatter_period=1000):
+                 dir=None, scatter_period=10):
         questions_dir = os.path.join(dir, 'questions')
         os.makedirs(questions_dir, exist_ok=True)
         while num_questions is None or self.num_hits < num_questions:
