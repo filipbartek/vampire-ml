@@ -58,7 +58,7 @@ def main():
             print(df.describe())
 
         if args.output is not None:
-            save_df(df, 'problems', args.output)
+            save_df(df, os.path.join(args.output, 'problems'))
 
             # Interesting numeric: size, rating, predicates, functors, variables
             # Interesting categorical: domain, form, source, status, spc
