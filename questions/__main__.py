@@ -96,6 +96,7 @@ def main():
     parser.add_argument('--gcn-activation', default='relu', choices=['relu', 'sigmoid'])
     parser.add_argument('--gcn-dropout', type=float, default=0.2)
     parser.add_argument('--gcn-kernel-max-norm', type=float, default=4)
+    parser.add_argument('--questions', type=int)
     parser.add_argument('--questions-per-batch', type=int, default=1000)
     parser.add_argument('--questions-per-problem', type=int, default=1000)
     parser.add_argument('--questions-randomize', nargs='+')
@@ -209,15 +210,15 @@ def main():
                                                 hoeffding_exponent=args.hoeffding_exponent)
                     logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
-                    questions_generated = generator.generate(solver,
-                                                             num_questions_per_batch=args.questions_per_batch,
-                                                             num_questions_per_problem=args.questions_per_problem,
-                                                             dir=os.path.join(args.output, 'questions_generated'))
-                return
-
-            # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
-            questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
-                                                                   args.max_questions_per_problem)
+                    questions_all = generator.generate(solver,
+                                                       num_questions_per_batch=args.questions_per_batch,
+                                                       num_questions_per_problem=args.questions_per_problem,
+                                                       dir=os.path.join(args.output, 'questions_generated'),
+                                                       num_questions=args.questions)
+            else:
+                # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
+                questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
+                                                                       args.max_questions_per_problem)
 
             question_counts = [q.shape[0] for q in questions_all.values()]
             signature_lengths = [q.shape[1] for q in questions_all.values()]
