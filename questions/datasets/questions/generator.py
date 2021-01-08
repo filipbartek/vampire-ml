@@ -131,7 +131,7 @@ class Generator:
         return results
 
     def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=None, num_questions=None,
-                 dir=None):
+                 dir=None, scatter_period=1000):
         questions_dir = os.path.join(dir, 'questions')
         os.makedirs(questions_dir, exist_ok=True)
         while num_questions is None or self.num_hits < num_questions:
@@ -178,21 +178,22 @@ class Generator:
             tf.summary.histogram('hits', self.problem_hits.astype(np.uint32))
             tf.summary.histogram('hit_rates', self.problem_mean_rewards)
             tf.summary.histogram('confidence_margins', self.problem_ucbs() - self.problem_mean_rewards)
-            plot.scatter(self.df[f'predicates'], self.df[f'functions'], name=f'problems/predicates_functions',
-                         xlabel='predicates', ylabel='functions', xscale='log', yscale='log')
-            plot.scatter(self.problem_attempts, self.problem_hits, name=f'problems/attempts_hits',
-                         xlabel='Attempts', ylabel='Hits', xscale='log', yscale='log')
-            for symbol_type in symbol_types:
-                x_col = f'{symbol_type}s'
-                x = self.df[x_col]
-                plot.scatter(x, self.problem_attempts, name=f'problems_{x_col}/attempts',
-                             xlabel=x_col, ylabel='Attempts', xscale='log', yscale='log')
-                plot.scatter(x, self.problem_hits, name=f'problems_{x_col}/hits',
-                             xlabel=x_col, ylabel='Hits', xscale='log', yscale='log')
-                plot.scatter(x, self.problem_mean_rewards, name=f'problems_{x_col}/hit_rates',
-                             xlabel=x_col, ylabel='Hit rate', xscale='log')
-                plot.scatter(x, self.problem_ucbs(), name=f'problems_{x_col}/ucbs',
-                             xlabel=x_col, ylabel='UCB', xscale='log')
+            if self.step % scatter_period == 0:
+                plot.scatter(self.df[f'predicates'], self.df[f'functions'], name=f'problems/predicates_functions',
+                             xlabel='predicates', ylabel='functions', xscale='log', yscale='log')
+                plot.scatter(self.problem_attempts, self.problem_hits, name=f'problems/attempts_hits',
+                             xlabel='Attempts', ylabel='Hits', xscale='log', yscale='log')
+                for symbol_type in symbol_types:
+                    x_col = f'{symbol_type}s'
+                    x = self.df[x_col]
+                    plot.scatter(x, self.problem_attempts, name=f'problems_{x_col}/attempts',
+                                 xlabel=x_col, ylabel='Attempts', xscale='log', yscale='log')
+                    plot.scatter(x, self.problem_hits, name=f'problems_{x_col}/hits',
+                                 xlabel=x_col, ylabel='Hits', xscale='log', yscale='log')
+                    plot.scatter(x, self.problem_mean_rewards, name=f'problems_{x_col}/hit_rates',
+                                 xlabel=x_col, ylabel='Hit rate', xscale='log')
+                    plot.scatter(x, self.problem_ucbs(), name=f'problems_{x_col}/ucbs',
+                                 xlabel=x_col, ylabel='UCB', xscale='log')
             self.step += 1
         return self.load_questions(questions_dir)
 
