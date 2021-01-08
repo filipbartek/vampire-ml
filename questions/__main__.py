@@ -68,6 +68,7 @@ def main():
     parser.add_argument('--solver-evaluation-batch-size', type=int, default=1000)
     parser.add_argument('--solver-evaluation-train-problems', type=int, default=1000)
     parser.add_argument('--solver-evaluation-validation-problems', type=int, default=1000)
+    parser.add_argument('--problem-set', action='append', nargs=2, default=[])
     parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
@@ -322,13 +323,19 @@ def main():
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['val'])
             problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
 
+            problem_categories = {'all': None, 'with_questions': questions_all.keys()}
+            for cat_name, cat_filename in args.problem_set:
+                with open(cat_filename) as f:
+                    problem_categories[cat_name] = [l.rstrip('\n') for l in f]
+
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
                 os.path.join(args.output, 'epochs_solver_eval.csv'),
                 problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in solver_eval_problems.items()},
                 start=args.solver_evaluation_start,
                 step=args.solver_evaluation_step,
                 output_dir=args.output,
-                tensorboard=tensorboard)
+                tensorboard=tensorboard,
+                problem_categories=problem_categories)
             cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')

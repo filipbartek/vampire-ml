@@ -11,7 +11,8 @@ from vampire_ml.results import save_df
 class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     name = 'solver_eval'
 
-    def __init__(self, csv_filename, problems=None, start=0, step=1, output_dir=None, tensorboard=None, **kwargs):
+    def __init__(self, csv_filename, problems=None, start=0, step=1, output_dir=None, tensorboard=None,
+                 problem_categories=None, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.problems = problems
         if start is None and step is not None:
@@ -22,6 +23,9 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         self.step = step
         self.output_dir = output_dir
         self.tensorboard = tensorboard
+        if problem_categories is None:
+            problem_categories = {'all': None}
+        self.problem_categories = problem_categories
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
@@ -37,35 +41,42 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
             if dataset_problems is not None and cardinality_finite(dataset_problems, 1) >= 1:
                 print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on \'{dataset_name}\' problems...')
                 res = symbol_cost_model.evaluate(dataset_problems, return_dict=True)
-                records_df = symbol_cost_model.solver_metric.result_df()
-                res = {
-                    'problem/count': len(records_df),
-                    'success/count': (records_df['returncode'] == 0).sum(),
-                    'success/rate': (records_df['returncode'] == 0).mean(),
-                    'valid/rate': res['validity_rate']
-                }
-                try:
-                    with self.tensorboard.writers[dataset_name].as_default():
-                        for k, v in res.items():
-                            if k == 'loss':
-                                continue
-                            tf.summary.scalar(f'{self.name}/{k}', v, step=epoch)
-                        for column_name in ['time_elapsed', 'saturation_iterations']:
-                            values = records_df[column_name].astype(float)
-                            tf.summary.histogram(f'{self.name}/{column_name}/all', values, step=epoch)
-                            tf.summary.histogram(f'{self.name}/{column_name}/succ',
-                                                 values[records_df['returncode'] == 0], step=epoch)
-                            tf.summary.histogram(f'{self.name}/{column_name}/fail',
-                                                 values[records_df['returncode'] != 0], step=epoch)
-                except (AttributeError, KeyError):
-                    pass
                 logs.update({self.log_key(dataset_name, k): v for k, v in res.items() if k != 'loss'})
+                main_df = symbol_cost_model.solver_metric.result_df()
+                for cat_name, cat_problems in self.problem_categories.items():
+                    if cat_name == 'all' and dataset_name == 'train':
+                        continue
+                    summary_name = f'{self.name}/{cat_name}'
+                    if cat_problems is None:
+                        records_df = main_df
+                    else:
+                        records_df = main_df.loc[main_df.index.intersection(cat_problems)]
+                    res = {
+                        'problem/count': len(records_df),
+                        'success/count': (records_df['returncode'] == 0).sum(),
+                        'success/rate': (records_df['returncode'] == 0).mean(),
+                    }
+                    try:
+                        with self.tensorboard.writers[dataset_name].as_default():
+                            for k, v in res.items():
+                                if k == 'loss':
+                                    continue
+                                tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
+                            for column_name in ['time_elapsed', 'saturation_iterations']:
+                                values = records_df[column_name].astype(float)
+                                tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
+                                tf.summary.histogram(f'{summary_name}/{column_name}/succ',
+                                                     values[records_df['returncode'] == 0], step=epoch)
+                                tf.summary.histogram(f'{summary_name}/{column_name}/fail',
+                                                     values[records_df['returncode'] != 0], step=epoch)
+                    except (AttributeError, KeyError):
+                        pass
                 if self.output_dir is not None:
                     output_dir = os.path.join(self.output_dir, self.name, symbol_cost_model.name,
                                               f'epoch_{epoch}', dataset_name)
-                    save_df(records_df, os.path.join(output_dir, 'problems'))
-                    for subset_name, subset_df in {'all': records_df,
-                                                   'successful': records_df[records_df['returncode'] == 0]}.items():
+                    save_df(main_df, os.path.join(output_dir, 'problems'))
+                    for subset_name, subset_df in {'all': main_df,
+                                                   'successful': main_df[main_df['returncode'] == 0]}.items():
                         subset_dir = os.path.join(output_dir, subset_name)
                         os.makedirs(subset_dir, exist_ok=True)
                         for column_name in ['time_elapsed', 'saturation_iterations']:
