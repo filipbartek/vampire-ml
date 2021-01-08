@@ -1,4 +1,5 @@
 import collections
+import functools
 import logging
 import os
 import warnings
@@ -9,7 +10,9 @@ import pandas as pd
 import statsmodels.stats.proportion
 import tensorflow as tf
 from joblib import delayed, Parallel
+from tqdm import tqdm
 
+from proving import utils
 from proving import vampire
 from proving.memory import memory
 from proving.utils import dataframe_from_records
@@ -20,17 +23,15 @@ symbol_types = ('predicate', 'function')
 
 
 class Generator:
-    def __init__(self, df, randomize=None, problem_questions=None, ucb_method='hoeffding', hoeffding_exponent=4):
+    def __init__(self, df, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4, step=0):
         # The higher the exponent, the more exploration. The value of 4 corresponds to UCB1.
         self.df = df
         if randomize is None:
             randomize = symbol_types
         self.randomize = randomize
-        if problem_questions is None:
-            problem_questions = collections.defaultdict(list)
-        self.problem_questions = problem_questions
         self.ucb_method = ucb_method
         self.hoeffding_exponent = hoeffding_exponent
+        self.step = step
 
     @classmethod
     def fresh(cls, problems, clausifier, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4):
@@ -57,15 +58,21 @@ class Generator:
         os.makedirs(dir, exist_ok=True)
         joblib.dump(self, os.path.join(dir, 'generator.joblib'))
         save_df(self.df, os.path.join(dir, 'problems'))
-        joblib.dump(self.problem_questions, os.path.join(dir, 'questions.joblib'))
 
     @classmethod
     def load(cls, dir):
-        return joblib.load(os.path.join(dir, 'generator.joblib'))
+        generator = joblib.load(os.path.join(dir, 'generator.joblib'))
+        # The step stored in the generator is the last completed step.
+        generator.step += 1
+        return generator
 
     @property
     def num_attempts(self):
         return int(np.sum(self.problem_attempts))
+
+    @property
+    def num_hits(self):
+        return np.sum(self.problem_hits)
 
     @property
     def problem_attempts(self):
@@ -102,12 +109,34 @@ class Generator:
                                                                           method=self.ucb_method)
         return res
 
-    def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=1000, num_questions=None,
+    def load_questions(self, dir, num_questions_per_problem=None, simple=True):
+        results = collections.defaultdict(list)
+        for step in tqdm(range(self.step), desc='Loading question batches', unit='batch'):
+            filename = os.path.join(dir, f'{step}.joblib')
+            for problem_i, question in joblib.load(filename):
+                problem_name = self.problems[problem_i]
+                if num_questions_per_problem is None or len(results[problem_name]) < num_questions_per_problem:
+                    if simple:
+                        assert len(self.randomize) == 1
+                        symbol_type = self.randomize[0]
+                        precedences = (question['precedences'][i][symbol_type] for i in range(2))
+                        precedences_inverted = tuple(
+                            map(functools.partial(utils.invert_permutation, dtype=np.int32), precedences))
+                        res = precedences_inverted[1] - precedences_inverted[0]
+                        results[problem_name].append(res)
+                    else:
+                        results[problem_name].append(question)
+        if simple:
+            results = {k: np.asarray(v) for k, v in results.items()}
+        return results
+
+    def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=None, num_questions=None,
                  dir=None):
-        step = 0
-        while num_questions is None or self.num_attempts < num_questions:
-            tf.summary.experimental.set_step(step)
-            if np.all(self.problem_hits >= num_questions_per_problem):
+        questions_dir = os.path.join(dir, 'questions')
+        os.makedirs(questions_dir, exist_ok=True)
+        while num_questions is None or self.num_hits < num_questions:
+            tf.summary.experimental.set_step(self.step)
+            if num_questions_per_problem is not None and np.all(self.problem_hits >= num_questions_per_problem):
                 logging.info('All problems have been saturated.')
                 break
             batch = []
@@ -121,7 +150,8 @@ class Generator:
                     best = np.argmin(self.problem_attempts)
                 else:
                     problem_ucbs = self.problem_ucbs()
-                    problem_ucbs[self.problem_hits.to_numpy() >= num_questions_per_problem] = np.NINF
+                    if num_questions_per_problem is not None:
+                        problem_ucbs[self.problem_hits.to_numpy() >= num_questions_per_problem] = np.NINF
                     best = np.argmax(problem_ucbs)
                 # We specify the case number uniquely across problems.
                 # If we maintained case id for each problem independently,
@@ -130,15 +160,17 @@ class Generator:
             logging.info(f'Generating {len(batch)} questions...')
             questions = Parallel(verbose=10)(
                 delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
-            for (problem_i, case), question in zip(batch, questions):
-                if question is not None:
-                    self.problem_hits[problem_i] += 1
-                    problem_name = self.problems[problem_i]
-                    self.problem_questions[problem_name].append(question)
+            result = [(problem_i, question) for (problem_i, case), question in zip(batch, questions) if
+                      question is not None]
+            for problem_i, question in result:
+                self.problem_hits[problem_i] += 1
+            if dir is not None:
+                joblib.dump(result, os.path.join(questions_dir, f'{self.step}.joblib'))
+                self.save(dir)
             logging.info(
-                f'Problems with at least one question: {len(self.problem_questions)}. Total questions: {np.sum(self.problem_hits)}/{self.num_attempts}/{num_questions}.')
-            tf.summary.scalar('num_problems_with_questions', len(self.problem_questions))
-            tf.summary.scalar('num_questions', np.sum(self.problem_hits))
+                f'Step {self.step}: Problems with at least one question: {np.sum(self.problem_hits >= 1)}/{self.num_problems}. Total questions: {self.num_hits}/{self.num_attempts}/{num_questions}.')
+            tf.summary.scalar('num_problems_with_questions', np.sum(self.problem_hits >= 1))
+            tf.summary.scalar('num_questions', self.num_hits)
             tf.summary.scalar('num_attempts', self.num_attempts)
             tf.summary.scalar('batch_questions', sum(question is not None for question in questions))
             tf.summary.histogram('ucbs', self.problem_ucbs())
@@ -161,10 +193,8 @@ class Generator:
                              xlabel=x_col, ylabel='Hit rate', xscale='log')
                 plot.scatter(x, self.problem_ucbs(), name=f'problems_{x_col}/ucbs',
                              xlabel=x_col, ylabel='UCB', xscale='log')
-            if dir is not None:
-                self.save(dir)
-            step += 1
-        return self.problem_questions
+            self.step += 1
+        return self.load_questions(questions_dir)
 
     def generate_one(self, problem_i, case, solver):
         problem_name = self.problems[problem_i]
