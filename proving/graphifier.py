@@ -211,7 +211,6 @@ class TermVisitor:
 
     def __init__(self, template, node_features=None, feature_dtype=tf.float32, share_terms_between_clauses=True,
                  share_terms_within_clause=True):
-        # TODO: Allow disabling term sharing.
         # TODO: Add global state (node) for equation.
         # TODO: Encode edge polarity as edge feature.
         # TODO: Encode symbol node features: isFunction, inGoal, introduced
