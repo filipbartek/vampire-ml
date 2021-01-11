@@ -64,8 +64,8 @@ def main():
     parser.add_argument('--validation-split', type=float, default=0.5)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
-    parser.add_argument('--solver-evaluation-initial', action='store_true')
-    parser.add_argument('--solver-evaluation-start', type=int, default=None)
+    parser.add_argument('--solver-evaluation-start', type=int, default=None,
+                        desc='Set to -1 to evaluate before first training epoch.')
     parser.add_argument('--solver-evaluation-step', type=int, default=None)
     parser.add_argument('--solver-evaluation-batch-size', type=int, default=1000)
     parser.add_argument('--solver-evaluation-train-problems', type=int, default=1000)
@@ -433,8 +433,8 @@ def main():
         tensorboard.set_model(model_logit)
 
         print('Initial evaluation...')
-        if args.solver_evaluation_initial:
-            print('Evaluating symbol cost model...')
+        if symbol_cost_evaluation_callback.start <= -1:
+            print('Evaluating symbol cost model before first training epoch...')
             symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):

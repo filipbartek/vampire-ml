@@ -11,12 +11,12 @@ from vampire_ml.results import save_df
 class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     name = 'solver_eval'
 
-    def __init__(self, csv_filename, problems=None, start=0, step=1, output_dir=None, tensorboard=None,
+    def __init__(self, csv_filename, problems=None, start=-1, step=1, output_dir=None, tensorboard=None,
                  problem_categories=None, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.problems = problems
         if start is None and step is not None:
-            start = 0
+            start = -1
         elif step is None and start is not None:
             step = 1
         self.start = start
