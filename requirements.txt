@@ -20,4 +20,5 @@ scikit-learn-extra
 statsmodels
 tabulate
 tensorflow
+tfdlpack
 tqdm
