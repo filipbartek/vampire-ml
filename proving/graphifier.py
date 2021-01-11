@@ -41,8 +41,9 @@ class Graphifier:
         self.max_number_of_nodes = max_number_of_nodes
         self.output_ntypes = output_ntypes
 
-        self.ntypes = ['clause', 'term', 'predicate', 'function', 'variable']
+        self.ntypes = ['formula', 'clause', 'term', 'predicate', 'function', 'variable']
         self.ntype_pairs = [
+            ('formula', 'clause'),
             ('clause', 'term'),
             ('clause', 'variable'),
             ('term', 'predicate'),
@@ -317,8 +318,11 @@ class TermVisitor:
         return tf.convert_to_tensor(v, dtype=dtype)
 
     def visit_clauses(self, clauses):
+        cur_id_pair = self.add_node('formula')
         for clause in clauses:
-            self.visit_clause(clause)
+            clause_id_pair = self.visit_clause(clause)
+            self.add_edge(cur_id_pair, clause_id_pair)
+        return cur_id_pair
 
     def visit_clause(self, clause):
         # To make variables clause-specific, we keep the clause terms separate from the global terms.
