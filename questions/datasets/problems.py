@@ -37,8 +37,7 @@ def get_dataset(patterns, shuffle=True, seed=0):
 
 
 def problem_path_to_name(path):
-    base_name = tf.strings.split(path, sep='/')[-1]
-    problem_name = tf.strings.regex_replace(base_name,
-                                            r'^(?P<problem_name>[A-Z]{3}[0-9]{3}[-+^=_][1-9][0-9]*(?:\.[0-9]{3})*)\.p$',
+    problem_name = tf.strings.regex_replace(path,
+                                            r'^.*(?P<problem_name>[A-Z]{3}[0-9]{3}[-+^=_][1-9][0-9]*(?:\.[0-9]{3})*)\.p$',
                                             r'\1', False)
     return problem_name
