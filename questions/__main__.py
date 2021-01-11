@@ -65,7 +65,7 @@ def main():
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
     parser.add_argument('--solver-evaluation-start', type=int, default=None,
-                        desc='Set to -1 to evaluate before first training epoch.')
+                        help='Set to -1 to evaluate before first training epoch.')
     parser.add_argument('--solver-evaluation-step', type=int, default=None)
     parser.add_argument('--solver-evaluation-batch-size', type=int, default=1000)
     parser.add_argument('--solver-evaluation-train-problems', type=int, default=1000)
