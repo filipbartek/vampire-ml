@@ -19,6 +19,7 @@ import pandas as pd
 import scipy
 import seaborn as sns
 import tensorflow as tf
+from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from proving import tptp
@@ -274,7 +275,7 @@ def main():
                                  f'validation_split_{args.validation_split}')
 
         questions = {}
-        problems_to_graphify = set()
+        problems_to_graphify = OrderedSet()
         problems_with_questions = {}
         for k, p in problems.items():
             # Cache identification parameters:
