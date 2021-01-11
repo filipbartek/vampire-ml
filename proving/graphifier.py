@@ -1,4 +1,6 @@
+import copy
 import functools
+import hashlib
 import itertools
 import json
 import logging
@@ -7,6 +9,8 @@ import time
 
 import dgl
 import joblib
+import matplotlib.pyplot as plt
+import networkx as nx
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -40,6 +44,7 @@ class Graphifier:
         self.ntypes = ['clause', 'term', 'predicate', 'function', 'variable']
         self.ntype_pairs = [
             ('clause', 'term'),
+            ('clause', 'variable'),
             ('term', 'predicate'),
             ('term', 'function')
         ]
@@ -203,10 +208,8 @@ class TermVisitor:
             self.actual = actual
             self.expected = expected
 
-    def __init__(self, template, node_features=None, feature_dtype=tf.float32):
-        # TODO: Allow limiting term sharing to inside a clause, letting every clause to use a separate set of variables.
-        # TODO: Add a root "formula" node that connects to all clauses.
-        # TODO: Allow introducing separate node types for predicates and functions.
+    def __init__(self, template, node_features=None, feature_dtype=tf.float32, share_terms_between_clauses=True,
+                 share_terms_within_clause=True):
         # TODO: Allow disabling term sharing.
         # TODO: Add global state (node) for equation.
         # TODO: Encode edge polarity as edge feature.
@@ -225,7 +228,11 @@ class TermVisitor:
         for ntype_pair in (('clause', 'term'), ('clause', 'equality')):
             if ntype_pair in self.edges:
                 self.edges[ntype_pair]['feat'] = []
-        self.terms = {}
+        if share_terms_between_clauses:
+            self.terms = {}
+        else:
+            self.terms = None
+        self.share_terms_within_clause = share_terms_within_clause
         self.node_features = node_features
         self.check_number_of_nodes()
 
@@ -314,19 +321,26 @@ class TermVisitor:
             self.visit_clause(clause)
 
     def visit_clause(self, clause):
+        # To make variables clause-specific, we keep the clause terms separate from the global terms.
+        clause_terms = {}
         cur_id_pair = self.add_node('clause')
         for literal in clause['literals']:
-            atom_id_pair = self.visit_term(literal['atom'])
+            atom_id_pair, non_ground = self.visit_term(literal['atom'], clause_terms, cur_id_pair)
             assert atom_id_pair[0] in ('term', 'equality')
             assert literal['polarity'] in (True, False)
             self.add_edge(cur_id_pair, atom_id_pair, literal['polarity'])
+        return cur_id_pair
 
-    def visit_term(self, term):
+    def visit_term(self, term, clause_terms, clause_id_pair):
         """Generalized term, that is term or atom"""
         root_id = json.dumps(term)
-        if root_id in self.terms:
-            # Term sharing
+        contains_variable = False
+        # Term sharing
+        if self.terms is not None and root_id in self.terms:
             cur_id_pair = self.terms[root_id]
+        elif root_id in clause_terms:
+            cur_id_pair = clause_terms[root_id]
+            contains_variable = True
         else:
             term_type = term['type']
             assert term_type in {'predicate', 'function', 'variable'}
@@ -336,19 +350,27 @@ class TermVisitor:
                 assert 'args' not in term
                 # TODO: Expose the mapping from variable ids (`term_id`) to node ids.
                 cur_id_pair = self.add_node('variable')
+                contains_variable = True
+                clause_terms[root_id] = cur_id_pair
+                self.add_edge(clause_id_pair, cur_id_pair)
             elif self.equality and term_type == 'predicate' and term_id == 0:
                 # Equality
                 cur_id_pair = self.add_node('equality')
                 assert len(term['args']) == 2
                 for arg in term['args']:
-                    self.add_edge(cur_id_pair, self.visit_term(arg))
+                    arg_id_pair, arg_non_ground = self.visit_term(arg, clause_terms, clause_id_pair)
+                    if arg_non_ground:
+                        contains_variable = True
+                    self.add_edge(cur_id_pair, arg_id_pair)
             else:
                 cur_id_pair = self.add_node('term')
                 symbol_id_pair = self.add_symbol(term_type, term_id)
                 self.add_edge(cur_id_pair, symbol_id_pair)
                 prev_arg_pos_id_pair = None
                 for i, arg in enumerate(term['args']):
-                    arg_id_pair = self.visit_term(arg)
+                    arg_id_pair, arg_non_ground = self.visit_term(arg, clause_terms, clause_id_pair)
+                    if arg_non_ground:
+                        contains_variable = True
                     if self.arg_order:
                         arg_pos_id_pair = self.add_node('argument')
                         self.add_edge(arg_pos_id_pair, arg_id_pair)
@@ -358,9 +380,11 @@ class TermVisitor:
                         arg_id_pair = arg_pos_id_pair
                     if not self.arg_order or self.arg_backedge or i == 0:
                         self.add_edge(cur_id_pair, arg_id_pair)
-            self.terms[root_id] = cur_id_pair
-        assert root_id in self.terms and self.terms[root_id] == cur_id_pair
-        return cur_id_pair
+            if not contains_variable and self.terms is not None:
+                self.terms[root_id] = cur_id_pair
+            elif self.share_terms_within_clause:
+                clause_terms[root_id] = cur_id_pair
+        return cur_id_pair, contains_variable
 
     def add_node(self, node_type):
         node_id = self.node_counts[node_type]
