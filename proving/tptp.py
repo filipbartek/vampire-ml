@@ -64,7 +64,11 @@ header_patterns = {
 def problem_properties(problem, header_properties=True):
     res = file_name_properties(problem)
     if header_properties:
-        res.update(problem_header_properties(header(problem), res['form']))
+        try:
+            form = res['form']
+        except KeyError:
+            form = None
+        res.update(problem_header_properties(header(problem), form))
     return res
 
 
@@ -75,7 +79,7 @@ def file_name_properties(file_name):
     return match_and_cast(p, file_name)
 
 
-def problem_header_properties(content, form):
+def problem_header_properties(content, form=None):
     return utils.join_dicts(match_and_cast(p, content) for p, forms in header_patterns.items() if forms is None or form in forms)
 
 
