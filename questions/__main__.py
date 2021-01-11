@@ -3,6 +3,7 @@
 import argparse
 import datetime
 import glob
+import itertools
 import hashlib
 import json
 import logging
@@ -54,6 +55,7 @@ def main():
     parser.add_argument('--problems-validation', action='append')
     parser.add_argument('--problems-train', action='append')
     parser.add_argument('--questions-dir')
+    parser.add_argument('--questions-dir-legacy')
     parser.add_argument('--max-questions-per-problem', type=int)
     parser.add_argument('--max-problems', type=int, default=None)
     parser.add_argument('--logs-dir', default='logs')
@@ -201,10 +203,18 @@ def main():
                                       f'max_questions_per_problem_{args.max_questions_per_problem}',
                                       'questions.pkl')
         with writer_train.as_default():
-            if args.questions_dir is None:
+            if args.questions_dir_legacy is None:
+                questions_dir = args.questions_dir
+                if questions_dir is None:
+                    questions_dir = os.path.join(args.output, 'questions')
                 try:
-                    generator = Generator.load(os.path.join(args.output, 'questions_generated'))
-                    logging.info('Generated questions loaded. Continuing.')
+                    generator = Generator.load(questions_dir)
+                    logging.info('Generator loaded.')
+                    if any(l != r for l, r in itertools.zip_longest(generator.problems, map(py_str, problems_all))):
+                        raise RuntimeError('Loaded generator uses different problems.')
+                    if set(generator.randomize) != set(args.questions_randomize):
+                        raise RuntimeError(
+                            f'Loaded generator randomizes different symbol type. Expected: {args.questions_randomize}. Actual: {generator.randomize}.')
                 except FileNotFoundError:
                     generator = Generator.fresh(list(map(py_str, problems_all)), clausifier,
                                                 randomize=args.questions_randomize,
@@ -214,7 +224,7 @@ def main():
                     questions_all = generator.generate(solver,
                                                        num_questions_per_batch=args.questions_per_batch,
                                                        num_questions_per_problem=args.questions_per_problem,
-                                                       dir=os.path.join(args.output, 'questions_generated'),
+                                                       dir=questions_dir,
                                                        num_questions=args.questions)
             else:
                 # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
