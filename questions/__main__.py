@@ -3,8 +3,8 @@
 import argparse
 import datetime
 import glob
-import itertools
 import hashlib
+import itertools
 import json
 import logging
 import os
