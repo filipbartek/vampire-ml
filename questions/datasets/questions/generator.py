@@ -109,14 +109,18 @@ class Generator:
                                                                           method=self.ucb_method)
         return res
 
-    def load_questions(self, dir, num_questions_per_problem=None, simple=True):
-        results = collections.defaultdict(list)
-        for step in tqdm(range(self.step), desc='Loading question batches', unit='batch'):
-            filename = os.path.join(dir, f'{step}.joblib')
-            for problem_i, question in joblib.load(filename):
-                problem_name = self.problems[problem_i]
-                if num_questions_per_problem is None or len(results[problem_name]) < num_questions_per_problem:
-                    if simple:
+    def load_questions(self, questions_dir, num_questions_per_problem=None):
+        cache_filename = os.path.join(questions_dir, f'questions_per_problem_{num_questions_per_problem}.joblib')
+        try:
+            results = joblib.load(cache_filename)
+            logging.info(f'Questions loaded from a single file: {cache_filename}')
+        except FileNotFoundError:
+            results = collections.defaultdict(list)
+            for step in tqdm(range(self.step), desc='Loading question batches', unit='batch'):
+                filename = os.path.join(questions_dir, f'{step}.joblib')
+                for problem_i, question in joblib.load(filename):
+                    problem_name = self.problems[problem_i]
+                    if num_questions_per_problem is None or len(results[problem_name]) < num_questions_per_problem:
                         assert len(self.randomize) == 1
                         symbol_type = self.randomize[0]
                         precedences = (question['precedences'][i][symbol_type] for i in range(2))
@@ -124,10 +128,8 @@ class Generator:
                             map(functools.partial(utils.invert_permutation, dtype=np.int32), precedences))
                         res = precedences_inverted[1] - precedences_inverted[0]
                         results[problem_name].append(res)
-                    else:
-                        results[problem_name].append(question)
-        if simple:
             results = {k: np.asarray(v) for k, v in results.items()}
+            joblib.dump(results, cache_filename)
         return results
 
     def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=None, num_questions=None,
