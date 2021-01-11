@@ -16,6 +16,7 @@ import joblib
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy
 import seaborn as sns
 import tensorflow as tf
 from tqdm import tqdm
@@ -234,6 +235,8 @@ def main():
             question_counts = [q.shape[0] for q in questions_all.values()]
             signature_lengths = [q.shape[1] for q in questions_all.values()]
 
+            print(scipy.stats.describe(question_counts))
+
             df_index = pd.Index(questions_all.keys(), name='name')
             df = pd.DataFrame({
                 'n_questions': pd.Series(question_counts, index=df_index, dtype=pd.UInt32Dtype(), name='n_questions'),
@@ -324,7 +327,7 @@ def main():
         ]
 
         symbol_cost_evaluation_callback = None
-        if args.solver_evaluation_initial or args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
+        if args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
             solver_eval_problems = {
                 'val': problems['validation'].take(args.solver_evaluation_validation_problems),
                 'train': tf.data.Dataset.from_tensor_slices(problems_with_questions['train']).take(
