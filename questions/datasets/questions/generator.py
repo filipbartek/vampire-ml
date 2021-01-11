@@ -173,11 +173,11 @@ class Generator:
             tf.summary.scalar('num_questions', self.num_hits)
             tf.summary.scalar('num_attempts', self.num_attempts)
             tf.summary.scalar('batch_questions', sum(question is not None for question in questions))
-            tf.summary.histogram('ucbs', self.problem_ucbs())
+            tf.summary.histogram('ucbs', self.problem_ucbs().astype(np.float64))
             tf.summary.histogram('attempts', self.problem_attempts.astype(np.uint32))
             tf.summary.histogram('hits', self.problem_hits.astype(np.uint32))
-            tf.summary.histogram('hit_rates', self.problem_mean_rewards)
-            tf.summary.histogram('confidence_margins', self.problem_ucbs() - self.problem_mean_rewards)
+            tf.summary.histogram('hit_rates', self.problem_mean_rewards.astype(np.float64))
+            tf.summary.histogram('confidence_margins', (self.problem_ucbs() - self.problem_mean_rewards).astype(np.float64))
             if self.step % scatter_period == 0:
                 plot.scatter(self.df[f'predicates'], self.df[f'functions'], name=f'problems/predicates_functions',
                              xlabel='predicates', ylabel='functions', xscale='log', yscale='log')
