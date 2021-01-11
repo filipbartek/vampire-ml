@@ -80,7 +80,10 @@ class Graphifier:
         return cache_dir
 
     def problem_to_graph(self, problem_name):
-        cache_dir_full = os.path.join(self.cache_dir(), problem_name)
+        if os.path.isabs(problem_name):
+            cache_dir_full = os.path.join(self.cache_dir(), hashlib.md5(problem_name.encode()).hexdigest())
+        else:
+            cache_dir_full = os.path.join(self.cache_dir(), problem_name)
         filename_graph = os.path.join(cache_dir_full, 'graph.joblib')
         filename_record = os.path.join(cache_dir_full, 'record.json')
         try:
