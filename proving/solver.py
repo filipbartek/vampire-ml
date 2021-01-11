@@ -65,7 +65,7 @@ class Solver:
     def get_symbol_count(self, problem, symbol_type):
         return len(self.symbols_of_type(problem, symbol_type))
 
-    def clausify(self, problem, get_symbols=True, get_clauses=True, get_stdout=False):
+    def clausify(self, problem, get_symbols=True, get_clauses=True, get_stdout=False, cache=True):
         options = copy.deepcopy(self.options)
         if options is None:
             options = {}
@@ -73,7 +73,7 @@ class Solver:
             log.warning('Overriding mode.')
         options['mode'] = 'clausify'
         return self.call(problem, options=options, get_symbols=get_symbols, get_clauses=get_clauses,
-                         get_stdout=get_stdout)
+                         get_stdout=get_stdout, cache=cache)
 
     def solve(self, problem, precedences=None, cache=True):
         return self.call(problem, precedences=precedences, cache=cache)
