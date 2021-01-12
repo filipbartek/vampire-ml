@@ -212,10 +212,6 @@ class TermVisitor:
 
     def __init__(self, template, node_features=None, feature_dtype=tf.float32, share_terms_between_clauses=True,
                  share_terms_within_clause=True):
-        # TODO: Add global state (node) for equation.
-        # TODO: Encode edge polarity as edge feature.
-        # TODO: Encode symbol node features: isFunction, inGoal, introduced
-        # TODO: Maybe also: arity, usageCnt, unitUsageCnt, inUnit
         self.template = template
         self.feature_dtype = feature_dtype
         self.node_counts = {node_type: 0 for node_type in self.template.ntypes}
@@ -362,7 +358,6 @@ class TermVisitor:
             assert isinstance(term_id, int)
             if term_type == 'variable':
                 assert 'args' not in term
-                # TODO: Expose the mapping from variable ids (`term_id`) to node ids.
                 cur_id_pair = self.add_node('variable')
                 contains_variable = True
                 clause_terms[root_id] = cur_id_pair
