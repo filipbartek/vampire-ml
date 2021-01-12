@@ -377,8 +377,7 @@ class TermVisitor:
                     self.add_edge(cur_id_pair, arg_id_pair)
             else:
                 cur_id_pair = self.add_node('term')
-                symbol_id_pair = self.add_symbol(term_type, term_id)
-                self.add_edge(cur_id_pair, symbol_id_pair)
+                self.add_edge(cur_id_pair, self.add_symbol(term_type, term_id))
                 prev_arg_pos_id_pair = None
                 for i, arg in enumerate(term['args']):
                     arg_id_pair, arg_non_ground = self.visit_term(arg, clause_terms, clause_id_pair)
