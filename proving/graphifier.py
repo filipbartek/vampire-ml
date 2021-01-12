@@ -66,6 +66,7 @@ class Graphifier:
             self.ntypes.append('equality')
             self.ntype_pairs.extend([
                 ('clause', 'equality'),
+                ('equality', 'predicate'),
                 ('equality', 'term'),
                 ('equality', 'variable')
             ])
@@ -369,6 +370,7 @@ class TermVisitor:
             elif self.equality and term_type == 'predicate' and term_id == 0:
                 # Equality
                 cur_id_pair = self.add_node('equality')
+                self.add_edge(cur_id_pair, self.add_symbol(term_type, term_id))
                 assert len(term['args']) == 2
                 for arg in term['args']:
                     arg_id_pair, arg_non_ground = self.visit_term(arg, clause_terms, clause_id_pair)
