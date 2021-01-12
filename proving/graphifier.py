@@ -215,13 +215,13 @@ class TermVisitor:
         # TODO: Encode edge polarity as edge feature.
         # TODO: Encode symbol node features: isFunction, inGoal, introduced
         # TODO: Maybe also: arity, usageCnt, unitUsageCnt, inUnit
-        # TODO: Clause feature: inGoal
-        # TODO: Node feature: argument: argument id (or log of the id)
         self.template = template
         self.feature_dtype = feature_dtype
         self.node_counts = {node_type: 0 for node_type in self.template.ntypes}
         if node_features is None:
             node_features = {}
+        self.clause_roles = []
+        self.argument_positions = []
         for ntype, feat in node_features.items():
             self.node_counts[ntype] = len(feat)
         self.edges = {ntype_pair: {'src': [], 'dst': []} for ntype_pair in self.template.ntype_pairs}
@@ -272,8 +272,7 @@ class TermVisitor:
     def max_number_of_nodes(self):
         return self.template.max_number_of_nodes
 
-    def get_graph(self):
-        dtype = tf.int32
+    def get_graph(self, feature_argument_positions=False, dtype=tf.int32):
         data_dict = {}
         edge_features = {}
         for (srctype, dsttype), d in self.edges.items():
@@ -295,6 +294,11 @@ class TermVisitor:
         for ntype, v in self.node_features.items():
             assert g.num_nodes(ntype) == len(v)
             g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v)
+        assert g.num_nodes('clause') == len(self.clause_roles)
+        g.nodes['clause'].data['feat'] = tf.one_hot(self.clause_roles, 7)
+        if feature_argument_positions:
+            assert g.num_nodes('argument') == len(self.argument_positions)
+            g.nodes['argument'].data['feat'] = self.convert_to_feature_matrix(self.argument_positions)
         for canonical_etype, v in edge_features.items():
             assert g.num_edges(canonical_etype) == len(v)
             g.edges[canonical_etype].data['feat'] = v
@@ -327,6 +331,12 @@ class TermVisitor:
         # To make variables clause-specific, we keep the clause terms separate from the global terms.
         clause_terms = {}
         cur_id_pair = self.add_node('clause')
+        # Input types according to Unit.hpp:60 `enum InputType`:
+        # 0: AXIOM, 1: ASSUMPTION, 2: CONJECTURE, 3: NEGATED_CONJECTURE, 4: CLAIM, 5: EXTENSIONALITY_AXIOM, 6: MODEL_DEFINITION
+        # Input types according to Unit.cpp:293 `Unit::inputTypeAsString`:
+        # 1: hypothesis, 2: negated_conjecture, 5: extensionality, 3: negated_conjecture, default: axiom
+        assert cur_id_pair[1] == len(self.clause_roles)
+        self.clause_roles.append(clause['inputType'])
         for literal in clause['literals']:
             atom_id_pair, non_ground = self.visit_term(literal['atom'], clause_terms, cur_id_pair)
             assert atom_id_pair[0] in ('term', 'equality')
@@ -376,6 +386,8 @@ class TermVisitor:
                         contains_variable = True
                     if self.arg_order:
                         arg_pos_id_pair = self.add_node('argument')
+                        assert arg_pos_id_pair[1] == len(self.argument_positions)
+                        self.argument_positions.append(i)
                         self.add_edge(arg_pos_id_pair, arg_id_pair)
                         if prev_arg_pos_id_pair is not None:
                             self.add_edge(prev_arg_pos_id_pair, arg_pos_id_pair)
