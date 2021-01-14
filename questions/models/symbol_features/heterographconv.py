@@ -6,7 +6,7 @@ dtype_tf_float = tf.float32
 
 class GCN(tf.keras.layers.Layer):
     def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, embedding_size=64, depth=4,
-                 aggregate='concat', activation='relu', dropout=None, name='gcn', **kwargs):
+                 aggregate='concat', activation='relu', dropout=None, layer_norm=True, name='gcn', **kwargs):
         super().__init__(name=name, **kwargs)
 
         if isinstance(activation, str):
@@ -39,8 +39,8 @@ class GCN(tf.keras.layers.Layer):
         dtype_feats = {ntype: embedding_size for ntype in ntypes}
 
         def create_module(in_feats, out_feats, name):
-            return GraphConv(in_feats, out_feats, dropout=dropout, name=name, activation=activation,
-                             allow_zero_in_degree=True)
+            return GraphConv(in_feats, out_feats, dropout=dropout, layer_norm=layer_norm, name=name,
+                             activation=activation, allow_zero_in_degree=True)
 
         self.layers = []
         for layer_i in range(depth):
@@ -80,11 +80,14 @@ class GCN(tf.keras.layers.Layer):
 
 
 class GraphConv(dglnn.GraphConv):
-    def __init__(self, in_feats, out_feats, dropout=None, name=None, **kwargs):
+    def __init__(self, in_feats, out_feats, dropout=None, layer_norm=True, name=None, **kwargs):
         super().__init__(in_feats, out_feats, **kwargs)
         self.dropout = None
         if dropout is not None:
             self.dropout = tf.keras.layers.Dropout(dropout)
+        self.layer_norm = None
+        if layer_norm:
+            self.layer_norm = tf.keras.layers.LayerNormalization()
         if name is not None:
             self._name = name
 
@@ -93,4 +96,6 @@ class GraphConv(dglnn.GraphConv):
             feat = self.dropout(feat, training=training)
         # `dglnn.GraphConv` does not accept the argument `training`.
         feat = super().call(graph, feat)
+        if self.layer_norm is not None:
+            feat = self.layer_norm(feat, training=training)
         return feat
