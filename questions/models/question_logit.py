@@ -91,8 +91,15 @@ class QuestionLogitModel(tf.keras.Model):
             y_pred = tf.reshape(self(x, training=True).flat_values, (-1, 1))
             loss = self.compiled_loss(y, y_pred, self.get_loss_sample_weight(questions),
                                       regularization_losses=self.losses)
-        self.optimizer.minimize(loss, self.trainable_variables, tape=tape)
+        self.optimizer_minimize(loss, self.trainable_variables, tape)
         return self.update_metrics(y, y_pred, questions)
+
+    def optimizer_minimize(self, loss, var_list, tape):
+        # Inspiration:
+        # self.optimizer.minimize(loss, self.trainable_variables, tape=tape)
+        # https://stackoverflow.com/a/62754676
+        grads_and_vars = self.optimizer._compute_gradients(loss, var_list=var_list, tape=tape)
+        return self.optimizer.apply_gradients((g, v) for g, v in grads_and_vars if g is not None)
 
     def update_metrics(self, y, y_pred, questions):
         self.compiled_metrics.update_state(y, y_pred, self.get_sample_weight(questions))
