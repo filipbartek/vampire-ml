@@ -230,7 +230,7 @@ def main():
                                                        num_questions=args.questions)
             else:
                 # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
-                questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir,
+                questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir_legacy,
                                                                        args.max_questions_per_problem)
 
             question_counts = [q.shape[0] for q in questions_all.values()]
