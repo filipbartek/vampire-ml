@@ -437,7 +437,7 @@ def main():
         tensorboard.set_model(model_logit)
 
         print('Initial evaluation...')
-        if symbol_cost_evaluation_callback.start <= -1:
+        if symbol_cost_evaluation_callback is not None and symbol_cost_evaluation_callback.start <= -1:
             print('Evaluating symbol cost model before first training epoch...')
             symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
 
