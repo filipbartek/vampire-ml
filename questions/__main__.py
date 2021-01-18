@@ -3,9 +3,7 @@
 import argparse
 import datetime
 import glob
-import hashlib
 import itertools
-import json
 import logging
 import os
 import re
@@ -36,11 +34,6 @@ from questions import models
 from questions import plot
 from questions.datasets.questions import Generator
 from vampire_ml.results import save_df
-
-
-def hash_digest(o):
-    hash_data = json.dumps(o).encode()
-    return hashlib.md5(hash_data).hexdigest()
 
 
 def save_problems(problems, filename):
@@ -86,8 +79,6 @@ def main():
     parser.add_argument('--embedding-to-cost-l2', type=float, default=0)
     parser.add_argument('--embedding-to-cost-hidden-layer', type=int)
     parser.add_argument('--simple-model-kernel')
-    parser.add_argument('--cache-dir', default='cache')
-    parser.add_argument('--cache-mem', action='store_true')
     parser.add_argument('--output', default='out')
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
@@ -200,11 +191,6 @@ def main():
             for pp in map(py_str, p):
                 problem_records[pp][f'dataset_{k}'] = True
 
-        # TODO?: Only load questions if the batches are not cached.
-        questions_file = os.path.join(args.cache_dir,
-                                      f'symbol_type_{args.symbol_type}',
-                                      f'max_questions_per_problem_{args.max_questions_per_problem}',
-                                      'questions.pkl')
         with writer_train.as_default():
             if args.questions_dir_legacy is None:
                 questions_dir = args.questions_dir
@@ -230,6 +216,12 @@ def main():
                                                        dir=questions_dir,
                                                        num_questions=args.questions)
             else:
+                # TODO?: Only load questions if the batches are not cached.
+                questions_file = os.path.join('cache',
+                                              f'symbol_type_{args.symbol_type}',
+                                              f'max_questions_per_problem_{args.max_questions_per_problem}',
+                                              'questions.pkl')
+
                 # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
                 questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir_legacy,
                                                                        args.max_questions_per_problem)
@@ -266,37 +258,14 @@ def main():
                 v['num_questions'] = 0
         problem_records_types.update({'num_questions': pd.UInt32Dtype(), 'num_symbols': pd.UInt32Dtype()})
 
-        cache_patterns = os.path.join(args.cache_dir,
-                                      f'symbol_type_{args.symbol_type}',
-                                      f'patterns_{hash_digest(patterns)}')
-        os.makedirs(cache_patterns, exist_ok=True)
-        with open(os.path.join(cache_patterns, 'patterns.json'), 'w') as fp:
-            json.dump(patterns, fp, indent=4)
-        cache_dir = os.path.join(cache_patterns,
-                                 f'max_problems_{args.max_problems}',
-                                 f'validation_split_{args.validation_split}')
-
         questions = {}
         problems_to_graphify = OrderedSet()
         problems_with_questions = {}
         for k, p in problems.items():
-            # Cache identification parameters:
-            # - problem sets (patterns, validation_split, max_problems)
-            # - question set (question_dir)
-            # - dataset name (validation or train)
-            # We only hash the parameters that cannot be easily represented by a string.
-            cache_dir_dataset = os.path.join(cache_dir, k)
-            logging.info(f'Caching {k} questions into: {cache_dir_dataset}')
             q = datasets.questions.individual.dict_to_dataset(questions_all, p)
-            os.makedirs(cache_dir_dataset, exist_ok=True)
-            q = q.cache(os.path.join(cache_dir_dataset, 'questions_individual'))
             problems_to_graphify.update(py_str(e['problem']) for e in q)
             batches = datasets.questions.batch.batch(q, args.batch_size)
-            cache_dir_batches = os.path.join(cache_dir_dataset, f'batch_size_{args.batch_size}')
-            os.makedirs(cache_dir_batches, exist_ok=True)
-            batches = batches.cache(os.path.join(cache_dir_batches, 'question_batches'))
-            if args.cache_mem:
-                batches = batches.cache()
+            batches = batches.cache()
             questions[k] = batches
             problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
             logging.info(f'Number of {k} problems with questions: {len(problems_with_questions[k])}')
