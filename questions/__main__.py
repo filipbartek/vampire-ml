@@ -100,6 +100,8 @@ def main():
     parser.add_argument('--gcn-activation', default='relu', choices=['relu', 'sigmoid'])
     parser.add_argument('--gcn-dropout', type=float)
     parser.add_argument('--no-layer-norm', action='store_true')
+    parser.add_argument('--no-residual', action='store_true')
+    parser.add_argument('--conv-norm', default='both', choices=['both', 'right', 'none'])
     parser.add_argument('--questions', type=int)
     parser.add_argument('--questions-per-batch', type=int, default=1000)
     parser.add_argument('--questions-per-problem', type=int)
@@ -385,8 +387,10 @@ def main():
                                                                           embedding_size=args.gcn_message_size,
                                                                           num_layers=args.gcn_depth,
                                                                           activation=args.gcn_activation,
-                                                                          dropout=args.gcn_dropout,
-                                                                          layer_norm=not args.no_layer_norm)
+                                                                          conv_norm=args.conv_norm,
+                                                                          residual=not args.no_residual,
+                                                                          layer_norm=not args.no_layer_norm,
+                                                                          dropout=args.gcn_dropout)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
                 if embedding_to_cost is None:
