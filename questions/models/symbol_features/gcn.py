@@ -72,9 +72,14 @@ class GCN(tf.keras.layers.Layer):
 
     def initial_ntype_embedding(self, graph, ntype):
         embedding = tf.tile(self.ntype_weights[ntype], (graph.num_nodes(ntype), 1))
-        if ntype in graph.ndata['feat']:
+        if ntype in self.ntype_feat_sizes:
+            try:
+                feat = graph.ndata['feat'][ntype]
+            except KeyError:
+                feat = tf.zeros((graph.num_nodes(ntype), self.ntype_feat_sizes[ntype]))
+            assert feat.shape == (graph.num_nodes(ntype), self.ntype_feat_sizes[ntype])
             # Prepend the node features to the trainable embedding
-            embedding = tf.concat((graph.ndata['feat'][ntype], embedding), axis=1)
+            embedding = tf.concat((feat, embedding), axis=1)
         return embedding
 
     def add_ntype_weights(self, ntype_weight_lengths):
@@ -107,12 +112,44 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
         if mod_kwargs is None:
             mod_kwargs = {}
         mod_kwargs['training'] = training
-        outputs = super().call(g, inputs, mod_kwargs=mod_kwargs, **kwargs)
+        outputs = self.super_call(g, inputs, mod_kwargs=mod_kwargs, **kwargs)
         if self.residual:
             outputs = {k: inputs[k] + outputs[k] for k in outputs}
         for k, layer in self.layer_norm.items():
-            outputs[k] = layer(outputs[k], training=training)
+            if outputs[k].shape[0] >= 1:
+                outputs[k] = layer(outputs[k], training=training)
         return outputs
+    
+    def super_call(self, g, inputs, mod_args=None, mod_kwargs=None):
+        # Slight modification of `dglnn.HeteroGraphConv.call`: Calls the sub-module even if number of edges is 0.
+        outputs = self.apply_mods(g, inputs, mod_args, mod_kwargs)
+        rsts = self.aggregate(outputs)
+        return rsts
+
+    def apply_mods(self, g, inputs, mod_args, mod_kwargs):
+        if mod_args is None:
+            mod_args = {}
+        if mod_kwargs is None:
+            mod_kwargs = {}
+        outputs = {nty: [] for nty in g.dsttypes}
+        for stype, etype, dtype in g.canonical_etypes:
+            if stype not in inputs:
+                continue
+            rel_graph = g[stype, etype, dtype]
+            dstdata = self.mods[etype](
+                rel_graph,
+                inputs[stype],
+                *mod_args.get(etype, ()),
+                **mod_kwargs.get(etype, {}))
+            outputs[dtype].append(dstdata)
+        return outputs
+
+    def aggregate(self, outputs):
+        rsts = {}
+        for nty, alist in outputs.items():
+            if len(alist) != 0:
+                rsts[nty] = self.agg_fn(alist, nty)
+        return rsts
 
 
 class GraphConv(dglnn.GraphConv):
@@ -129,7 +166,15 @@ class GraphConv(dglnn.GraphConv):
         # - 0: source nodes (across multiple problems in the batch)
         # - 1: source node embedding channels
         # It doesn't make sense to use batch normalization namely because each problem contributes a different number of nodes.
-        if self.dropout is not None:
-            feat = self.dropout(feat, training=training)
-        # `dglnn.GraphConv` does not accept the argument `training`.
-        return super().call(graph, feat)
+        if graph.number_of_edges() == 0:
+            # There are no edges from stype to dtype.
+            # The message is formed by tiling the bias, which corresponds to summation over 0 inputs.
+            assert len(graph.dsttypes) == 1
+            dtype = graph.dsttypes[0]
+            outputs = tf.tile(tf.expand_dims(tf.stop_gradient(self.bias), 0), (graph.num_nodes(dtype), 1))
+        else:
+            if self.dropout is not None:
+                feat = self.dropout(feat, training=training)
+            # `dglnn.GraphConv` does not accept the argument `training`.
+            outputs = super().call(graph, feat)
+        return outputs
