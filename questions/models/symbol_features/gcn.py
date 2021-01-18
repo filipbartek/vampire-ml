@@ -44,6 +44,9 @@ class GCN(tf.keras.layers.Layer):
             layer_norm_ntypes = ntypes
 
         def create_module(in_feats, out_feats, name):
+            # We assume that there are no 0-in-degree nodes in any input graph.
+            # This holds for the standard graphification scheme because all symbols have loops and all the other nodes
+            # have at least one in-edge from another node.
             return GraphConv(in_feats, out_feats, norm=conv_norm, dropout=dropout, name=name, activation=activation,
                              allow_zero_in_degree=True)
 
