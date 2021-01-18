@@ -301,13 +301,14 @@ def main():
 
         symbol_cost_evaluation_callback = None
         if args.solver_eval_start is not None or args.solver_eval_step is not None:
-            solver_eval_problems_val = problems['val']
+            solver_eval_problems = problems['val']
             if args.solver_eval_val_problems is not None:
-                solver_eval_problems_val = solver_eval_problems_val.take(args.solver_eval_val_problems)
+                solver_eval_problems = solver_eval_problems.take(args.solver_eval_val_problems)
             solver_eval_problems_train = tf.data.Dataset.from_tensor_slices(problems_with_questions['train'])
             if args.solver_eval_train_problems is not None:
                 solver_eval_problems_train = solver_eval_problems_train.take(args.solver_eval_train_problems)
-            solver_eval_problems = solver_eval_problems_val.concatenate(solver_eval_problems_train)
+            if solver_eval_problems_train.cardinality() >= 1:
+                solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
             solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
             problems_to_graphify.update(solver_eval_problems)
 
