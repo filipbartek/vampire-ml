@@ -237,7 +237,8 @@ def main():
             question_counts = [q.shape[0] for q in questions_all.values()]
             signature_lengths = [q.shape[1] for q in questions_all.values()]
 
-            print(scipy.stats.describe(question_counts))
+            print(f'Question counts: {scipy.stats.describe(question_counts)}')
+            print(f'Signature sizes: {scipy.stats.describe(signature_lengths)}')
 
             df_index = pd.Index(questions_all.keys(), name='name')
             df = pd.DataFrame({
