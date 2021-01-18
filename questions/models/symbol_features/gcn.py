@@ -114,7 +114,9 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
         mod_kwargs['training'] = training
         outputs = self.super_call(g, inputs, mod_kwargs=mod_kwargs, **kwargs)
         if self.residual:
+            assert set(outputs) <= set(inputs)
             outputs = {k: inputs[k] + outputs[k] for k in outputs}
+        assert set(outputs) == set(self.layer_norm)
         for k, layer in self.layer_norm.items():
             if outputs[k].shape[0] >= 1:
                 outputs[k] = layer(outputs[k], training=training)
