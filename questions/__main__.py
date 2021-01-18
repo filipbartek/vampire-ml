@@ -318,7 +318,8 @@ def main():
                                             embeddings_freq=1)
         cbs = [
             tensorboard,
-            callbacks.Time(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items() if cardinality_finite(v) > 0},
+            callbacks.Time(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items() if
+                                     cardinality_finite(v) > 0},
                            tensorboard=tensorboard),
             tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'epochs.csv')),
             tf.keras.callbacks.ModelCheckpoint(
