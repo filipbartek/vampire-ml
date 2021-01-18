@@ -93,10 +93,15 @@ class GraphConv(dglnn.GraphConv):
             self._name = name
 
     def call(self, graph, feat, training=False):
+        # `feat` dimensions:
+        # - 0: source nodes (across multiple problems in the batch)
+        # - 1: source node embedding channels
+        # It doesn't make sense to use batch normalization namely because each problem contributes a different number of nodes.
         if self.dropout is not None:
             feat = self.dropout(feat, training=training)
         # `dglnn.GraphConv` does not accept the argument `training`.
         feat = super().call(graph, feat)
         if self.layer_norm is not None:
+            # See slide 27 in https://ufal.mff.cuni.cz/~straka/courses/npfl114/1920/slides.pdf/npfl114-07.pdf
             feat = self.layer_norm(feat, training=training)
         return feat
