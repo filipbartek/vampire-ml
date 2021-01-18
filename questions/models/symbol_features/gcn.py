@@ -87,7 +87,8 @@ class GraphConv(dglnn.GraphConv):
             self.dropout = tf.keras.layers.Dropout(dropout)
         self.layer_norm = None
         if layer_norm:
-            self.layer_norm = tf.keras.layers.LayerNormalization()
+            # We need not train scaling because a fully connected layer follows.
+            self.layer_norm = tf.keras.layers.LayerNormalization(scale=False)
         if name is not None:
             self._name = name
 
