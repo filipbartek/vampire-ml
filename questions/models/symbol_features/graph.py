@@ -2,7 +2,7 @@ import dgl
 import tensorflow as tf
 
 from proving.utils import py_str
-from .heterographconv import GCN
+from .gcn import GCN
 from .symbol_features import SymbolFeatures
 
 
