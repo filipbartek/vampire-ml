@@ -66,12 +66,12 @@ def main():
     parser.add_argument('--validation-split', type=float, default=0.5)
     parser.add_argument('--batch-size', type=int, default=32)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
-    parser.add_argument('--solver-evaluation-start', type=int, default=None,
+    parser.add_argument('--solver-eval-start', type=int, default=None,
                         help='Set to -1 to evaluate before first training epoch.')
-    parser.add_argument('--solver-evaluation-step', type=int, default=None)
-    parser.add_argument('--solver-evaluation-batch-size', type=int, default=1000)
-    parser.add_argument('--solver-evaluation-train-problems', type=int, default=1000)
-    parser.add_argument('--solver-evaluation-validation-problems', type=int, default=1000)
+    parser.add_argument('--solver-eval-step', type=int, default=None)
+    parser.add_argument('--solver-eval-batch-size', type=int, default=1000)
+    parser.add_argument('--solver-eval-train-problems', type=int)
+    parser.add_argument('--solver-eval-val-problems', type=int)
     parser.add_argument('--problem-set', action='append', nargs=2, default=[])
     parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
@@ -165,10 +165,10 @@ def main():
         # for problems with at least one question.
         if args.problems_train is not None and args.problems_validation is not None:
             problems = {
-                'validation': tf.data.TextLineDataset(args.problems_validation),
+                'val': tf.data.TextLineDataset(args.problems_validation),
                 'train': tf.data.TextLineDataset(args.problems_train)
             }
-            problems_all = problems['validation'].concatenate(problems['train'])
+            problems_all = problems['val'].concatenate(problems['train'])
         else:
             logging.info('Collecting available problems...')
             if args.problems is None:
@@ -186,7 +186,7 @@ def main():
                                                 tf.int64)
             assert problems_validation_count >= 0
             problems = {
-                'validation': problems_all.take(problems_validation_count),
+                'val': problems_all.take(problems_validation_count),
                 'train': problems_all.skip(problems_validation_count)
             }
         logging.info('Number of problems taken: %d', cardinality_finite(problems_all))
@@ -331,14 +331,16 @@ def main():
         ]
 
         symbol_cost_evaluation_callback = None
-        if args.solver_evaluation_start is not None or args.solver_evaluation_step is not None:
-            solver_eval_problems = {
-                'val': problems['validation'].take(args.solver_evaluation_validation_problems),
-                'train': tf.data.Dataset.from_tensor_slices(problems_with_questions['train']).take(
-                    args.solver_evaluation_train_problems)
-            }
-            problems_to_graphify.update(py_str(e) for e in solver_eval_problems['val'])
-            problems_to_graphify.update(py_str(e) for e in solver_eval_problems['train'])
+        if args.solver_eval_start is not None or args.solver_eval_step is not None:
+            solver_eval_problems_val = problems['val']
+            if args.solver_eval_val_problems is not None:
+                solver_eval_problems_val = solver_eval_problems_val.take(args.solver_eval_val_problems)
+            solver_eval_problems_train = tf.data.Dataset.from_tensor_slices(problems_with_questions['train'])
+            if args.solver_eval_train_problems is not None:
+                solver_eval_problems_train = solver_eval_problems_train.take(args.solver_eval_train_problems)
+            solver_eval_problems = solver_eval_problems_val.concatenate(solver_eval_problems_train)
+            solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
+            problems_to_graphify.update(solver_eval_problems)
 
             problem_categories = {'all': None, 'with_questions': questions_all.keys()}
             for cat_name, cat_filename in args.problem_set:
@@ -347,19 +349,23 @@ def main():
 
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
                 os.path.join(args.output, 'epochs_solver_eval.csv'),
-                problems={k: v.batch(args.solver_evaluation_batch_size) for k, v in solver_eval_problems.items()},
-                start=args.solver_evaluation_start,
-                step=args.solver_evaluation_step,
+                solver=solver,
+                problems=solver_eval_problems,
+                symbol_type=args.symbol_type,
+                splits={k: list(map(py_str, v)) for k, v in problems.items()},
+                batch_size=args.solver_eval_batch_size,
+                start=args.solver_eval_start,
+                step=args.solver_eval_step,
                 output_dir=args.output,
                 tensorboard=tensorboard,
-                problem_categories=problem_categories)
+                problem_categories=problem_categories,
+                baseline=args.symbol_cost_model == 'baseline',
+                parallel=parallel)
             cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
         if args.symbol_cost_model == 'baseline':
             model_symbol_cost = models.symbol_cost.Baseline()
-            model_symbol_cost.compile(
-                models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel, baseline=True))
         else:
             if args.symbol_cost_model == 'direct':
                 model_symbol_cost = models.symbol_cost.Direct(questions_all)
@@ -417,8 +423,6 @@ def main():
                                                                  l2=args.symbol_cost_l2)
             else:
                 raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
-            model_symbol_cost.compile(models.symbol_cost.SolverSuccessRate(solver, args.symbol_type, parallel=parallel),
-                                      [models.symbol_cost.ValidityRate()])
 
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
                 os.path.join(args.output, 'problems'))
@@ -443,7 +447,8 @@ def main():
         print('Initial evaluation...')
         if symbol_cost_evaluation_callback is not None and symbol_cost_evaluation_callback.start <= -1:
             print('Evaluating symbol cost model before first training epoch...')
-            symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
+            logs = symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
+            print(logs)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
             for k, x in questions.items():
@@ -455,8 +460,7 @@ def main():
 
             if args.epochs >= 1:
                 print('Training...')
-                model_logit.fit(questions['train'], validation_data=questions['validation'], epochs=args.epochs,
-                                callbacks=cbs)
+                model_logit.fit(questions['train'], validation_data=questions['val'], epochs=args.epochs, callbacks=cbs)
 
 
 def initial_evaluation(model_logit, questions_all, problems_all, batch_size, print_each_problem=False):

@@ -65,7 +65,7 @@ class Time(tf.keras.callbacks.Callback):
             tf.summary.scalar('time/net', self.timer_test.pop_result(), step=epoch)
             tf.summary.histogram('time/batch', self.timer_test_batch.results, step=epoch)
             tf.summary.scalar('time/batch_sum', self.timer_test_batch.pop_result(), step=epoch)
-            self.log_symbol_cost_histogram(self.problems['validation'], epoch)
+            self.log_symbol_cost_histogram(self.problems['val'], epoch)
 
     def log_symbol_cost_histogram(self, problems, epoch):
         symbol_costs_decorated = self.model.symbol_cost_model(problems)
