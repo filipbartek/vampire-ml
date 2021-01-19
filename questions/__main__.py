@@ -17,6 +17,7 @@ import pandas as pd
 import scipy
 import seaborn as sns
 import tensorflow as tf
+import yaml
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
@@ -98,6 +99,17 @@ def main():
     parser.add_argument('--questions-per-problem', type=int)
     parser.add_argument('--questions-randomize', nargs='+')
     parser.add_argument('--hoeffding-exponent', type=float, default=4)
+    parser.add_argument('--solver-options', type=yaml.safe_load, default={},
+                        help='Options passed to Vampire. '
+                             'Run `vampire --show_options on --show_experimental_options on` to print the options '
+                             'supported by Vampire. '
+                             'Format: YAML dictionary. '
+                             'For example, "{time_limit: 10}" translates into '
+                             '"--time_limit 10".'
+                             'Recommended options: include, time_limit.')
+    parser.add_argument('--clausifier-options', type=yaml.safe_load, default={})
+    parser.add_argument('--solver-timeout', type=float, default=20,
+                        help='Time in seconds after which each Vampire call is terminated.')
     args = parser.parse_args()
 
     logging.basicConfig(level=args.log_level)
@@ -147,8 +159,26 @@ def main():
 
     patterns = list(map(normalize_pattern, patterns))
 
-    clausifier = Solver(options={**Solver.default_options, 'time_limit': '300'})
-    solver = Solver(options={**Solver.default_options, 'time_limit': '10'}, timeout=20)
+    default_options = {'encode': 'on'}
+
+    clausifier_options = {**default_options, 'time_limit': '300'}
+    clausifier_options.update(args.clausifier_options)
+    clausifier = Solver(options=clausifier_options)
+
+    solver_options = {
+        **default_options,
+        'statistics': 'full',
+        'time_statistics': 'on',
+        'proof': 'off',
+        'avatar': 'off',
+        'saturation_algorithm': 'discount',
+        'age_weight_ratio': '10',
+        'literal_comparison_mode': 'predicate',
+        'symbol_precedence': 'frequency',
+        'time_limit': '10'
+    }
+    solver_options.update(args.solver_options)
+    solver = Solver(options=solver_options, timeout=args.solver_timeout)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), joblib.Parallel(verbose=10) as parallel:
         # We need to split problems first and then collect questions for each of the datasets
