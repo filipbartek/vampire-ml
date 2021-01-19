@@ -63,8 +63,9 @@ def main():
                         help='Set to -1 to evaluate before first training epoch.')
     parser.add_argument('--solver-eval-step', type=int, default=None)
     parser.add_argument('--solver-eval-batch-size', type=int, default=1000)
-    parser.add_argument('--solver-eval-train-problems', type=int)
-    parser.add_argument('--solver-eval-val-problems', type=int)
+    parser.add_argument('--solver-eval-train-problems', type=int, default=1000)
+    parser.add_argument('--solver-eval-val-problems', type=int, default=1000)
+    parser.add_argument('--solver-eval-train-without-questions', action='store_true')
     parser.add_argument('--problem-set', action='append', nargs=2, default=[])
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
@@ -301,10 +302,13 @@ def main():
         symbol_cost_evaluation_callback = None
         if args.solver_eval_start is not None or args.solver_eval_step is not None:
             solver_eval_problems = problems['val']
-            if args.solver_eval_val_problems is not None:
+            if args.solver_eval_val_problems is not None and args.solver_eval_val_problems >= 0:
                 solver_eval_problems = solver_eval_problems.take(args.solver_eval_val_problems)
-            solver_eval_problems_train = tf.data.Dataset.from_tensor_slices(problems_with_questions['train'])
-            if args.solver_eval_train_problems is not None:
+            if args.solver_eval_train_without_questions:
+                solver_eval_problems_train = problems['train']
+            else:
+                solver_eval_problems_train = tf.data.Dataset.from_tensor_slices(problems_with_questions['train'])
+            if args.solver_eval_train_problems is not None and args.solver_eval_train_problems >= 0:
                 solver_eval_problems_train = solver_eval_problems_train.take(args.solver_eval_train_problems)
             if solver_eval_problems_train.cardinality() >= 1:
                 solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
