@@ -68,8 +68,6 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
             df_dataset = main_df.loc[main_df.index.intersection(dataset_problems)]
             with self.tensorboard.writers[dataset_name].as_default():
                 for cat_name, cat_problems in self.problem_categories.items():
-                    if cat_name == 'all' and dataset_name == 'train':
-                        continue
                     summary_name = f'{self.name}/{cat_name}'
                     if cat_problems is None:
                         records_df = df_dataset
