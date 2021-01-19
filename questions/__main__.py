@@ -66,7 +66,6 @@ def main():
     parser.add_argument('--solver-eval-train-problems', type=int)
     parser.add_argument('--solver-eval-val-problems', type=int)
     parser.add_argument('--problem-set', action='append', nargs=2, default=[])
-    parser.add_argument('--evaluate-baseline', action='store_true')
     parser.add_argument('--profile-batch', default=0)
     parser.add_argument('--optimizer', default='adam', choices=['sgd', 'adam', 'rmsprop'])
     parser.add_argument('--learning-rate', type=float, default=0.001)
