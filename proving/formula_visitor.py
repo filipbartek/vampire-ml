@@ -6,6 +6,7 @@ import json
 import dgl
 import numpy as np
 import tensorflow as tf
+from ordered_set import OrderedSet
 
 
 class FormulaVisitor:
@@ -23,13 +24,19 @@ class FormulaVisitor:
             self.actual = actual
             self.expected = expected
 
-    def __init__(self, arg_order=True, arg_backedge=True, formula_nodes=False,
+    def __init__(self, arg_order=True, arg_backedge=True, formula_nodes=False, atom_nodes=True,
                  equality=True, equality_predicate_edge=False,
                  share_terms_global=True, share_terms_local=True, max_number_of_nodes=None, hash_fingerprints=True):
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
         self.formula_nodes = formula_nodes
-        self.equality = equality
+        if atom_nodes:
+            self.ntype_atom = 'atom'
+            self.ntype_atom_arg = 'atom_arg'
+        else:
+            self.ntype_atom = 'term'
+            self.ntype_atom_arg = 'term_arg'
+        self.equality_nodes = equality
         self.equality_predicate_edge = equality_predicate_edge
         self.terms = None
         if share_terms_global:
@@ -41,40 +48,47 @@ class FormulaVisitor:
         # src, dst
         self.edges = {edge_type: ([], []) for edge_type in self.edge_types()}
         self.clause_roles = []
-        self.argument_positions = []
 
     def edge_types(self):
-        res = []
+        res = OrderedSet()
         if self.formula_nodes:
-            res.extend([('formula', 'clause', None)])
-        res.extend([
-            ('clause', 'term', 1),
-            ('clause', 'term', 0),
-            ('clause', 'variable', None),
-            ('term', 'predicate', None),
-            ('term', 'function', None)
+            res.add(('formula', 'clause', None))
+        res.add(('clause', 'variable', None))
+        res.update([
+            ('clause', self.ntype_atom, 1),
+            ('clause', self.ntype_atom, 0),
+            (self.ntype_atom, 'predicate', None)
         ])
+        res.add(('term', 'function', None))
         if self.arg_order:
-            res.extend([
-                ('term', 'argument', None),
-                ('argument', 'argument', None),
-                ('argument', 'term', None),
-                ('argument', 'variable', None)
+            res.update([
+                (self.ntype_atom, self.ntype_atom_arg, None),
+                (self.ntype_atom_arg, self.ntype_atom_arg, None),
+                (self.ntype_atom_arg, 'term', None),
+                (self.ntype_atom_arg, 'variable', None)
+            ])
+            res.update([
+                ('term', 'term_arg', None),
+                ('term_arg', 'term_arg', None),
+                ('term_arg', 'term', None),
+                ('term_arg', 'variable', None)
             ])
         else:
-            res.extend([
+            res.update([
+                (self.ntype_atom, 'term', None),
+                (self.ntype_atom, 'variable', None),
                 ('term', 'term', None),
                 ('term', 'variable', None)
             ])
-        if self.equality:
-            res.extend([
+        if self.equality_nodes:
+            res.update([
                 ('clause', 'equality', 1),
                 ('clause', 'equality', 0),
                 ('equality', 'term', None),
                 ('equality', 'variable', None)
             ])
             if self.equality_predicate_edge:
-                res.append(('equality', 'predicate', None))
+                res.add(('equality', 'predicate', None))
         return res
 
     def visit_formula(self, formula):
@@ -93,7 +107,7 @@ class FormulaVisitor:
         clause_terms = {}
         for literal in clause['literals']:
             atom_id_pair, non_ground = self.visit_term(literal['atom'], clause_terms, cur_id_pair)
-            assert atom_id_pair[0] in ('term', 'equality')
+            assert atom_id_pair[0] in (self.ntype_atom, 'equality')
             assert literal['polarity'] in (True, False)
             self.add_edge(cur_id_pair, atom_id_pair, literal['polarity'])
         return cur_id_pair
@@ -123,7 +137,7 @@ class FormulaVisitor:
                 # Variables are always shared within a clause.
                 clause_terms[fingerprint] = cur_id_pair
                 self.add_edge(clause_id_pair, cur_id_pair)
-            elif self.equality and term_type == 'predicate' and term_id == 0:
+            elif self.equality_nodes and term_type == 'predicate' and term_id == 0:
                 # Equality
                 cur_id_pair = self.add_node('equality')
                 if self.equality_predicate_edge:
@@ -135,7 +149,12 @@ class FormulaVisitor:
                         contains_variable = True
                     self.add_edge(cur_id_pair, arg_id_pair)
             else:
-                cur_id_pair = self.add_node('term')
+                ntype_term = 'term'
+                ntype_arg = 'term_arg'
+                if term_type == 'predicate':
+                    ntype_term = self.ntype_atom
+                    ntype_arg = self.ntype_atom_arg
+                cur_id_pair = self.add_node(ntype_term)
                 self.add_edge(cur_id_pair, self.add_symbol(term_type, term_id))
                 prev_arg_pos_id_pair = None
                 for i, arg in enumerate(term['args']):
@@ -143,9 +162,7 @@ class FormulaVisitor:
                     if arg_non_ground:
                         contains_variable = True
                     if self.arg_order:
-                        arg_pos_id_pair = self.add_node('argument')
-                        assert arg_pos_id_pair[1] == len(self.argument_positions)
-                        self.argument_positions.append(i)
+                        arg_pos_id_pair = self.add_node(ntype_arg)
                         self.add_edge(arg_pos_id_pair, arg_id_pair)
                         if prev_arg_pos_id_pair is not None:
                             self.add_edge(prev_arg_pos_id_pair, arg_pos_id_pair)
@@ -172,12 +189,6 @@ class FormulaVisitor:
         self.clause_roles.append(role)
         return id_pair
 
-    def add_argument(self, position):
-        id_pair = self.add_node('argument')
-        assert id_pair[1] == len(self.argument_positions)
-        self.argument_positions.append(position)
-        return id_pair
-
     def add_symbol(self, symbol_type, symbol_id):
         assert symbol_type in self.symbol_types
         self.node_counts[symbol_type] = max(self.node_counts[symbol_type], symbol_id + 1)
@@ -201,8 +212,7 @@ class FormulaVisitor:
         edge_type_data[1].append(dst_id)
         assert len(edge_type_data[0]) == len(edge_type_data[1])
 
-    def graph(self, output_ntypes, node_features=None, feature_argument_positions=False, dtype_id=tf.int32,
-              dtype_feat=tf.float32):
+    def graph(self, output_ntypes, node_features=None, dtype_id=tf.int32, dtype_feat=tf.float32):
         data_dict = {}
         for (src_type, dst_type, edge_subtype), nodes in self.edges.items():
             nodes = tuple(map(functools.partial(self.convert_to_tensor, dtype=dtype_id), nodes))
@@ -230,9 +240,6 @@ class FormulaVisitor:
                 g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v, dtype_feat)
         assert g.num_nodes('clause') == len(self.clause_roles)
         g.nodes['clause'].data['feat'] = tf.one_hot(self.clause_roles, self.num_clause_roles)
-        if feature_argument_positions:
-            assert g.num_nodes('argument') == len(self.argument_positions)
-            g.nodes['argument'].data['feat'] = self.convert_to_feature_matrix(self.argument_positions, dtype_feat)
         return g
 
     @classmethod
