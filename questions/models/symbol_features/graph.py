@@ -7,10 +7,11 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, graphs, symbol_type, embedding_size=64, num_layers=1, conv_norm='both',
+    def __init__(self, graphifier, graphs, symbol_type, symbol_types=None, embedding_size=64, num_layers=1, conv_norm='both',
                  activation='relu', residual=True, layer_norm=True, dropout=0):
         SymbolFeatures.__init__(self, dynamic=True)
         self.gcn = GCN(graphifier.canonical_etypes, graphifier.ntype_in_degrees, graphifier.ntype_feat_sizes,
+                       output_ntypes=symbol_types,
                        embedding_size=embedding_size, depth=num_layers, conv_norm=conv_norm, activation=activation,
                        residual=residual, layer_norm=layer_norm, dropout=dropout)
         self.graphifier = graphifier

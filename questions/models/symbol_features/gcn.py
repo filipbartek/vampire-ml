@@ -5,7 +5,8 @@ dtype_tf_float = tf.float32
 
 
 class GCN(tf.keras.layers.Layer):
-    def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, embedding_size=64, depth=4,
+    def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, output_ntypes=None, embedding_size=64,
+                 depth=4,
                  conv_norm='both', aggregate='concat', activation='relu', residual=True, layer_norm=True, dropout=None,
                  name='gcn', **kwargs):
         super().__init__(name=name, **kwargs)
@@ -50,12 +51,21 @@ class GCN(tf.keras.layers.Layer):
             return GraphConv(in_feats, out_feats, norm=conv_norm, dropout=dropout, name=name, activation=activation,
                              allow_zero_in_degree=True)
 
-        self.layers = []
-        for layer_i in range(depth):
-            mods = {etype: create_module(stype_feats[stype], dtype_feats[dtype], f'layer_{layer_i}/{etype}') for
-                    stype, etype, dtype in canonical_etypes}
-            self.layers.append(HeteroGraphConv(mods, residual=residual, layer_norm_ntypes=layer_norm_ntypes,
-                                               aggregate=aggregate_fn))
+        layers_reversed = []
+        if output_ntypes is None:
+            output_ntypes = ntypes
+        contributing_dtypes = set(output_ntypes)
+        for layer_i in range(depth - 1, -1, -1):
+            contributing_stypes = set()
+            mods = {}
+            for stype, etype, dtype in canonical_etypes:
+                # Only add the module if it transitively contributes to `output_ntypes` at the last layer.
+                if dtype in contributing_dtypes:
+                    contributing_stypes.add(stype)
+                    if etype not in mods:
+                        mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], f'layer_{layer_i}/{etype}')
+            layers_reversed.append(HeteroGraphConv(mods, residual=residual, layer_norm_ntypes=layer_norm_ntypes,
+                                                   aggregate=aggregate_fn, name=f'layer_{layer_i}'))
             # Update stype_feats
             if aggregate == 'concat':
                 stype_feats = {ntype: 0 for ntype in ntypes}
@@ -63,6 +73,8 @@ class GCN(tf.keras.layers.Layer):
                     stype_feats[dtype] += dtype_feats[stype]
             else:
                 stype_feats = dtype_feats
+            contributing_dtypes = contributing_stypes
+        self.layers = list(reversed(layers_reversed))
 
     def call(self, g, training=False):
         h = self.initial_h(g)
@@ -94,7 +106,7 @@ class GCN(tf.keras.layers.Layer):
 
 
 class HeteroGraphConv(dglnn.HeteroGraphConv):
-    def __init__(self, mods, residual=True, layer_norm_ntypes=None, **kwargs):
+    def __init__(self, mods, residual=True, layer_norm_ntypes=None, name=None, **kwargs):
         # High-level architecture:
         # See slide 27 in https://ufal.mff.cuni.cz/~straka/courses/npfl114/1920/slides.pdf/npfl114-07.pdf
         # 1. Fork residual
@@ -106,10 +118,16 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
         # 5. Layer normalization
         super().__init__(mods, **kwargs)
         self.residual = residual
-        if layer_norm_ntypes is not None:
-            # We need not train scaling because a fully connected layer follows.
-            self.layer_norm = {ntype: tf.keras.layers.LayerNormalization(scale=False, name=ntype) for ntype in
-                               layer_norm_ntypes}
+        if layer_norm_ntypes is None:
+            layer_norm_ntypes = []
+        # We need not train scaling because a fully connected layer follows.
+        self.layer_norm = {ntype: tf.keras.layers.LayerNormalization(scale=False, name=ntype) for ntype in
+                           layer_norm_ntypes}
+        if name is not None:
+            self._name = name
+
+    def __repr__(self):
+        return f'{type(self).__name__}(name={self.name}, mods=[{len(self.mods)}], residual={self.residual}, layer_norm=[{len(self.layer_norm)}])'
 
     def call(self, g, inputs, training=False, mod_kwargs=None, **kwargs):
         if mod_kwargs is None:
@@ -119,12 +137,12 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
         if self.residual:
             assert set(outputs) <= set(inputs)
             outputs = {k: inputs[k] + outputs[k] for k in outputs}
-        assert set(outputs) == set(self.layer_norm)
-        for k, layer in self.layer_norm.items():
+        assert set(outputs) <= set(self.layer_norm)
+        for k in outputs:
             if outputs[k].shape[0] >= 1:
-                outputs[k] = layer(outputs[k], training=training)
+                outputs[k] = self.layer_norm[k](outputs[k], training=training)
         return outputs
-    
+
     def super_call(self, g, inputs, mod_args=None, mod_kwargs=None):
         # Slight modification of `dglnn.HeteroGraphConv.call`: Calls the sub-module even if number of edges is 0.
         outputs = self.apply_mods(g, inputs, mod_args, mod_kwargs)
@@ -138,7 +156,7 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
             mod_kwargs = {}
         outputs = {nty: [] for nty in g.dsttypes}
         for stype, etype, dtype in g.canonical_etypes:
-            if stype not in inputs:
+            if etype not in self.mods or stype not in inputs:
                 continue
             rel_graph = g[stype, etype, dtype]
             dstdata = self.mods[etype](

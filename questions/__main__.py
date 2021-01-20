@@ -402,7 +402,8 @@ def main():
                                                                           conv_norm=args.conv_norm,
                                                                           residual=not args.no_residual,
                                                                           layer_norm=not args.no_layer_norm,
-                                                                          dropout=args.gcn_dropout)
+                                                                          dropout=args.gcn_dropout,
+                                                                          symbol_types=[args.symbol_type])
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
                 if embedding_to_cost is None:
