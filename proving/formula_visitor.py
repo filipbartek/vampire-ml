@@ -23,10 +23,12 @@ class FormulaVisitor:
             self.actual = actual
             self.expected = expected
 
-    def __init__(self, arg_order=True, arg_backedge=True, equality=True, equality_predicate_edge=False,
+    def __init__(self, arg_order=True, arg_backedge=True, formula_nodes=False,
+                 equality=True, equality_predicate_edge=False,
                  share_terms_global=True, share_terms_local=True, max_number_of_nodes=None, hash_fingerprints=True):
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
+        self.formula_nodes = formula_nodes
         self.equality = equality
         self.equality_predicate_edge = equality_predicate_edge
         self.terms = None
@@ -42,14 +44,16 @@ class FormulaVisitor:
         self.argument_positions = []
 
     def edge_types(self):
-        res = [
-            ('formula', 'clause', None),
+        res = []
+        if self.formula_nodes:
+            res.extend([('formula', 'clause', None)])
+        res.extend([
             ('clause', 'term', 1),
             ('clause', 'term', 0),
             ('clause', 'variable', None),
             ('term', 'predicate', None),
             ('term', 'function', None)
-        ]
+        ])
         if self.arg_order:
             res.extend([
                 ('term', 'argument', None),
@@ -74,10 +78,13 @@ class FormulaVisitor:
         return res
 
     def visit_formula(self, formula):
-        cur_id_pair = self.add_node('formula')
+        cur_id_pair = None
+        if self.formula_nodes:
+            cur_id_pair = self.add_node('formula')
         for clause in formula:
             clause_id_pair = self.visit_clause(clause)
-            self.add_edge(cur_id_pair, clause_id_pair)
+            if cur_id_pair is not None:
+                self.add_edge(cur_id_pair, clause_id_pair)
         return cur_id_pair
 
     def visit_clause(self, clause):
