@@ -40,10 +40,6 @@ class GCN(tf.keras.layers.Layer):
         stype_feats = ntype_embedding_lengths
         dtype_feats = {ntype: embedding_size for ntype in ntypes}
 
-        layer_norm_ntypes = None
-        if layer_norm:
-            layer_norm_ntypes = ntypes
-
         def create_module(in_feats, out_feats, name):
             # We assume that there are no 0-in-degree nodes in any input graph.
             # This holds for the standard graphification scheme because all symbols have loops and all the other nodes
@@ -51,6 +47,7 @@ class GCN(tf.keras.layers.Layer):
             return GraphConv(in_feats, out_feats, norm=conv_norm, dropout=dropout, name=name, activation=activation,
                              allow_zero_in_degree=True)
 
+        layer_norm_ntypes = None
         layers_reversed = []
         if output_ntypes is None:
             output_ntypes = ntypes
@@ -64,6 +61,8 @@ class GCN(tf.keras.layers.Layer):
                     contributing_stypes.add(stype)
                     if etype not in mods:
                         mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], f'layer_{layer_i}/{etype}')
+            if layer_norm:
+                layer_norm_ntypes = contributing_dtypes
             layers_reversed.append(HeteroGraphConv(mods, residual=residual, layer_norm_ntypes=layer_norm_ntypes,
                                                    aggregate=aggregate_fn, name=f'layer_{layer_i}'))
             # Update stype_feats
@@ -137,10 +136,9 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
         if self.residual:
             assert set(outputs) <= set(inputs)
             outputs = {k: inputs[k] + outputs[k] for k in outputs}
-        assert set(outputs) <= set(self.layer_norm)
-        for k in outputs:
+        for k, layer in self.layer_norm.items():
             if outputs[k].shape[0] >= 1:
-                outputs[k] = self.layer_norm[k](outputs[k], training=training)
+                outputs[k] = layer(outputs[k], training=training)
         return outputs
 
     def super_call(self, g, inputs, mod_args=None, mod_kwargs=None):
