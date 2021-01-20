@@ -15,7 +15,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
 
     def __init__(self, csv_filename, solver, problems, symbol_type, splits, batch_size=1, start=-1, step=1,
                  output_dir=None, tensorboard=None,
-                 problem_categories=None, parallel=None, baseline=False, **kwargs):
+                 problem_categories=None, parallel=None, baseline=False, train_without_questions=False, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.solver = solver
         self.problems = problems
@@ -37,6 +37,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
             parallel = joblib.Parallel(verbose=10)
         self.parallel = parallel
         self.baseline = baseline
+        self.train_without_questions = train_without_questions
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
@@ -68,6 +69,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
             df_dataset = main_df.loc[main_df.index.intersection(dataset_problems)]
             with self.tensorboard.writers[dataset_name].as_default():
                 for cat_name, cat_problems in self.problem_categories.items():
+                    if dataset_name == 'train' and cat_name == 'all' and not self.train_without_questions:
+                        continue
                     summary_name = f'{self.name}/{cat_name}'
                     if cat_problems is None:
                         records_df = df_dataset

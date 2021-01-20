@@ -363,7 +363,8 @@ def main():
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,
                 baseline=args.symbol_cost_model == 'baseline',
-                parallel=parallel)
+                parallel=parallel,
+                train_without_questions=args.solver_eval_train_without_questions)
             cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {args.symbol_cost_model}')
