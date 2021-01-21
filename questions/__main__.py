@@ -122,6 +122,7 @@ def main():
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
     logging.info('TensorFlow intra-op parallelism threads: %d', tf.config.threading.get_intra_op_parallelism_threads())
+    logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
 
     logging.info(f'Joblib cache location: {memory.location}')
 
