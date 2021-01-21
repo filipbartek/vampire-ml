@@ -48,6 +48,7 @@ def save_problems(problems, filename):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--experiment-name')
     parser.add_argument('problem', nargs='*')
     parser.add_argument('--problems', action='append')
     parser.add_argument('--problems-validation', action='append')
@@ -82,7 +83,7 @@ def main():
     parser.add_argument('--embedding-to-cost-l2', type=float, default=0)
     parser.add_argument('--embedding-to-cost-hidden-layer', type=int)
     parser.add_argument('--simple-model-kernel')
-    parser.add_argument('--output', default='out')
+    parser.add_argument('--output')
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
     parser.add_argument('--initial-evaluation-extra', action='store_true')
@@ -121,9 +122,18 @@ def main():
     tf.summary.experimental.set_step(0)
     if args.recursion_limit is not None:
         sys.setrecursionlimit(args.recursion_limit)
-    neptune.init()
-    neptune.create_experiment(params=args.__dict__)
+    neptune.init(project_qualified_name='filipbartek/vampire-ml')
+    neptune.create_experiment(name=args.experiment_name, params=args.__dict__)
     neptune_tensorboard.integrate_with_tensorflow(prefix=True)
+
+    experiment_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    if args.experiment_name is not None:
+        experiment_id = os.path.join(experiment_id, args.experiment_name)
+
+    output = args.output
+    if output is None:
+        output = os.path.join('out', experiment_id)
+    logging.info(f'Output directory: {output}')
 
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
@@ -132,7 +142,7 @@ def main():
 
     logging.info(f'Joblib cache location: {memory.location}')
 
-    log_dir = os.path.join(args.logs_dir, datetime.datetime.now().strftime("%Y%m%d-%H%M%S"))
+    log_dir = os.path.join(args.logs_dir, experiment_id)
     logging.info(f'Log directory: {log_dir}')
     writer_train = tf.summary.create_file_writer(os.path.join(log_dir, 'train'))
     with writer_train.as_default():
@@ -203,10 +213,10 @@ def main():
                 problems_all = datasets.problems.get_dataset(patterns)
             else:
                 problems_all = tf.data.TextLineDataset(args.problems)
-            save_problems(problems_all, os.path.join(args.output, 'problems', 'all.txt'))
+            save_problems(problems_all, os.path.join(output, 'problems', 'all.txt'))
             if args.max_problems is not None:
                 problems_all = problems_all.take(args.max_problems)
-            save_problems(problems_all, os.path.join(args.output, 'problems', 'taken.txt'))
+            save_problems(problems_all, os.path.join(output, 'problems', 'taken.txt'))
             n_problems = cardinality_finite(problems_all)
             logging.info('Number of problems available: %d', n_problems)
             assert 0 <= args.validation_split <= 1
@@ -224,7 +234,7 @@ def main():
         problem_records_types = {**tptp.property_types, **{f'dataset_{k}': np.bool for k in problems}}
         for k, p in problems.items():
             logging.info(f'Number of {k} problems: {cardinality_finite(p)}')
-            save_problems(p, os.path.join(args.output, 'problems', 'dataset', f'{k}.txt'))
+            save_problems(p, os.path.join(output, 'problems', 'dataset', f'{k}.txt'))
             for pp in map(py_str, p):
                 problem_records[pp][f'dataset_{k}'] = True
 
@@ -232,7 +242,7 @@ def main():
             if args.questions_dir_legacy is None:
                 questions_dir = args.questions_dir
                 if questions_dir is None:
-                    questions_dir = os.path.join(args.output, 'questions')
+                    questions_dir = os.path.join(output, 'questions')
                 try:
                     generator = Generator.load(questions_dir)
                     logging.info('Generator loaded.')
@@ -274,7 +284,7 @@ def main():
                 'n_questions': pd.Series(question_counts, index=df_index, dtype=pd.UInt32Dtype(), name='n_questions'),
                 'n_symbols': pd.Series(signature_lengths, index=df_index, dtype=pd.UInt32Dtype(), name='n_symbols')
             }, index=df_index)
-            save_df(df, os.path.join(args.output, 'problems', 'with_questions'))
+            save_df(df, os.path.join(output, 'problems', 'with_questions'))
 
             figure = plt.figure(figsize=(8, 8))
             plt.title('Problems with questions')
@@ -283,7 +293,7 @@ def main():
             plt.ylabel('Questions')
             plt.xscale('log')
             plt.yscale('log')
-            plt.savefig(os.path.join(args.output, 'problems', 'with_questions.png'))
+            plt.savefig(os.path.join(output, 'problems', 'with_questions.png'))
             image = plot.plot_to_image(figure)
             tf.summary.image('Problems with questions', image)
 
@@ -307,7 +317,7 @@ def main():
             problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
             logging.info(f'Number of {k} problems with questions: {len(problems_with_questions[k])}')
 
-        checkpoint_dir = os.path.join(args.output, 'tf_ckpts')
+        checkpoint_dir = os.path.join(output, 'tf_ckpts')
         epoch_ckpt_dir = os.path.join(checkpoint_dir, 'epoch')
         os.makedirs(epoch_ckpt_dir, exist_ok=True)
         for f in glob.iglob(os.path.join(epoch_ckpt_dir, 'weights.*.tf.*')):
@@ -327,7 +337,7 @@ def main():
             callbacks.Time(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items() if
                                      cardinality_finite(v) > 0},
                            tensorboard=tensorboard),
-            tf.keras.callbacks.CSVLogger(os.path.join(args.output, 'epochs.csv')),
+            tf.keras.callbacks.CSVLogger(os.path.join(output, 'epochs.csv')),
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
                 save_weights_only=True, verbose=0),
@@ -358,7 +368,7 @@ def main():
                     problem_categories[cat_name] = [l.rstrip('\n') for l in f]
 
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
-                os.path.join(args.output, 'epochs_solver_eval.csv'),
+                os.path.join(output, 'epochs_solver_eval.csv'),
                 solver=solver,
                 problems=solver_eval_problems,
                 symbol_type=args.symbol_type,
@@ -366,7 +376,7 @@ def main():
                 batch_size=args.solver_eval_batch_size,
                 start=args.solver_eval_start,
                 step=args.solver_eval_step,
-                output_dir=args.output,
+                output_dir=output,
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,
                 baseline=args.symbol_cost_model == 'baseline',
@@ -400,7 +410,7 @@ def main():
                     for problem_name, rec in graphs_df.iterrows():
                         problem_records[problem_name].update(rec.to_dict())
                     logging.info(f'Number of problems graphified: {len(graphs)}')
-                    save_df(graphs_df, os.path.join(args.output, 'graphs'))
+                    save_df(graphs_df, os.path.join(output, 'graphs'))
 
                     model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
                                                                           embedding_size=args.gcn_message_size,
@@ -437,7 +447,7 @@ def main():
                 raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
 
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
-                os.path.join(args.output, 'problems'))
+                os.path.join(output, 'problems'))
 
         model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
 
