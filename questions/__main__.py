@@ -469,7 +469,7 @@ def main():
         print('Initial evaluation...')
         if symbol_cost_evaluation_callback is not None and symbol_cost_evaluation_callback.start <= -1:
             print('Evaluating symbol cost model before first training epoch...')
-            logs = symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost)
+            logs = symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
             print(logs)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
