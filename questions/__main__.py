@@ -43,6 +43,7 @@ def save_problems(problems, filename):
     os.makedirs(os.path.dirname(filename), exist_ok=True)
     with open(filename, 'w') as f:
         f.writelines(f'{py_str(p)}\n' for p in problems)
+    neptune.log_artifact(filename)
     logging.info(f'List of problems saved: {filename}')
 
 
@@ -122,8 +123,13 @@ def main():
     tf.summary.experimental.set_step(0)
     if args.recursion_limit is not None:
         sys.setrecursionlimit(args.recursion_limit)
+
+    # Neptune
     neptune.init(project_qualified_name='filipbartek/vampire-ml')
-    neptune.create_experiment(name=args.experiment_name, params=args.__dict__)
+    neptune.create_experiment(name=args.experiment_name, params=args.__dict__,
+                              upload_source_files=['requirements.txt', 'questions/**/*.py', 'proving/**/*.py',
+                                                   'vampire_ml/**/*.py'],
+                              logger=logging)
     neptune_tensorboard.integrate_with_tensorflow(prefix=True)
 
     experiment_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
