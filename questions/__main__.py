@@ -12,6 +12,8 @@ import sys
 
 import joblib
 import matplotlib.pyplot as plt
+import neptune
+import neptune_tensorboard
 import numpy as np
 import pandas as pd
 import scipy
@@ -119,6 +121,10 @@ def main():
     tf.summary.experimental.set_step(0)
     if args.recursion_limit is not None:
         sys.setrecursionlimit(args.recursion_limit)
+    neptune.init()
+    neptune.create_experiment(params=args.__dict__)
+    neptune_tensorboard.integrate_with_tensorflow(prefix=True)
+
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
     logging.info('TensorFlow intra-op parallelism threads: %d', tf.config.threading.get_intra_op_parallelism_threads())

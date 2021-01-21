@@ -8,6 +8,8 @@ matplotlib
 memory-profiler
 methodtools
 more-itertools
+neptune-client
+neptune-tensorboard
 networkx
 numpy
 ordered-set
