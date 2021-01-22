@@ -24,7 +24,7 @@ class FormulaVisitor:
             self.actual = actual
             self.expected = expected
 
-    def __init__(self, arg_order=True, arg_backedge=True, formula_nodes=False, atom_nodes=True,
+    def __init__(self, arg_order=True, arg_backedge=True, formula_nodes=True, atom_nodes=True,
                  equality=True, equality_predicate_edge=False,
                  share_terms_global=True, share_terms_local=True, max_number_of_nodes=None, hash_fingerprints=True):
         self.arg_order = arg_order
