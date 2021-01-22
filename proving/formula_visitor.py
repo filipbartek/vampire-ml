@@ -32,10 +32,8 @@ class FormulaVisitor:
         self.formula_nodes = formula_nodes
         if atom_nodes:
             self.ntype_atom = 'atom'
-            self.ntype_atom_arg = 'atom_arg'
         else:
             self.ntype_atom = 'term'
-            self.ntype_atom_arg = 'term_arg'
         self.equality_nodes = equality
         self.equality_predicate_edge = equality_predicate_edge
         self.terms = None
@@ -62,16 +60,11 @@ class FormulaVisitor:
         res.add(('term', 'function', None))
         if self.arg_order:
             res.update([
-                (self.ntype_atom, self.ntype_atom_arg, None),
-                (self.ntype_atom_arg, self.ntype_atom_arg, None),
-                (self.ntype_atom_arg, 'term', None),
-                (self.ntype_atom_arg, 'variable', None)
-            ])
-            res.update([
-                ('term', 'term_arg', None),
-                ('term_arg', 'term_arg', None),
-                ('term_arg', 'term', None),
-                ('term_arg', 'variable', None)
+                (self.ntype_atom, 'argument', None),
+                ('term', 'argument', None),
+                ('argument', 'argument', None),
+                ('argument', 'term', None),
+                ('argument', 'variable', None)
             ])
         else:
             res.update([
@@ -150,10 +143,8 @@ class FormulaVisitor:
                     self.add_edge(cur_id_pair, arg_id_pair)
             else:
                 ntype_term = 'term'
-                ntype_arg = 'term_arg'
                 if term_type == 'predicate':
                     ntype_term = self.ntype_atom
-                    ntype_arg = self.ntype_atom_arg
                 cur_id_pair = self.add_node(ntype_term)
                 self.add_edge(cur_id_pair, self.add_symbol(term_type, term_id))
                 prev_arg_pos_id_pair = None
@@ -162,7 +153,7 @@ class FormulaVisitor:
                     if arg_non_ground:
                         contains_variable = True
                     if self.arg_order:
-                        arg_pos_id_pair = self.add_node(ntype_arg)
+                        arg_pos_id_pair = self.add_node('argument')
                         self.add_edge(arg_pos_id_pair, arg_id_pair)
                         if prev_arg_pos_id_pair is not None:
                             self.add_edge(prev_arg_pos_id_pair, arg_pos_id_pair)
