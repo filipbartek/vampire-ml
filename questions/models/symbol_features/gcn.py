@@ -7,7 +7,7 @@ dtype_tf_float = tf.float32
 class GCN(tf.keras.layers.Layer):
     def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, output_ntypes=None, embedding_size=64,
                  depth=4,
-                 conv_norm='both', aggregate='concat', activation='relu', residual=True, layer_norm=True, dropout=None,
+                 conv_norm='both', aggregate='sum', activation='relu', residual=True, layer_norm=True, dropout=None,
                  name='gcn', **kwargs):
         super().__init__(name=name, **kwargs)
 

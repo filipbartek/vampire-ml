@@ -203,19 +203,51 @@ class FormulaVisitor:
         edge_type_data[1].append(dst_id)
         assert len(edge_type_data[0]) == len(edge_type_data[1])
 
+    etype_ntype_pairs = {
+        'formula_contains_clause': [('formula', 'clause')],
+        'clause_contains_atom': [('clause', 'atom'), ('clause', 'equality')],
+        'clause_binds_variable': [('clause', 'variable')],
+        'atom_applies_predicate': [('atom', 'predicate'), ('equality', 'predicate')],
+        'term_applies_function': [('term', 'function')],
+        'atom_applies_on_argument': [('atom', 'argument')],
+        'atom_applies_on_term': [('atom', 'term'), ('atom', 'variable')],
+        'term_applies_on_argument': [('term', 'argument')],
+        'term_applies_on_term': [('term', 'term'), ('term', 'variable')],
+        'equality_equalizes_argument': [('equality', 'argument')],
+        'equality_equalizes_term': [('equality', 'term'), ('equality', 'variable')],
+        'argument_is_term': [('argument', 'term'), ('argument', 'variable')],
+        'argument_precedes_argument': [('argument', 'argument')]
+    }
+
+    @classmethod
+    @functools.lru_cache(maxsize=1)
+    def ntype_pair_to_etype(cls):
+        res = {}
+        for etype, ntype_pairs in cls.etype_ntype_pairs.items():
+            for ntype_pair in ntype_pairs:
+                assert ntype_pair not in res
+                res[ntype_pair] = etype
+        return res
+
+    @classmethod
+    def etype(cls, stype, dtype, orientation, edge_subtype=None):
+        etype = cls.ntype_pair_to_etype()[stype, dtype]
+        if edge_subtype is not None:
+            etype = f'{etype}_{edge_subtype}'
+        if orientation <= 0:
+            etype = f'{etype}_inverse'
+        return etype
+
     def graph(self, output_ntypes, node_features=None, dtype_id=tf.int32, dtype_feat=tf.float32):
         data_dict = {}
         for (src_type, dst_type, edge_subtype), nodes in self.edges.items():
             nodes = tuple(map(functools.partial(self.convert_to_tensor, dtype=dtype_id), nodes))
-            for orientation in ('fw', 'bw'):
-                if edge_subtype is None:
-                    etype = f'{src_type}_{dst_type}_{orientation}'
-                else:
-                    etype = f'{src_type}_{dst_type}_{orientation}_{edge_subtype}'
-                if orientation == 'fw':
+            for orientation in (1, -1):
+                etype = self.etype(src_type, dst_type, orientation, edge_subtype)
+                if orientation == 1:
                     data_dict[src_type, etype, dst_type] = nodes
                 else:
-                    assert orientation == 'bw'
+                    assert orientation == -1
                     data_dict[dst_type, etype, src_type] = tuple(reversed(nodes))
         # Add loops on output nodes
         for ntype, num in output_ntypes.items():
