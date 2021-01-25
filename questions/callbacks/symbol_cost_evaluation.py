@@ -48,6 +48,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
             super().on_epoch_end(epoch, logs=logs)
 
     def evaluate(self, symbol_cost_model, epoch=None):
+        time_begin = tf.timestamp()
+
         logs = {}
         if len(self.problems) == 0:
             return logs
@@ -94,6 +96,10 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         if self.output_dir is not None:
             output_dir = os.path.join(self.output_dir, self.name, symbol_cost_model.name, f'epoch_{epoch}')
             save_df(main_df, os.path.join(output_dir, 'problems'))
+
+        with self.tensorboard.train_writer.as_default():
+            tf.summary.scalar('time/epoch/solver_eval', tf.timestamp() - time_begin, step=epoch)
+
         return logs
 
     def solve_one(self, problem, symbol_cost):
