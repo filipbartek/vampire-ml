@@ -149,7 +149,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         values = records_df[column_name]
                         tf.summary.histogram(f'{summary_name}/{column_name}', values, step=epoch)
                     for column_name in ['time_elapsed', 'saturation_iterations']:
-                        values = records_df[[(i, column_name) for i in range(3)]].astype(float)
+                        values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
                         tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
         if self.output_dir is not None:
             output_dir = os.path.join(self.output_dir, self.name, symbol_cost_model.name, f'epoch_{epoch}')
