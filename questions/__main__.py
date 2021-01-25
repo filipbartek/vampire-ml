@@ -157,6 +157,8 @@ def main():
         args_series = pd.Series(args.__dict__, name='value')
         args_series.index.name = 'argument'
         tf.summary.text('args', args_series.to_markdown())
+        tf.summary.text('command', ' '.join(sys.argv))
+        logging.info('Command: %s', ' '.join(sys.argv))
         tf.summary.text('hostname', socket.gethostname())
         logging.info(f'Hostname: {socket.gethostname()}')
 
