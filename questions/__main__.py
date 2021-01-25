@@ -67,6 +67,7 @@ def main():
     parser.add_argument('--solver-eval-start', type=int, default=None,
                         help='Set to -1 to evaluate before first training epoch.')
     parser.add_argument('--solver-eval-step', type=int, default=None)
+    parser.add_argument('--solver-eval-iterations', type=int, default=1)
     parser.add_argument('--solver-eval-batch-size', type=int, default=1000)
     parser.add_argument('--solver-eval-train-problems', type=int, default=1000)
     parser.add_argument('--solver-eval-val-problems', type=int, default=1000)
@@ -382,6 +383,7 @@ def main():
                 batch_size=args.solver_eval_batch_size,
                 start=args.solver_eval_start,
                 step=args.solver_eval_step,
+                iterations=args.solver_eval_iterations,
                 output_dir=output,
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,

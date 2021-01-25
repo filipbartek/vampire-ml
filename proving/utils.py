@@ -20,10 +20,10 @@ def instance_str(instance):
     return f'{instance.__class__.__name__}({params})'
 
 
-def dataframe_from_records(records, index_keys=None, dtypes=None):
+def dataframe_from_records(records, index_keys=None, dtypes=None, index=None):
     if dtypes is None:
         dtypes = {}
-    df = pd.DataFrame.from_records(records)
+    df = pd.DataFrame.from_records(records, index=index)
     if len(df) == 0:
         return None
     dtypes = {k: v for k, v in dtypes.items() if k in df}
