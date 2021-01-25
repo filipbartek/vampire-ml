@@ -165,7 +165,6 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         precedence_costs = tf.stack(precedence_costs)
         return precedences, precedence_costs
 
-    @tf.function(experimental_relax_shapes=True)
     def precedence(self, symbol_cost):
         # We sort the symbols by cost in non-decreasing order.
         precedence = tf.argsort(symbol_cost, direction='DESCENDING')
