@@ -26,5 +26,12 @@ class Composite(SymbolCostModel):
         # We take the mean over symbols instead of sum so that problems with large signature don't contribute more than problems with small signature.
         # We aggregate across problems by taking the mean.
         valid_costs = tf.ragged.boolean_mask(costs, embeddings['valid'])
-        self.add_loss(self.l2 * tf.reduce_mean(tf.reduce_mean(tf.square(valid_costs), axis=1)))
+        self.add_loss(self.l2_loss(valid_costs))
         return {'costs': costs, 'valid': embeddings['valid']}
+
+    @tf.function
+    def l2_loss(self, symbol_costs):
+        if symbol_costs.nrows() >= 1:
+            return self.l2 * tf.reduce_mean(tf.reduce_mean(tf.square(symbol_costs), axis=1))
+        else:
+            return tf.constant(0, dtype=symbol_costs.dtype)
