@@ -129,7 +129,9 @@ def main():
     # Neptune
     neptune.init(project_qualified_name='filipbartek/vampire-ml')
     neptune.create_experiment(name=args.experiment_name, params=args.__dict__,
-                              upload_source_files=['requirements.txt', 'questions/**/*.py', 'proving/**/*.py',
+                              upload_source_files=['requirements.txt',
+                                                   'questions/**/*.py',
+                                                   'proving/**/*.py',
                                                    'vampire_ml/**/*.py'],
                               logger=logging.getLogger())
     neptune_tensorboard.integrate_with_tensorflow(prefix=True)
