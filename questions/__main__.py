@@ -318,15 +318,15 @@ def main():
         problem_records_types.update({'num_questions': pd.UInt32Dtype(), 'num_symbols': pd.UInt32Dtype()})
 
         questions = {}
+        question_batches = {}
         problems_to_graphify = OrderedSet()
         problems_with_questions = {}
         for k, p in problems.items():
-            q = datasets.questions.individual.dict_to_dataset(questions_all, p)
+            q = datasets.questions.individual.dict_to_dataset(questions_all, p).cache()
             problems_to_graphify.update(py_str(e['problem']) for e in q)
+            questions[k] = q
             batch_size = {'train': args.train_batch_size, 'val': args.val_batch_size}[k]
-            batches = datasets.questions.batch.batch(q, batch_size)
-            batches = batches.cache()
-            questions[k] = batches
+            question_batches[k] = datasets.questions.batch.batch(q, batch_size).cache()
             problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
             logging.info(f'Number of {k} problems with questions: {len(problems_with_questions[k])}')
 
@@ -487,8 +487,12 @@ def main():
             print(logs)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            for k, x in questions.items():
+            for k in question_batches:
                 print(f'Evaluating logit model on {k} questions...')
+                if k == 'train':
+                    x = datasets.questions.batch.batch(questions[k], args.val_batch_size)
+                else:
+                    x = question_batches[k]
                 model_logit.evaluate(x)
 
             if args.initial_evaluation_extra:
@@ -496,7 +500,8 @@ def main():
 
             if args.epochs >= 1:
                 print('Training...')
-                model_logit.fit(questions['train'], validation_data=questions['val'], epochs=args.epochs, callbacks=cbs)
+                model_logit.fit(question_batches['train'], validation_data=question_batches['val'], epochs=args.epochs,
+                                callbacks=cbs)
 
 
 def initial_evaluation(model_logit, questions_all, problems_all, batch_size, print_each_problem=False):
