@@ -93,10 +93,10 @@ def main():
     # Python default is 1000. 10000 is enough to parse all TPTP problems.
     parser.add_argument('--recursion-limit', type=int, default=10000)
     parser.add_argument('--restore-checkpoint')
-    parser.add_argument('--gcn-depth', type=int, default=4)
-    parser.add_argument('--gcn-message-size', type=int, default=64)
-    parser.add_argument('--gcn-activation', default='relu', choices=['relu', 'sigmoid'])
-    parser.add_argument('--gcn-dropout', type=float)
+    parser.add_argument('--depth', type=int, default=4)
+    parser.add_argument('--message-size', type=int, default=64)
+    parser.add_argument('--activation', default='relu', choices=['relu', 'sigmoid'])
+    parser.add_argument('--dropout', type=float)
     parser.add_argument('--no-layer-norm', action='store_true')
     parser.add_argument('--no-residual', action='store_true')
     parser.add_argument('--conv-norm', default='both', choices=['both', 'right', 'none'])
@@ -427,13 +427,13 @@ def main():
                     save_df(graphs_df, os.path.join(output, 'graphs'))
 
                     model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
-                                                                          embedding_size=args.gcn_message_size,
-                                                                          num_layers=args.gcn_depth,
-                                                                          activation=args.gcn_activation,
+                                                                          embedding_size=args.message_size,
+                                                                          num_layers=args.depth,
+                                                                          activation=args.activation,
                                                                           conv_norm=args.conv_norm,
                                                                           residual=not args.no_residual,
                                                                           layer_norm=not args.no_layer_norm,
-                                                                          dropout=args.gcn_dropout,
+                                                                          dropout=args.dropout,
                                                                           symbol_types=[args.symbol_type])
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
