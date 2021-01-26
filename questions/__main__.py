@@ -62,7 +62,8 @@ def main():
     parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--log-level', choices=['INFO', 'DEBUG'], default='INFO')
     parser.add_argument('--validation-split', type=float, default=0.5)
-    parser.add_argument('--batch-size', type=int, default=32)
+    parser.add_argument('--train-batch-size', type=int, default=32)
+    parser.add_argument('--val-batch-size', type=int, default=256)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
     parser.add_argument('--solver-eval-start', type=int, default=None,
                         help='Set to -1 to evaluate before first training epoch.')
@@ -320,7 +321,8 @@ def main():
         for k, p in problems.items():
             q = datasets.questions.individual.dict_to_dataset(questions_all, p)
             problems_to_graphify.update(py_str(e['problem']) for e in q)
-            batches = datasets.questions.batch.batch(q, args.batch_size)
+            batch_size = {'train': args.train_batch_size, 'val': args.val_batch_size}[k]
+            batches = datasets.questions.batch.batch(q, batch_size)
             batches = batches.cache()
             questions[k] = batches
             problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
@@ -488,7 +490,7 @@ def main():
                 model_logit.evaluate(x)
 
             if args.initial_evaluation_extra:
-                initial_evaluation(model_logit, questions_all, problems_all, args.batch_size)
+                initial_evaluation(model_logit, questions_all, problems_all, args.train_batch_size)
 
             if args.epochs >= 1:
                 print('Training...')
