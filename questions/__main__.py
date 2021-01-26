@@ -62,7 +62,7 @@ def main():
     parser.add_argument('--epochs', type=int, default=1000)
     parser.add_argument('--log-level', choices=['INFO', 'DEBUG'], default='INFO')
     parser.add_argument('--validation-split', type=float, default=0.5)
-    parser.add_argument('--train-batch-size', type=int, default=32)
+    parser.add_argument('--train-batch-size', type=int, default=128)
     parser.add_argument('--val-batch-size', type=int, default=256)
     parser.add_argument('--symbol-type', choices=['predicate', 'function'], default='predicate')
     parser.add_argument('--solver-eval-start', type=int, default=None,
