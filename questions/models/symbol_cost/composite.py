@@ -29,7 +29,7 @@ class Composite(SymbolCostModel):
         self.add_loss(self.l2_loss(valid_costs))
         return {'costs': costs, 'valid': embeddings['valid']}
 
-    @tf.function
+    @tf.function(experimental_relax_shapes=True)
     def l2_loss(self, symbol_costs):
         if symbol_costs.nrows() >= 1:
             return self.l2 * tf.reduce_mean(tf.reduce_mean(tf.square(symbol_costs), axis=1))
