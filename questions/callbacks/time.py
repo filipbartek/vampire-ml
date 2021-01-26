@@ -1,3 +1,4 @@
+import neptune
 import tensorflow as tf
 
 
@@ -44,6 +45,7 @@ class Time(tf.keras.callbacks.Callback):
 
     def on_epoch_begin(self, epoch, logs=None):
         self.timer_epoch.begin()
+        neptune.set_property('epoch', epoch)
         super().on_epoch_begin(epoch, logs=logs)
 
     def on_epoch_end(self, epoch, logs=None):
