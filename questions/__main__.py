@@ -89,6 +89,7 @@ def main():
     parser.add_argument('--output')
     parser.add_argument('--jobs', type=int, default=1)
     parser.add_argument('--max-num-nodes', type=int, default=100000)
+    parser.add_argument('--no-initial-eval', action='store_true')
     parser.add_argument('--initial-evaluation-extra', action='store_true')
     # Python default is 1000. 10000 is enough to parse all TPTP problems.
     parser.add_argument('--recursion-limit', type=int, default=10000)
@@ -463,37 +464,38 @@ def main():
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
                 os.path.join(output, 'problems'))
 
-        model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-
-        Optimizer = {
-            'sgd': tf.keras.optimizers.SGD,
-            'adam': tf.keras.optimizers.Adam,
-            'rmsprop': tf.keras.optimizers.RMSprop
-        }[args.optimizer]
-        optimizer = Optimizer(learning_rate=args.learning_rate)
-
-        model_logit.compile(optimizer=optimizer)
-
-        if args.restore_checkpoint is not None:
-            model_logit.load_weights(args.restore_checkpoint)
-
-        # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
-        tensorboard.set_model(model_logit)
-
-        print('Initial evaluation...')
         if symbol_cost_evaluation_callback is not None and symbol_cost_evaluation_callback.start <= -1:
             print('Evaluating symbol cost model before first training epoch...')
             logs = symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
             print(logs)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            for k in question_batches:
-                print(f'Evaluating logit model on {k} questions...')
-                if k == 'train':
-                    x = datasets.questions.batch.batch(questions[k], args.val_batch_size)
-                else:
-                    x = question_batches[k]
-                model_logit.evaluate(x)
+            model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+
+            Optimizer = {
+                'sgd': tf.keras.optimizers.SGD,
+                'adam': tf.keras.optimizers.Adam,
+                'rmsprop': tf.keras.optimizers.RMSprop
+            }[args.optimizer]
+            optimizer = Optimizer(learning_rate=args.learning_rate)
+
+            model_logit.compile(optimizer=optimizer)
+
+            if args.restore_checkpoint is not None:
+                model_logit.load_weights(args.restore_checkpoint)
+
+            # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
+            tensorboard.set_model(model_logit)
+
+            if not args.no_initial_eval:
+                print('Initial evaluation of question logit model...')
+                for k in question_batches:
+                    print(f'Evaluating logit model on {k} questions...')
+                    if k == 'train':
+                        x = datasets.questions.batch.batch(questions[k], args.val_batch_size)
+                    else:
+                        x = question_batches[k]
+                    model_logit.evaluate(x)
 
             if args.initial_evaluation_extra:
                 initial_evaluation(model_logit, questions_all, problems_all, args.train_batch_size)
