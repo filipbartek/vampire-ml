@@ -97,7 +97,9 @@ def main():
     parser.add_argument('--depth', type=int, default=4)
     parser.add_argument('--message-size', type=int, default=64)
     parser.add_argument('--activation', default='relu', choices=['relu', 'sigmoid'])
-    parser.add_argument('--dropout', type=float)
+    parser.add_argument('--dropout-input', type=float)
+    parser.add_argument('--dropout-hidden', type=float)
+    parser.add_argument('--max-norm', type=float)
     parser.add_argument('--no-layer-norm', action='store_true')
     parser.add_argument('--no-residual', action='store_true')
     parser.add_argument('--conv-norm', default='both', choices=['both', 'right', 'none'])
@@ -427,15 +429,18 @@ def main():
                     logging.info(f'Number of problems graphified: {len(graphs)}')
                     save_df(graphs_df, os.path.join(output, 'graphs'))
 
-                    model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type,
-                                                                          embedding_size=args.message_size,
-                                                                          num_layers=args.depth,
-                                                                          activation=args.activation,
-                                                                          conv_norm=args.conv_norm,
-                                                                          residual=not args.no_residual,
-                                                                          layer_norm=not args.no_layer_norm,
-                                                                          dropout=args.dropout,
-                                                                          symbol_types=[args.symbol_type])
+                    constraint = None
+                    if args.max_norm is not None:
+                        constraint = tf.keras.constraints.max_norm(args.max_norm)
+                    gcn = models.symbol_features.GCN(graphifier.canonical_etypes, graphifier.ntype_in_degrees,
+                                                     graphifier.ntype_feat_sizes, output_ntypes=[args.symbol_type],
+                                                     embedding_size=args.message_size, depth=args.depth,
+                                                     conv_norm=args.conv_norm,
+                                                     residual=not args.no_residual, layer_norm=not args.no_layer_norm,
+                                                     dropout_input=args.dropout_input,
+                                                     dropout_hidden=args.dropout_hidden,
+                                                     constraint=constraint)
+                    model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type, gcn)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
                 if embedding_to_cost is None:

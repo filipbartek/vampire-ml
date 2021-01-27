@@ -2,18 +2,13 @@ import dgl
 import tensorflow as tf
 
 from proving.utils import py_str
-from .gcn import GCN
 from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, graphs, symbol_type, symbol_types=None, embedding_size=64, num_layers=1, conv_norm='both',
-                 activation='relu', residual=True, layer_norm=True, dropout=0):
+    def __init__(self, graphifier, graphs, symbol_type, gcn):
         SymbolFeatures.__init__(self, dynamic=True)
-        self.gcn = GCN(graphifier.canonical_etypes, graphifier.ntype_in_degrees, graphifier.ntype_feat_sizes,
-                       output_ntypes=symbol_types,
-                       embedding_size=embedding_size, depth=num_layers, conv_norm=conv_norm, activation=activation,
-                       residual=residual, layer_norm=layer_norm, dropout=dropout)
+        self.gcn = gcn
         self.graphifier = graphifier
         self.graphs = graphs
         self.symbol_type = symbol_type

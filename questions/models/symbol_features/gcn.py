@@ -7,8 +7,8 @@ dtype_tf_float = tf.float32
 class GCN(tf.keras.layers.Layer):
     def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, output_ntypes=None, embedding_size=64,
                  depth=4,
-                 conv_norm='both', aggregate='sum', activation='relu', residual=True, layer_norm=True, dropout=None,
-                 name='gcn', **kwargs):
+                 conv_norm='both', aggregate='sum', activation='relu', residual=True, layer_norm=True,
+                 dropout_input=None, dropout_hidden=None, constraint=None, name='gcn', **kwargs):
         super().__init__(name=name, **kwargs)
 
         if isinstance(activation, str):
@@ -26,16 +26,9 @@ class GCN(tf.keras.layers.Layer):
             ntype_embedding_lengths = {ntype: embedding_size for ntype in ntypes}
             aggregate_fn = aggregate
 
-        def ntype_weight_length(ntype):
-            assert ntype in ntype_embedding_lengths
-            if ntype in ntype_feat_sizes:
-                assert ntype_embedding_lengths[ntype] >= ntype_feat_sizes[ntype]
-                return ntype_embedding_lengths[ntype] - ntype_feat_sizes[ntype]
-            return ntype_embedding_lengths[ntype]
-
-        ntype_weight_lengths = {ntype: ntype_weight_length(ntype) for ntype in ntypes}
-        self.ntype_weights = self.add_ntype_weights(ntype_weight_lengths)
-        self.ntype_feat_sizes = ntype_feat_sizes
+        self.ntype_embeddings = {
+            ntype: self.add_ntype_embedding(ntype, ntype_embedding_lengths[ntype], ntype_feat_sizes.get(ntype, 0),
+                                            constraint, dropout_input) for ntype in ntypes}
 
         stype_feats = ntype_embedding_lengths
         dtype_feats = {ntype: embedding_size for ntype in ntypes}
@@ -44,8 +37,8 @@ class GCN(tf.keras.layers.Layer):
             # We assume that there are no 0-in-degree nodes in any input graph.
             # This holds for the standard graphification scheme because all symbols have loops and all the other nodes
             # have at least one in-edge from another node.
-            return GraphConv(in_feats, out_feats, norm=conv_norm, dropout=dropout, name=name, activation=activation,
-                             allow_zero_in_degree=True)
+            return GraphConv(in_feats, out_feats, norm=conv_norm, dropout=dropout_hidden, constraint=constraint,
+                             name=name, activation=activation, allow_zero_in_degree=True)
 
         layer_norm_ntypes = None
         layers_reversed = []
@@ -76,32 +69,46 @@ class GCN(tf.keras.layers.Layer):
         self.layers = list(reversed(layers_reversed))
 
     def call(self, g, training=False):
-        h = self.initial_h(g)
+        h = self.initial_h(g, training=training)
         for layer in self.layers:
             h = layer(g, h, training=training)
         return h
 
-    def initial_h(self, graph):
-        return {ntype: self.initial_ntype_embedding(graph, ntype) for ntype in graph.ntypes}
+    def initial_h(self, graph, training=False):
+        return {ntype: self.initial_ntype_embedding(graph, ntype, training=training) for ntype in graph.ntypes}
 
-    def initial_ntype_embedding(self, graph, ntype):
-        embedding = tf.tile(self.ntype_weights[ntype], (graph.num_nodes(ntype), 1))
-        if ntype in self.ntype_feat_sizes:
-            try:
-                feat = graph.ndata['feat'][ntype]
-            except KeyError:
-                feat = tf.zeros((graph.num_nodes(ntype), self.ntype_feat_sizes[ntype]))
-            assert feat.shape == (graph.num_nodes(ntype), self.ntype_feat_sizes[ntype])
-            # Prepend the node features to the trainable embedding
+    def initial_ntype_embedding(self, graph, ntype, training=False):
+        return self.ntype_embeddings[ntype].embedding(graph.num_nodes(ntype), graph.ndata['feat'].get(ntype),
+                                                      training=training)
+
+    def add_ntype_embedding(self, ntype, embedding_size, feat_size, constraint, dropout):
+        weight = self.add_ntype_weight(ntype, embedding_size - feat_size, constraint)
+        return TrainableEmbedding(weight, feat_size, dropout)
+
+    def add_ntype_weight(self, name, size, constraint):
+        # We only use flat embeddings because `GraphConv` only supports flat input.
+        return self.add_weight(name=name, shape=(1, size), initializer='random_normal', constraint=constraint,
+                               trainable=True)
+
+
+class TrainableEmbedding:
+    def __init__(self, weight, feat_size=0, dropout=None):
+        self.weight = weight
+        self.feat_size = feat_size
+        self.dropout = None
+        if dropout is not None:
+            self.dropout = tf.keras.layers.Dropout(dropout)
+
+    def embedding(self, n, feat=None, training=False):
+        embedding = tf.tile(self.weight, (n, 1))
+        if self.dropout is not None:
+            embedding = self.dropout(embedding, training=training)
+        assert feat is None or feat.shape == (n, self.feat_size)
+        if self.feat_size > 0:
+            if feat is None:
+                feat = tf.zeros((n, self.feat_size))
             embedding = tf.concat((feat, embedding), axis=1)
         return embedding
-
-    def add_ntype_weights(self, ntype_weight_lengths):
-        return {ntype: self.add_ntype_weight(ntype, l) for ntype, l in ntype_weight_lengths.items()}
-
-    def add_ntype_weight(self, name, size):
-        # We only use flat embeddings because `GraphConv` only supports flat input.
-        return self.add_weight(name=name, shape=(1, size), initializer='random_normal', trainable=True)
 
 
 class HeteroGraphConv(dglnn.HeteroGraphConv):
@@ -174,11 +181,19 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
 
 
 class GraphConv(dglnn.GraphConv):
-    def __init__(self, in_feats, out_feats, dropout=None, name=None, **kwargs):
-        super().__init__(in_feats, out_feats, **kwargs)
+    def __init__(self, in_feats, out_feats, dropout=None, constraint=None, name=None, weight=True, **kwargs):
+        super().__init__(in_feats, out_feats, weight=False, **kwargs)
         self.dropout = None
         if dropout is not None:
             self.dropout = tf.keras.layers.Dropout(dropout)
+        # `self.weight` initialization mimics `dglnn.GraphConv.__init__`.
+        # The difference is that here we add a MaxNorm constraint.
+        if weight:
+            xinit = tf.keras.initializers.glorot_uniform()
+            self.weight = tf.Variable(initial_value=xinit(shape=(in_feats, out_feats), dtype='float32'), trainable=True,
+                                      constraint=constraint)
+        else:
+            self.weight = None
         if name is not None:
             self._name = name
 
@@ -194,8 +209,8 @@ class GraphConv(dglnn.GraphConv):
             dtype = graph.dsttypes[0]
             outputs = tf.tile(tf.expand_dims(tf.stop_gradient(self.bias), 0), (graph.num_nodes(dtype), 1))
         else:
-            if self.dropout is not None:
-                feat = self.dropout(feat, training=training)
             # `dglnn.GraphConv` does not accept the argument `training`.
             outputs = super().call(graph, feat)
+        if self.dropout is not None:
+            outputs = self.dropout(outputs, training=training)
         return outputs
