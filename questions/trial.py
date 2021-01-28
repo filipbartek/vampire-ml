@@ -146,7 +146,8 @@ space = AttributeDict({
     },
     'gcn': {
         'depth': param.Int('gcn_depth', 1, 64, log=True, default=4),
-        'message_size': param.Int('gcn_message_size', 1, 256, log=True, default=16),
+        # 7 numbers are required to represent the clause role.
+        'message_size': param.Int('gcn_message_size', 7, 256, log=True, default=16),
         'activation': param_activation('gcn_activation'),
         'aggregate': param.Categorical('gcn_aggregate', ['sum', 'max', 'min', 'mean'], default='sum'),
         'dropout': {
