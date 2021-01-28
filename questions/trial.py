@@ -1,6 +1,7 @@
 import logging
 
 import hydra
+import neptune
 import numpy as np
 import optuna
 import tensorflow as tf
@@ -36,7 +37,12 @@ def run(params, state, monitor='val_binary_accuracy', optuna_trial=None):
             'adam': tf.keras.optimizers.Adam,
             'rmsprop': tf.keras.optimizers.RMSprop
         }[params.optimizer]
-        optimizer = Optimizer(learning_rate=params.learning_rate)
+        # https://arxiv.org/pdf/1706.02677.pdf
+        # https://arxiv.org/abs/1711.00489
+        learning_rate = params.learning_rate * params.batch_size.train
+        neptune.set_property('learning_rate_scaled', learning_rate)
+        optimizer = Optimizer(learning_rate=learning_rate)
+        # TODO: Add warmup. https://arxiv.org/pdf/1706.02677.pdf
 
         model_logit.compile(optimizer=optimizer)
 
