@@ -39,7 +39,7 @@ class Graphifier:
 
     def problems_to_graphs_dict(self, problems):
         logging.info(f'Graphifying {len(problems)} problems...')
-        graphs_records = Parallel(verbose=1)(delayed(self.problem_to_graph)(problem) for problem in problems)
+        graphs_records = Parallel(verbose=10)(delayed(self.problem_to_graph)(problem) for problem in problems)
         graphs, records = zip(*graphs_records)
         problem_graphs = {p: g for p, g, r in zip(problems, graphs, records) if
                           g is not None and r is not None and r['error'] is None}
