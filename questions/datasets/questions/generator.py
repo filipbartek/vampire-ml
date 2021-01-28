@@ -109,16 +109,24 @@ class Generator:
                                                                           method=self.ucb_method)
         return res
 
-    def load_questions(self, questions_dir, num_questions_per_problem=None):
-        cache_filename = os.path.join(questions_dir, f'questions_per_problem_{num_questions_per_problem}.joblib')
+    def load_questions(self, questions_dir, num_questions_per_problem=None, num_questions=None):
+        cache_filename = os.path.join(questions_dir,
+                                      f'per_problem_{num_questions_per_problem}',
+                                      f'count_{num_questions}',
+                                      'questions.joblib')
         try:
             results = joblib.load(cache_filename)
-            logging.info(f'Questions loaded from a single file: {cache_filename}')
+            logging.info(f'Questions loaded from a cache file: {cache_filename}')
         except FileNotFoundError:
             results = collections.defaultdict(list)
+            num_loaded = 0
             for step in tqdm(range(self.step), desc='Loading question batches', unit='batch'):
+                if num_questions is not None and num_loaded >= num_questions:
+                    break
                 filename = os.path.join(questions_dir, f'{step}.joblib')
                 for problem_i, question in joblib.load(filename):
+                    if num_questions is not None and num_loaded >= num_questions:
+                        break
                     problem_name = self.problems[problem_i]
                     if num_questions_per_problem is None or len(results[problem_name]) < num_questions_per_problem:
                         assert len(self.randomize) == 1
@@ -128,8 +136,11 @@ class Generator:
                             map(functools.partial(utils.invert_permutation, dtype=np.int32), precedences))
                         res = precedences_inverted[1] - precedences_inverted[0]
                         results[problem_name].append(res)
+                        num_loaded += 1
             results = {k: np.asarray(v) for k, v in results.items()}
+            os.makedirs(os.path.dirname(cache_filename), exist_ok=True)
             joblib.dump(results, cache_filename)
+            logging.info(f'Questions saved to a cache file: {cache_filename}')
         return results
 
     def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=None, num_questions=None,
@@ -197,7 +208,8 @@ class Generator:
                     plot.scatter(x, self.problem_ucbs(), name=f'problems_{x_col}/ucbs',
                                  xlabel=x_col, ylabel='UCB', xscale='log')
             self.step += 1
-        return self.load_questions(questions_dir)
+        return self.load_questions(questions_dir, num_questions_per_problem=num_questions_per_problem,
+                                   num_questions=num_questions)
 
     def generate_one(self, problem_i, case, solver):
         problem_name = self.problems[problem_i]
