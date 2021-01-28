@@ -125,6 +125,7 @@ neptune:
   project_name: filipbartek/vampire-ml
   experiment:
     name: null
+    tags: null
     upload_source_files:
       - requirements.txt
       - questions/config.yaml

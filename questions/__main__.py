@@ -73,7 +73,8 @@ def main(cfg: DictConfig) -> None:
     # Neptune
     neptune.init(project_qualified_name=cfg.neptune.project_name)
     cfg_flat = flatten_config(cfg)
-    neptune.create_experiment(params=cfg_flat, logger=logging.getLogger(), **cfg.neptune.experiment)
+    neptune.create_experiment(params=cfg_flat, logger=logging.getLogger(),
+                              **OmegaConf.to_container(cfg.neptune.experiment))
 
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
