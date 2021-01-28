@@ -60,11 +60,13 @@ early_stopping:
   baseline: 0.5
 
 # Optimizer
+# Options: adam, sgd, rmsprop
 optimizer: adam
 learning_rate: 0.001
 
 # Model
 symbol_cost:
+  # Options: composite, direct, baseline
   model: composite
   # Factor of L2 regularization penalty on symbol cost values.
   l2: 0
@@ -74,6 +76,7 @@ embedding_to_cost:
     activation: relu
   l1: 0
   l2: 0
+# Options: gcn, simple
 symbol_embedding_model: gcn
 # Comma-separated list of 12 floats
 simple_model_kernel: null
@@ -83,6 +86,7 @@ gcn:
   depth: 4
   message_size: 16
   activation: relu
+  # Options: sum, max, min, mean
   aggregate: sum
   dropout:
     input: 0
@@ -90,6 +94,7 @@ gcn:
   max_norm: 0
   layer_norm: true
   residual: true
+  # Options: both, right, none
   conv_norm: both
   max_problem_nodes: 100000
 
