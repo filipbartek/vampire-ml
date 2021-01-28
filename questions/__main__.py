@@ -73,7 +73,6 @@ def main(cfg: DictConfig) -> None:
     neptune.init(project_qualified_name=cfg.neptune.project_name)
     cfg_flat = flatten_config(cfg)
     neptune.create_experiment(params=cfg_flat, logger=logging.getLogger(), **cfg.neptune.experiment)
-    neptune_tensorboard.integrate_with_tensorflow(prefix=True)
 
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
@@ -320,6 +319,7 @@ def main(cfg: DictConfig) -> None:
         })
 
         if cfg.optuna.trials is None or cfg.optuna.trials <= 0:
+            neptune_tensorboard.integrate_with_tensorflow(prefix=True)
             trial.run(cfg, state)
         else:
             if cfg.load_checkpoint is not None:
