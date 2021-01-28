@@ -54,7 +54,8 @@ def run(params, state):
                     x = datasets.questions.batch.batch(state.questions[k], params.batch_size.val)
                 else:
                     x = state.question_batches[k]
-                model_logit.evaluate(x)
+                metrics = model_logit.evaluate(x, return_dict=True)
+                print(metrics)
 
         if params.epochs >= 1:
             print('Training...')
