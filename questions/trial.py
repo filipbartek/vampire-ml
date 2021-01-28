@@ -2,6 +2,7 @@ import logging
 
 import hydra
 import numpy as np
+import optuna
 import tensorflow as tf
 from attributedict.collections import AttributeDict
 
@@ -11,7 +12,7 @@ from questions import models
 from questions import param
 
 
-def run(params, state):
+def run(params, state, monitor='val_binary_accuracy', optuna_trial=None):
     logging.info(f'Symbol cost model: {params.symbol_cost.model}')
     if params.symbol_cost.model == 'baseline':
         model_symbol_cost = models.symbol_cost.Baseline()
@@ -58,9 +59,16 @@ def run(params, state):
                 print(metrics)
 
         if params.epochs >= 1:
+            cbs = state.cbs.copy()
+            if optuna_trial is not None:
+                cbs.append(optuna.integration.TFKerasPruningCallback(optuna_trial, monitor))
+
             print('Training...')
-            model_logit.fit(state.question_batches['train'], validation_data=state.question_batches['val'],
-                            epochs=params.epochs, callbacks=state.cbs)
+            history = model_logit.fit(state.question_batches['train'], validation_data=state.question_batches['val'],
+                                      epochs=params.epochs, callbacks=state.cbs)
+            # TODO: Add support for solver_eval metrics.
+            return history.history[monitor][-1]
+    return None
 
 
 def get_composite_symbol_cost_model(args, state):

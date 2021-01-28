@@ -328,7 +328,7 @@ def main(cfg: DictConfig) -> None:
             def objective(t):
                 params = param.suggest(t, trial.space)
                 cfg_merged = OmegaConf.merge(cfg, params)
-                return trial.run(cfg_merged, state)
+                return trial.run(cfg_merged, state, monitor=cfg.optuna.monitor, optuna_trial=t)
 
             study = optuna.create_study()
             study.optimize(objective, n_trials=cfg.optuna.trials)

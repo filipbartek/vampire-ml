@@ -107,6 +107,7 @@ solver_eval:
 
 optuna:
   trials: 0
+  monitor: val_binary_accuracy
 
 # Technical stuff
 log_level: INFO
