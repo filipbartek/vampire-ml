@@ -124,29 +124,28 @@ class Graphifier:
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
             logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
             record['error'] = 'clausify'
+            return None, record
+        symbol_types = ('predicate', 'function')
+        symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
+        record['num_clauses'] = len(clausify_result.clauses)
+        record.update({f'num_{symbol_type}': len(symbols[symbol_type]) for symbol_type in symbol_types})
+        time_start = time.time()
+        try:
+            g = self.clausify_result_to_graph(clausify_result)
+        except FormulaVisitor.NumNodesError as e:
+            # The graph would be too large (too many nodes).
+            logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
+            record['error'] = 'node_count'
             g = None
-        else:
-            symbol_types = ('predicate', 'function')
-            symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
-            record['num_clauses'] = len(clausify_result.clauses)
-            record.update({f'num_{symbol_type}': len(symbols[symbol_type]) for symbol_type in symbol_types})
-            time_start = time.time()
-            try:
-                g = self.clausify_result_to_graph(clausify_result)
-            except FormulaVisitor.NumNodesError as e:
-                # The graph would be too large (too many nodes).
-                logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
-                record['error'] = 'node_count'
-                g = None
-                record['graph_nodes_lower_bound'] = e.actual
-            time_elapsed = time.time() - time_start
-            record['graph_time'] = time_elapsed
-            if g is not None:
-                record['graph_nodes'] = g.num_nodes()
-                record['graph_nodes_lower_bound'] = g.num_nodes()
-                record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
-                record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
-                logging.debug(f'Problem {problem} graphified.')
+            record['graph_nodes_lower_bound'] = e.actual
+        time_elapsed = time.time() - time_start
+        record['graph_time'] = time_elapsed
+        if g is not None:
+            record['graph_nodes'] = g.num_nodes()
+            record['graph_nodes_lower_bound'] = g.num_nodes()
+            record.update({f'graph_nodes_{ntype}': g.num_nodes(ntype) for ntype in g.ntypes})
+            record['graph_edges'] = sum(g.num_edges(canonical_etype) for canonical_etype in g.canonical_etypes)
+            logging.debug(f'Problem {problem} graphified.')
         return g, record
 
     @functools.lru_cache(maxsize=1)
