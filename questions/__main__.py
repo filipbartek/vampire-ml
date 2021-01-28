@@ -314,7 +314,8 @@ def main(cfg: DictConfig) -> None:
             'tensorboard': tensorboard,
             'question_batches': question_batches,
             'questions': questions,
-            'cbs': cbs
+            'cbs': cbs,
+            'clausifier': clausifier
         })
 
         if cfg.optuna.trials is None or cfg.optuna.trials <= 0:

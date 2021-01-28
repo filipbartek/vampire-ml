@@ -95,7 +95,7 @@ def get_symbol_embedding_model(args, state):
     logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
     if args.symbol_embedding_model == 'simple':
         model_symbol_embedding = models.symbol_features.Simple(state.clausifier, args.symbol_type)
-        if args.embedding_to_cost_hidden_layer is None:
+        if args.embedding_to_cost.hidden.units == 0:
             state.cbs.append(callbacks.Weights(state.tensorboard))
     elif args.symbol_embedding_model == 'gcn':
         constraint = None
