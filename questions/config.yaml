@@ -54,6 +54,10 @@ batch_size:
 epochs: 1000000
 initial_eval: true
 load_checkpoint: null
+early_stopping:
+  monitor: val_binary_accuracy
+  patience: 100
+  baseline: 0.5
 
 # Optimizer
 optimizer: adam

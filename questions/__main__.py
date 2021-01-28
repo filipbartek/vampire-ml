@@ -255,7 +255,8 @@ def main(cfg: DictConfig) -> None:
                 save_weights_only=True, verbose=0),
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(acc_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
-                save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True)
+                save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True),
+            tf.keras.callbacks.EarlyStopping(**cfg.early_stopping)
         ]
 
         symbol_cost_evaluation_callback = None
