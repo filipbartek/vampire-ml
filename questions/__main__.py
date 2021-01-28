@@ -15,6 +15,7 @@ import joblib
 import matplotlib.pyplot as plt
 import neptune
 import neptune_tensorboard
+import neptunecontrib.monitoring.optuna
 import numpy as np
 import optuna
 import pandas as pd
@@ -331,7 +332,8 @@ def main(cfg: DictConfig) -> None:
                 return trial.run(cfg_merged, state, monitor=cfg.optuna.monitor, optuna_trial=t)
 
             study = optuna.create_study()
-            study.optimize(objective, n_trials=cfg.optuna.trials)
+            neptune_callback = neptunecontrib.monitoring.optuna.NeptuneCallback(log_study=True)
+            study.optimize(objective, n_trials=cfg.optuna.trials, callbacks=[neptune_callback])
             print(study.best_params)
 
 
