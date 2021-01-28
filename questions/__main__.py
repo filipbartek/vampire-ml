@@ -201,8 +201,14 @@ def main(cfg: DictConfig) -> None:
             question_counts = [q.shape[0] for q in questions_all.values()]
             signature_lengths = [q.shape[1] for q in questions_all.values()]
 
-            print(f'Question counts: {scipy.stats.describe(question_counts)}')
-            print(f'Signature sizes: {scipy.stats.describe(signature_lengths)}')
+            try:
+                print(f'Question counts: {scipy.stats.describe(question_counts)}')
+            except ValueError:
+                pass
+            try:
+                print(f'Signature sizes: {scipy.stats.describe(signature_lengths)}')
+            except ValueError:
+                pass
 
             df_index = pd.Index(questions_all.keys(), name='name')
             df = pd.DataFrame({
