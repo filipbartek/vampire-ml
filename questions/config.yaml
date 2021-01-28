@@ -1,0 +1,128 @@
+jobs: 1
+
+# Input problems
+problems:
+  patterns:
+    - "**/*-*.p"
+    - "**/*+*.p"
+  train: null
+  val: null
+  max_count: null
+  sets: []
+
+symbol_type: predicate
+
+# Questions
+questions:
+  dir: null
+  max_count: null
+  max_per_problem: null
+  batch_size: 1000
+  hoeffding_exponent: 4.0
+  # Symbol types of precedences to randomize
+  randomize:
+    - predicate
+
+solver:
+  # Options passed to Vampire.
+  # Run `vampire --show_options on --show_experimental_options on` to print the supported options.
+  options:
+    encode: "on"
+    statistics: full
+    time_statistics: "on"
+    proof: "off"
+    avatar: "off"
+    saturation_algorithm: discount
+    age_weight_ratio: 10
+    literal_comparison_mode: predicate
+    symbol_precedence: frequency
+    time_limit: 10
+  # Time in seconds after which each Vampire call is terminated.
+  timeout: 20
+
+clausifier:
+  options:
+    encode: "on"
+    time_limit: 300
+  timeout: 300
+
+# Training
+val_split: 0.5
+batch_size:
+  train: 128
+  val: 256
+epochs: 1000000
+initial_eval: true
+load_checkpoint: null
+
+# Optimizer
+optimizer: adam
+learning_rate: 0.001
+
+# Model
+symbol_cost:
+  model: composite
+  # Factor of L2 regularization penalty on symbol cost values.
+  l2: 0
+embedding_to_cost:
+  hidden:
+    units: 0
+    activation: relu
+  l1: 0
+  l2: 0
+symbol_embedding_model: gcn
+# Comma-separated list of 12 floats
+simple_model_kernel: null
+
+# GCN
+gcn:
+  depth: 4
+  message_size: 16
+  activation: relu
+  aggregate: sum
+  dropout:
+    input: 0
+    hidden: 0
+  max_norm: 0
+  layer_norm: true
+  residual: true
+  conv_norm: both
+  max_problem_nodes: 100000
+
+solver_eval:
+  enable: false
+  # Set to -1 to evaluate before first training epoch.
+  start: -1
+  step: 1
+  iterations: 1
+  batch_size: 1000
+  problems:
+    train: 1000
+    val: 1000
+  train_without_questions: false
+
+optuna:
+  trials: 0
+
+# Technical stuff
+log_level: INFO
+# Python default is 1000. 10000 is enough to parse all TPTP problems.
+recursion_limit: 10000
+
+tf:
+  run_eagerly: false
+
+tb:
+  logdir: logs
+  profile_batch: 0
+
+neptune:
+  project_name: filipbartek/vampire-ml
+  experiment:
+    name: null
+    upload_source_files:
+      - requirements.txt
+      - questions/config.yaml
+      - questions/**/*.py
+      - proving/**/*.py
+      - vampire_ml/**/*.py

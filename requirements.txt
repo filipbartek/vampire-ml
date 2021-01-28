@@ -1,8 +1,10 @@
 appdirs
+attributedict
 binpacking
 dgl
 flatten-dict
 guppy3
+hydra-core
 joblib
 matplotlib
 memory-profiler
@@ -12,6 +14,7 @@ neptune-client
 neptune-tensorboard
 networkx
 numpy
+optuna
 ordered-set
 pandas
 psutil

@@ -5,39 +5,38 @@ dtype_tf_float = tf.float32
 
 
 class GCN(tf.keras.layers.Layer):
-    def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, output_ntypes=None, embedding_size=64,
-                 depth=4,
-                 conv_norm='both', aggregate='sum', activation='relu', residual=True, layer_norm=True,
-                 dropout_input=None, dropout_hidden=None, constraint=None, name='gcn', **kwargs):
+    def __init__(self, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, args, output_ntypes=None, constraint=None,
+                 name='gcn', **kwargs):
         super().__init__(name=name, **kwargs)
 
+        activation = args.activation
         if isinstance(activation, str):
             activation = tf.keras.activations.deserialize(activation)
 
         ntypes = ntype_in_degrees.keys()
 
-        if aggregate == 'concat':
-            ntype_embedding_lengths = {ntype: in_degree * embedding_size for ntype, in_degree in
+        if args.aggregate == 'concat':
+            ntype_embedding_lengths = {ntype: in_degree * args.message_size for ntype, in_degree in
                                        ntype_in_degrees.items()}
 
             def aggregate_fn(tensors, dsttype):
                 return tf.concat(tensors, axis=1)
         else:
-            ntype_embedding_lengths = {ntype: embedding_size for ntype in ntypes}
-            aggregate_fn = aggregate
+            ntype_embedding_lengths = {ntype: args.message_size for ntype in ntypes}
+            aggregate_fn = args.aggregate
 
         self.ntype_embeddings = {
             ntype: self.add_ntype_embedding(ntype, ntype_embedding_lengths[ntype], ntype_feat_sizes.get(ntype, 0),
-                                            constraint, dropout_input) for ntype in ntypes}
+                                            constraint, args.dropout.input) for ntype in ntypes}
 
         stype_feats = ntype_embedding_lengths
-        dtype_feats = {ntype: embedding_size for ntype in ntypes}
+        dtype_feats = {ntype: args.message_size for ntype in ntypes}
 
         def create_module(in_feats, out_feats, name):
             # We assume that there are no 0-in-degree nodes in any input graph.
             # This holds for the standard graphification scheme because all symbols have loops and all the other nodes
             # have at least one in-edge from another node.
-            return GraphConv(in_feats, out_feats, norm=conv_norm, dropout=dropout_hidden, constraint=constraint,
+            return GraphConv(in_feats, out_feats, norm=args.conv_norm, dropout=args.dropout.hidden, constraint=constraint,
                              name=name, activation=activation, allow_zero_in_degree=True)
 
         layer_norm_ntypes = None
@@ -45,7 +44,7 @@ class GCN(tf.keras.layers.Layer):
         if output_ntypes is None:
             output_ntypes = ntypes
         contributing_dtypes = set(output_ntypes)
-        for layer_i in range(depth - 1, -1, -1):
+        for layer_i in range(args.depth - 1, -1, -1):
             contributing_stypes = set()
             mods = {}
             for stype, etype, dtype in canonical_etypes:
@@ -54,12 +53,12 @@ class GCN(tf.keras.layers.Layer):
                     contributing_stypes.add(stype)
                     if etype not in mods:
                         mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], f'layer_{layer_i}/{etype}')
-            if layer_norm:
+            if args.layer_norm:
                 layer_norm_ntypes = contributing_dtypes
-            layers_reversed.append(HeteroGraphConv(mods, residual=residual, layer_norm_ntypes=layer_norm_ntypes,
+            layers_reversed.append(HeteroGraphConv(mods, residual=args.residual, layer_norm_ntypes=layer_norm_ntypes,
                                                    aggregate=aggregate_fn, name=f'layer_{layer_i}'))
             # Update stype_feats
-            if aggregate == 'concat':
+            if args.aggregate == 'concat':
                 stype_feats = {ntype: 0 for ntype in ntypes}
                 for stype, etype, dtype in canonical_etypes:
                     stype_feats[dtype] += dtype_feats[stype]

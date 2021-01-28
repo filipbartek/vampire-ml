@@ -6,10 +6,10 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, graphs, symbol_type, gcn):
+    def __init__(self, empty_graph, graphs, symbol_type, gcn):
         SymbolFeatures.__init__(self, dynamic=True)
         self.gcn = gcn
-        self.graphifier = graphifier
+        self.empty_graph = empty_graph
         self.graphs = graphs
         self.symbol_type = symbol_type
 
@@ -24,7 +24,7 @@ class Graph(SymbolFeatures):
                 try:
                     yield self.graphs[py_str(p)], True
                 except KeyError:
-                    yield self.graphifier.empty_graph(), False
+                    yield self.empty_graph, False
 
         graphs, valid = zip(*gen())
         batch_graph = dgl.batch(graphs)
