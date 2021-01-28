@@ -119,7 +119,7 @@ def param_regularizer(name, default=0):
 
 
 def param_activation(name):
-    return param.Categorical(name, ['relu', 'sigmoid'], default='relu'),
+    return param.Categorical(name, ['relu', 'sigmoid'], default='relu')
 
 
 # https://neptune.ai/blog/hyperparameter-tuning-on-any-python-script
