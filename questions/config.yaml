@@ -44,7 +44,7 @@ clausifier:
   options:
     encode: "on"
     time_limit: 300
-  timeout: 300
+  timeout: null
 
 # Training
 val_split: 0.5
