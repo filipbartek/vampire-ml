@@ -11,6 +11,7 @@ import pandas as pd
 from joblib import Parallel, delayed
 
 from proving import config
+from proving import tptp
 from proving.formula_visitor import FormulaVisitor
 from proving.memory import memory
 from proving.utils import py_str
@@ -103,16 +104,23 @@ class Graphifier:
     def __repr__(self):
         return f'{self.__class__.__name__}(%s)' % ', '.join(f'{k}={v}' for k, v in self.get_config().items())
 
+    def nodes_lower_bound(self, problem):
+        props = tptp.problem_properties(problem)
+        return props['atoms'] + props['predicates'] + props['functors'] + props['variables']
+
     def graphify(self, problem):
         problem = py_str(problem)
         logging.debug(f'Graphifying problem {problem}...')
+        record = {'problem': problem, 'error': None}
+        nodes_lower_bound = self.nodes_lower_bound(problem)
+        if nodes_lower_bound > self.max_number_of_nodes:
+            record['error'] = 'nodes_from_tptp_header'
+            record['graph_nodes_lower_bound'] = nodes_lower_bound
+            return None, record
         time_start = time.time()
         clausify_result = self.clausifier.clausify(problem)
         time_elapsed = time.time() - time_start
-        record = {'problem': problem,
-                  'clausify_returncode': clausify_result.returncode,
-                  'clausify_time': time_elapsed,
-                  'error': None}
+        record.update({'clausify_returncode': clausify_result.returncode, 'clausify_time': time_elapsed})
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
             logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
             record['error'] = 'clausify'
