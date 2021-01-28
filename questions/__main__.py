@@ -126,8 +126,8 @@ def main(cfg: DictConfig) -> None:
         if cfg.problems.train is not None and cfg.problems.val is not None:
             logging.info('Loading problem splits from files...')
             problems = {
-                'val': tf.data.TextLineDataset(cfg.problems.val),
-                'train': tf.data.TextLineDataset(cfg.problems.train)
+                'val': tf.data.TextLineDataset(hydra.utils.to_absolute_path(cfg.problems.val)),
+                'train': tf.data.TextLineDataset(hydra.utils.to_absolute_path(cfg.problems.train))
             }
             problems_all = problems['val'].concatenate(problems['train'])
         else:
