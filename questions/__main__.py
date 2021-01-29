@@ -292,6 +292,7 @@ def main(cfg: DictConfig) -> None:
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
                 'epochs_solver_eval.csv',
                 solver=solver,
+                cache=cfg.solver_eval.cache,
                 problems=solver_eval_problems,
                 symbol_type=cfg.symbol_type,
                 splits={k: list(map(py_str, v)) for k, v in problems.items()},
