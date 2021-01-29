@@ -307,20 +307,7 @@ def main(cfg: DictConfig) -> None:
                 train_without_questions=cfg.solver_eval.train_without_questions)
             cbs.append(symbol_cost_evaluation_callback)
 
-        graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.gcn.max_problem_nodes)
-        # problems_to_graphify = set(map(py_str, problems_all))
-        graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
-        for problem_name, rec in graphs_df.iterrows():
-            problem_records[problem_name].update(rec.to_dict())
-        logging.info(f'Number of problems graphified: {len(graphs)}')
-        save_df(graphs_df, 'graphs')
-
-        save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
-                'problems')
-
         state = AttributeDict({
-            'graphifier': graphifier,
-            'graphs': graphs,
             'symbol_cost_evaluation_callback': symbol_cost_evaluation_callback,
             'tensorboard': tensorboard,
             'question_batches': question_batches,
@@ -328,6 +315,22 @@ def main(cfg: DictConfig) -> None:
             'cbs': cbs,
             'clausifier': clausifier
         })
+
+        if cfg.symbol_embedding_model == 'gcn':
+            graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.gcn.max_problem_nodes)
+            # problems_to_graphify = set(map(py_str, problems_all))
+            graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
+            for problem_name, rec in graphs_df.iterrows():
+                problem_records[problem_name].update(rec.to_dict())
+            logging.info(f'Number of problems graphified: {len(graphs)}')
+            save_df(graphs_df, 'graphs')
+            state.update({
+                'graphifier': graphifier,
+                'graphs': graphs
+            })
+
+        save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
+                'problems')
 
         if cfg.optuna.trials is None or cfg.optuna.trials <= 0:
             trial.run(cfg, state)
