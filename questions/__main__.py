@@ -316,7 +316,7 @@ def main(cfg: DictConfig) -> None:
             'clausifier': clausifier
         })
 
-        if cfg.symbol_embedding_model == 'gcn':
+        if cfg.symbol_cost.model == 'gcn':
             graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.gcn.max_problem_nodes)
             # problems_to_graphify = set(map(py_str, problems_all))
             graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)

@@ -66,8 +66,8 @@ learning_rate: 0.001
 
 # Model
 symbol_cost:
-  # Options: composite, direct, baseline
-  model: composite
+  # Options: gcn, simple, direct, baseline
+  model: gcn
   # Factor of L2 regularization penalty on symbol cost values.
   l2: 0
 embedding_to_cost:
@@ -76,8 +76,6 @@ embedding_to_cost:
     activation: relu
   l1: 0
   l2: 0
-# Options: gcn, simple
-symbol_embedding_model: gcn
 # Comma-separated list of 12 floats
 simple_model_kernel: null
 

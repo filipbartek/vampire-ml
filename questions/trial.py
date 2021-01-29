@@ -19,7 +19,7 @@ def run(params, state, monitor='val_binary_accuracy', optuna_trial=None):
         model_symbol_cost = models.symbol_cost.Baseline()
     elif params.symbol_cost.model == 'direct':
         model_symbol_cost = models.symbol_cost.Direct(state.questions_all)
-    elif params.symbol_cost.model == 'composite':
+    elif params.symbol_cost.model in ('gcn', 'simple'):
         model_symbol_cost = get_composite_symbol_cost_model(params, state)
     else:
         raise ValueError(f'Unsupported symbol cost model: {params.symbol_cost.model}')
@@ -106,12 +106,13 @@ def get_composite_symbol_cost_model(args, state):
 
 
 def get_symbol_embedding_model(args, state):
-    logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
-    if args.symbol_embedding_model == 'simple':
+    model_type = args.symbol_cost.model
+    logging.info(f'Symbol cost model: {model_type}')
+    if model_type == 'simple':
         model_symbol_embedding = models.symbol_features.Simple(state.clausifier, args.symbol_type)
         if args.embedding_to_cost.hidden.units == 0:
             state.cbs.append(callbacks.Weights(state.tensorboard))
-    elif args.symbol_embedding_model == 'gcn':
+    elif model_type == 'gcn':
         constraint = None
         if args.gcn.max_norm is not None:
             constraint = tf.keras.constraints.max_norm(args.gcn.max_norm)
@@ -124,7 +125,7 @@ def get_symbol_embedding_model(args, state):
         model_symbol_embedding = models.symbol_features.Graph(state.graphifier.empty_graph(), state.graphs,
                                                               args.symbol_type, gcn)
     else:
-        raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
+        raise ValueError(f'Unsupported symbol embedding model: {model_type}')
     return model_symbol_embedding
 
 
