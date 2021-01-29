@@ -92,8 +92,9 @@ gcn:
   max_norm: 0
   layer_norm: true
   residual: true
+  # If null, use an appropriate normalization for each edge type.
   # Options: both, right, none
-  conv_norm: both
+  conv_norm: null
   max_problem_nodes: 100000
 
 solver_eval:

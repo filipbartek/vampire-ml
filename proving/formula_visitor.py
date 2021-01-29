@@ -219,6 +219,41 @@ class FormulaVisitor:
         'argument_precedes_argument': [('argument', 'argument')]
     }
 
+    etype_norms = {
+        # formula->clause: no normalization because each clause is adjacent to only one formula
+        'formula_contains_clause': ('none', 'right'),
+        # clause->atom: no normalization so that the atom knows its number of occurrences (term sharing)
+        # atom->clause: no normalization because both atom and equality share this etype, and there are polarity-based subtypes
+        'clause_contains_atom': ('none', 'none'),
+        'clause_binds_variable': ('none', 'none'),
+        # atom->predicate: we don't normalize so that the predicate knows its number of occurrences
+        'atom_applies_predicate': ('none', 'none'),
+        'term_applies_function': ('none', 'none'),
+        'atom_applies_on_argument': ('none', 'right'),
+        'atom_applies_on_term': ('both', 'both'),
+        'term_applies_on_argument': ('none', 'right'),
+        'term_applies_on_term': ('both', 'both'),
+        'equality_equalizes_argument': ('none', 'none'),
+        'equality_equalizes_term': ('right', 'none'),
+        # argument->term: no normalization so that the term knows how many times it occurs (term sharing)
+        'argument_is_term': ('none', 'none'),
+        'argument_precedes_argument': ('none', 'none')
+    }
+
+    @classmethod
+    def conv_norm(cls, etype):
+        orientation = 0
+        split = etype.rsplit(sep='_', maxsplit=1)
+        if split[1] == 'self':
+            return 'none'
+        if split[1] == 'inverse':
+            etype = split[0]
+            orientation = 1
+        split = etype.rsplit(sep='_', maxsplit=1)
+        if split[0] == 'clause_contains_atom':
+            etype = split[0]
+        return cls.etype_norms[etype][orientation]
+
     @classmethod
     @functools.lru_cache(maxsize=1)
     def ntype_pair_to_etype(cls):

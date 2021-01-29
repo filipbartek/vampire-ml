@@ -1,6 +1,8 @@
 import dgl.nn.tensorflow as dglnn
 import tensorflow as tf
 
+from proving.formula_visitor import FormulaVisitor
+
 dtype_tf_float = tf.float32
 
 
@@ -32,11 +34,11 @@ class GCN(tf.keras.layers.Layer):
         stype_feats = ntype_embedding_lengths
         dtype_feats = {ntype: args.message_size for ntype in ntypes}
 
-        def create_module(in_feats, out_feats, name):
+        def create_module(in_feats, out_feats, norm, name):
             # We assume that there are no 0-in-degree nodes in any input graph.
             # This holds for the standard graphification scheme because all symbols have loops and all the other nodes
             # have at least one in-edge from another node.
-            return GraphConv(in_feats, out_feats, norm=args.conv_norm, dropout=args.dropout.hidden, constraint=constraint,
+            return GraphConv(in_feats, out_feats, norm=norm, dropout=args.dropout.hidden, constraint=constraint,
                              name=name, activation=activation, allow_zero_in_degree=True)
 
         layer_norm_ntypes = None
@@ -52,7 +54,12 @@ class GCN(tf.keras.layers.Layer):
                 if dtype in contributing_dtypes:
                     contributing_stypes.add(stype)
                     if etype not in mods:
-                        mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], f'layer_{layer_i}/{etype}')
+                        if args.conv_norm is not None:
+                            norm = args.conv_norm
+                        else:
+                            norm = FormulaVisitor.conv_norm(etype)
+                        mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], norm,
+                                                    f'layer_{layer_i}/{etype}')
             if args.layer_norm:
                 layer_norm_ntypes = contributing_dtypes
             layers_reversed.append(HeteroGraphConv(mods, residual=args.residual, layer_norm_ntypes=layer_norm_ntypes,
