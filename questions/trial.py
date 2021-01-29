@@ -24,14 +24,17 @@ def run(params, state, monitor='val_binary_accuracy', optuna_trial=None):
     else:
         raise ValueError(f'Unsupported symbol cost model: {params.symbol_cost.model}')
 
+    model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+
+    # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
+    state.tensorboard.set_model(model_logit)
+
     if state.symbol_cost_evaluation_callback is not None and state.symbol_cost_evaluation_callback.start <= -1:
         print('Evaluating symbol cost model before first training epoch...')
         logs = state.symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
         print(logs)
 
     if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-        model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-
         Optimizer = {
             'sgd': tf.keras.optimizers.SGD,
             'adam': tf.keras.optimizers.Adam,
@@ -49,9 +52,6 @@ def run(params, state, monitor='val_binary_accuracy', optuna_trial=None):
         if params.load_checkpoint is not None:
             model_logit.load_weights(hydra.utils.to_absolute_path(params.load_checkpoint))
             logging.info(f'Checkpoint loaded: {params.load_checkpoint}')
-
-        # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
-        state.tensorboard.set_model(model_logit)
 
         if params.initial_eval:
             print('Initial evaluation of question logit model...')
