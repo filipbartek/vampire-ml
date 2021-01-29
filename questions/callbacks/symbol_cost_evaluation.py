@@ -138,7 +138,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         'problem/count/eval': count_filtered,
                         'problem/count/valid': len(records_df),
                         'success/count/mean': df_success.sum(axis=0).mean(),
-                        'success/count/std': df_success.sum(axis=0).std(),
+                        'success/count/std': np.std(df_success.sum(axis=0)),
                         'success/rate/mean': df_success.mean(axis=0).mean()
                     }
                     for k, v in res.items():
