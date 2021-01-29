@@ -145,9 +145,10 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                     for k, v in res.items():
                         logs[f'{dataset_name}/{cat_name}/{k}'] = v
                         tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
-                    for column_name in ['symbols', 'precedence_cost']:
-                        values = records_df[column_name]
-                        tf.summary.histogram(f'{summary_name}/{column_name}', values, step=epoch)
+                    if not self.baseline:
+                        for column_name in ['symbols', 'precedence_cost']:
+                            values = records_df[column_name]
+                            tf.summary.histogram(f'{summary_name}/{column_name}', values, step=epoch)
                     for column_name in ['time_elapsed', 'saturation_iterations']:
                         values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
                         tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
