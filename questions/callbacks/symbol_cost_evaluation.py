@@ -105,8 +105,9 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
             else:
                 df_data.update({
                     (k, 'mean'): df.mean(axis=1),
-                    (k, 'std'): df.std(axis=1),
-                    (k, 'variation'): scipy.stats.variation(df.to_numpy(dtype=np.float), axis=1)
+                    # `np.std` handles NaNs gracefully, unlike `pd.DataFrame.std`.
+                    (k, 'std'): np.std(df, axis=1),
+                    (k, 'variation'): scipy.stats.variation(df.to_numpy(dtype=np.float, na_value=np.nan), axis=1)
                 })
                 if k == 'memory_used':
                     df_data[k, 'max'] = df.max(axis=1)
