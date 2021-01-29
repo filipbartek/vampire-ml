@@ -26,3 +26,5 @@ else
 fi
 
 export DGLBACKEND=tensorflow
+
+export HYDRA_FULL_ERROR=1
