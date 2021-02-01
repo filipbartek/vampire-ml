@@ -3,6 +3,7 @@ binpacking
 dgl
 flatten-dict
 guppy3
+hydra-core
 joblib
 matplotlib
 memory-profiler

@@ -1,0 +1,97 @@
+# Choices: INFO, DEBUG
+log_level: INFO
+
+run_eagerly: false
+
+experiment_name: null
+
+# Python default is 1000. 10000 is enough to parse all TPTP problems.
+recursion_limit: 10000
+
+logs_dir: logs
+
+# List of problem path glob patterns
+problem: null
+
+# List of problem names. Overrides the option `problem`.
+problems: null
+
+max_problems: null
+validation_split: 0.5
+
+train_batch_size: 128
+val_batch_size: 256
+
+# Options passed to Vampire.
+# Run `vampire --show_options on --show_experimental_options on` to print the available options.
+# Example: {time_limit: 10}
+solver_options: {}
+solver_timeout: 20
+clausifier_options: {}
+
+jobs: 1
+
+problems_train: null
+problems_validation: null
+
+questions_dir_legacy: null
+questions_dir: null
+questions_randomize:
+  - predicate
+hoeffding_exponent: 4.0
+questions_per_batch: 1000
+questions_per_problem: null
+questions: null
+
+symbol_type: predicate
+
+profile_batch: 0
+
+solver_eval_start: null
+solver_eval_step: null
+solver_eval_val_problems: 1000
+solver_eval_train_problems: 1000
+solver_eval_train_without_questions: false
+solver_eval_batch_size: 1000
+solver_eval_iterations: 1
+problem_set: []
+
+# Choices: composite, direct, baseline
+symbol_cost_model: composite
+# Choices: gcn, simple
+symbol_embedding_model: gcn
+
+# GCN
+max_num_nodes: 100000
+max_norm: null
+depth: 4
+message_size: 64
+# Choices: both, right, none
+conv_norm: both
+no_residual: false
+no_layer_norm: false
+dropout_input: null
+dropout_hidden: null
+
+# Number of units in the hidden layer
+embedding_to_cost_hidden_layer: null
+embedding_to_cost_l1: 0.0
+embedding_to_cost_l2: 0.0
+
+# Factor of L2 regularization penalty on symbol cost values
+symbol_cost_l2: 0.0
+
+# List of 12 weights of the simple model
+simple_model_kernel: null
+
+# Choices: adam, sgd, rmsprop
+optimizer: adam
+learning_rate: 0.001
+
+# Path to a checkpoint to restore
+restore_checkpoint: null
+
+no_initial_eval: false
+initial_evaluation_extra: false
+
+epochs: 1000

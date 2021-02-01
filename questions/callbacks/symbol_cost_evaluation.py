@@ -19,7 +19,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     name = 'solver_eval'
 
     def __init__(self, csv_filename, solver, problems, symbol_type, splits, batch_size=1, start=-1, step=1,
-                 iterations=1, output_dir=None, tensorboard=None,
+                 iterations=1, tensorboard=None,
                  problem_categories=None, parallel=None, cache=False, baseline=False, train_without_questions=False,
                  **kwargs):
         super().__init__(csv_filename, **kwargs)
@@ -34,7 +34,6 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         self.start = start
         self.step = step
         self.iterations = iterations
-        self.output_dir = output_dir
         self.tensorboard = tensorboard
         self.splits = splits  # validation, train
         if problem_categories is None:
@@ -151,9 +150,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                     for column_name in ['time_elapsed', 'saturation_iterations']:
                         values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
                         tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
-        if self.output_dir is not None:
-            output_dir = os.path.join(self.output_dir, self.name, symbol_cost_model.name, f'epoch_{epoch}')
-            save_df(main_df, os.path.join(output_dir, 'problems'))
+        output_dir = os.path.join(self.name, symbol_cost_model.name, f'epoch_{epoch}')
+        save_df(main_df, os.path.join(output_dir, 'problems'))
 
         with self.tensorboard.train_writer.as_default():
             tf.summary.scalar('time/epoch/solver_eval', tf.timestamp() - time_begin, step=epoch)
