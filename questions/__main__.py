@@ -342,17 +342,8 @@ def main(cfg: DictConfig) -> None:
                     logging.info(f'Number of problems graphified: {len(graphs)}')
                     save_df(graphs_df, 'graphs')
 
-                    constraint = None
-                    if cfg.gcn.max_norm is not None:
-                        constraint = tf.keras.constraints.max_norm(cfg.gcn.max_norm)
-                    gcn = models.symbol_features.GCN(graphifier.canonical_etypes, graphifier.ntype_in_degrees,
-                                                     graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type],
-                                                     embedding_size=cfg.gcn.message_size, depth=cfg.gcn.depth,
-                                                     conv_norm=cfg.gcn.conv_norm,
-                                                     residual=cfg.gcn.residual, layer_norm=cfg.gcn.layer_norm,
-                                                     dropout_input=cfg.gcn.dropout.input,
-                                                     dropout_hidden=cfg.gcn.dropout.hidden,
-                                                     constraint=constraint)
+                    gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
+                                                     graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
                     model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, cfg.symbol_type, gcn)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {cfg.symbol_embedding_model}')
