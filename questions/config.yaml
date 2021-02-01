@@ -68,8 +68,8 @@ depth: 4
 message_size: 64
 # Choices: both, right, none
 conv_norm: both
-no_residual: false
-no_layer_norm: false
+residual: true
+layer_norm: true
 dropout_input: null
 dropout_hidden: null
 
@@ -91,7 +91,7 @@ learning_rate: 0.001
 # Path to a checkpoint to restore
 restore_checkpoint: null
 
-no_initial_eval: false
+initial_eval: true
 initial_evaluation_extra: false
 
 epochs: 1000

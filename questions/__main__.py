@@ -362,7 +362,7 @@ def main(args: DictConfig) -> None:
                                                      graphifier.ntype_feat_sizes, output_ntypes=[args.symbol_type],
                                                      embedding_size=args.message_size, depth=args.depth,
                                                      conv_norm=args.conv_norm,
-                                                     residual=not args.no_residual, layer_norm=not args.no_layer_norm,
+                                                     residual=args.residual, layer_norm=args.layer_norm,
                                                      dropout_input=args.dropout_input,
                                                      dropout_hidden=args.dropout_hidden,
                                                      constraint=constraint)
@@ -418,7 +418,7 @@ def main(args: DictConfig) -> None:
             # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
             tensorboard.set_model(model_logit)
 
-            if not args.no_initial_eval:
+            if not args.initial_eval:
                 print('Initial evaluation of question logit model...')
                 for k in question_batches:
                     print(f'Evaluating logit model on {k} questions...')
