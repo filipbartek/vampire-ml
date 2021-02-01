@@ -133,6 +133,18 @@ clausifier:
     time_limit: 300
   timeout: null
 
+neptune:
+  project_qualified_name: filipbartek/vampire-ml
+  experiment:
+    name: null
+    tags: null
+    upload_source_files:
+      - requirements.txt
+      - questions/config.yaml
+      - questions/**/*.py
+      - proving/**/*.py
+      - vampire_ml/**/*.py
+
 tf:
   run_eagerly: false
 

@@ -66,13 +66,12 @@ def main(cfg: DictConfig) -> None:
         sys.setrecursionlimit(cfg.recursion_limit)
 
     # Neptune
-    neptune.init(project_qualified_name='filipbartek/vampire-ml')
-    neptune.create_experiment(name=cfg.experiment_name, params=flatten_config(cfg),
-                              upload_source_files=['requirements.txt',
-                                                   'questions/**/*.py',
-                                                   'proving/**/*.py',
-                                                   'vampire_ml/**/*.py'],
-                              logger=logging.getLogger())
+    neptune.init(project_qualified_name=cfg.neptune.project_qualified_name)
+    neptune.create_experiment(params=flatten_config(cfg), logger=logging.getLogger(),
+                              upload_source_files=map(hydra.utils.to_absolute_path,
+                                                      cfg.neptune.experiment.upload_source_files),
+                              **{k: v for k, v in OmegaConf.to_container(cfg.neptune.experiment).items() if
+                                 k != 'upload_source_files'})
     neptune_tensorboard.integrate_with_tensorflow(prefix=True)
 
     experiment_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
