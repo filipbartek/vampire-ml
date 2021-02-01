@@ -32,6 +32,7 @@ class Graphifier:
         self.equality = equality
         self.max_number_of_nodes = max_number_of_nodes
         self.output_ntypes = output_ntypes
+        self.version = 1
 
     @property
     def canonical_etypes(self):
@@ -97,7 +98,8 @@ class Graphifier:
 
     @functools.lru_cache(maxsize=1)
     def get_config(self):
-        attrs = ('clausifier', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes', 'output_ntypes')
+        attrs = (
+        'version', 'clausifier', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes', 'output_ntypes')
         return {k: getattr(self, k) for k in attrs}
 
     def __repr__(self):
