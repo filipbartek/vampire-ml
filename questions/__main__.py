@@ -128,7 +128,7 @@ def main(args: DictConfig) -> None:
 
     clausifier_options = {**default_options, 'time_limit': '300'}
     clausifier_options.update(args.clausifier.options)
-    clausifier = Solver(options=clausifier_options)
+    clausifier = Solver(options=clausifier_options, timeout=args.clausifier.timeout)
 
     solver_options = {
         **default_options,

@@ -106,6 +106,7 @@ solver:
   timeout: 20
 clausifier:
   options: {}
+  timeout: null
 
 tf:
   run_eagerly: false
