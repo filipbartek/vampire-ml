@@ -74,10 +74,6 @@ def main(cfg: DictConfig) -> None:
                                  k != 'upload_source_files'})
     neptune_tensorboard.integrate_with_tensorflow(prefix=True)
 
-    experiment_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    if cfg.experiment_name is not None:
-        experiment_id = os.path.join(experiment_id, cfg.experiment_name)
-
     logging.info(f'Working directory: {os.getcwd()}')
 
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
@@ -87,6 +83,7 @@ def main(cfg: DictConfig) -> None:
 
     logging.info(f'Joblib cache location: {memory.location}')
 
+    experiment_id = datetime.datetime.now().strftime("%Y-%m-%d/%H-%M-%S")
     log_dir = os.path.join(hydra.utils.to_absolute_path(cfg.tb.logdir), experiment_id)
     logging.info(f'Log directory: {log_dir}')
     writer_train = tf.summary.create_file_writer(os.path.join(log_dir, 'train'))

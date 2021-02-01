@@ -1,7 +1,5 @@
 jobs: 1
 
-experiment_name: null
-
 symbol_type: predicate
 
 
