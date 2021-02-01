@@ -106,7 +106,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                 df_data.update({
                     (k, 'mean'): df.mean(axis=1),
                     (k, 'std'): np.std(df, axis=1),
-                    (k, 'variation'): scipy.stats.variation(df.to_numpy(dtype=np.float), axis=1)
+                    (k, 'variation'): scipy.stats.variation(df.to_numpy(dtype=np.float, na_value=np.nan), axis=1)
                 })
                 if k == 'memory_used':
                     df_data[k, 'max'] = df.max(axis=1)
@@ -138,7 +138,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         'problem/count/eval': count_filtered,
                         'problem/count/valid': len(records_df),
                         'success/count/mean': df_success.sum(axis=0).mean(),
-                        'success/count/std': df_success.sum(axis=0).std(),
+                        'success/count/std': np.std(df_success.sum(axis=0)),
                         'success/rate/mean': df_success.mean(axis=0).mean()
                     }
                     for k, v in res.items():
