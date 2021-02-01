@@ -301,20 +301,16 @@ def main(cfg: DictConfig) -> None:
                     problem_categories[cat_name] = [l.rstrip('\n') for l in f]
 
             symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
+                cfg.solver_eval,
                 'epochs_solver_eval.csv',
                 solver=solver,
                 problems=solver_eval_problems,
                 symbol_type=cfg.symbol_type,
                 splits={k: list(map(py_str, v)) for k, v in problems.items()},
-                batch_size=cfg.solver_eval.batch_size,
-                start=cfg.solver_eval.start,
-                step=cfg.solver_eval.step,
-                iterations=cfg.solver_eval.iterations,
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,
                 baseline=cfg.symbol_cost.model == 'baseline',
-                parallel=parallel,
-                train_without_questions=cfg.solver_eval.train_without_questions)
+                parallel=parallel)
             cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {cfg.symbol_cost.model}')

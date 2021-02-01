@@ -98,6 +98,7 @@ solver_eval:
   start: null
   step: null
   iterations: 1
+  cache: false
   problems:
     train: 1000
     val: 1000

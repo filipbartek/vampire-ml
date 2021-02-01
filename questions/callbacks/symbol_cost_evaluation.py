@@ -18,22 +18,22 @@ from vampire_ml.results import save_df
 class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     name = 'solver_eval'
 
-    def __init__(self, csv_filename, solver, problems, symbol_type, splits, batch_size=1, start=-1, step=1,
-                 iterations=1, tensorboard=None,
-                 problem_categories=None, parallel=None, cache=False, baseline=False, train_without_questions=False,
-                 **kwargs):
+    def __init__(self, cfg, csv_filename, solver, problems, symbol_type, splits, tensorboard=None,
+                 problem_categories=None, parallel=None, baseline=False, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.solver = solver
         self.problems = problems
-        self.problems_dataset = tf.data.Dataset.from_tensor_slices(problems).batch(batch_size)
+        self.problems_dataset = tf.data.Dataset.from_tensor_slices(problems).batch(cfg.batch_size)
         self.symbol_type = symbol_type
+        start = cfg.start
+        step = cfg.step
         if start is None and step is not None:
             start = -1
         elif step is None and start is not None:
             step = 1
         self.start = start
         self.step = step
-        self.iterations = iterations
+        self.iterations = cfg.iterations
         self.tensorboard = tensorboard
         self.splits = splits  # validation, train
         if problem_categories is None:
@@ -42,9 +42,9 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         if parallel is None:
             parallel = joblib.Parallel(verbose=10)
         self.parallel = parallel
-        self.cache = cache
+        self.cache = cfg.cache
         self.baseline = baseline
-        self.train_without_questions = train_without_questions
+        self.train_without_questions = cfg.train_without_questions
 
     def on_epoch_end(self, epoch, logs=None):
         logs = logs or {}
