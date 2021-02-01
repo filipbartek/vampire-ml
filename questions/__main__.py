@@ -19,7 +19,7 @@ import pandas as pd
 import scipy
 import seaborn as sns
 import tensorflow as tf
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
@@ -47,19 +47,27 @@ def save_problems(problems, filename):
     logging.info(f'List of problems saved: {filename}')
 
 
+def flatten_config(cfg):
+    return flatten_dict(OmegaConf.to_container(cfg))
+
+
+def flatten_dict(d):
+    return pd.json_normalize(d).to_dict(orient='records')[0]
+
+
 @hydra.main(config_name='config')
 def main(args: DictConfig) -> None:
     logging.basicConfig(level=args.log_level)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
     tf.random.set_seed(0)
-    tf.config.run_functions_eagerly(args.run_eagerly)
+    tf.config.run_functions_eagerly(args.tf.run_eagerly)
     tf.summary.experimental.set_step(0)
     if args.recursion_limit is not None:
         sys.setrecursionlimit(args.recursion_limit)
 
     # Neptune
     neptune.init(project_qualified_name='filipbartek/vampire-ml')
-    neptune.create_experiment(name=args.experiment_name, params=args.__dict__,
+    neptune.create_experiment(name=args.experiment_name, params=flatten_config(args),
                               upload_source_files=['requirements.txt',
                                                    'questions/**/*.py',
                                                    'proving/**/*.py',
@@ -80,7 +88,7 @@ def main(args: DictConfig) -> None:
 
     logging.info(f'Joblib cache location: {memory.location}')
 
-    log_dir = os.path.join(hydra.utils.to_absolute_path(args.logs_dir), experiment_id)
+    log_dir = os.path.join(hydra.utils.to_absolute_path(args.tb.logdir), experiment_id)
     logging.info(f'Log directory: {log_dir}')
     writer_train = tf.summary.create_file_writer(os.path.join(log_dir, 'train'))
     with writer_train.as_default():
@@ -93,7 +101,7 @@ def main(args: DictConfig) -> None:
         tf.summary.text('hostname', socket.gethostname())
         logging.info(f'Hostname: {socket.gethostname()}')
 
-    patterns = args.problem
+    patterns = args.problems.patterns
     if patterns is None or len(patterns) == 0:
         patterns = ['**/*-*.p', '**/*+*.p']
         logging.info('Defaulting problem patterns to: %s', patterns)
@@ -119,7 +127,7 @@ def main(args: DictConfig) -> None:
     default_options = {'encode': 'on'}
 
     clausifier_options = {**default_options, 'time_limit': '300'}
-    clausifier_options.update(args.clausifier_options)
+    clausifier_options.update(args.clausifier.options)
     clausifier = Solver(options=clausifier_options)
 
     solver_options = {
@@ -134,28 +142,28 @@ def main(args: DictConfig) -> None:
         'symbol_precedence': 'frequency',
         'time_limit': '10'
     }
-    solver_options.update(args.solver_options)
-    solver = Solver(options=solver_options, timeout=args.solver_timeout)
+    solver_options.update(args.solver.options)
+    solver = Solver(options=solver_options, timeout=args.solver.timeout)
 
     with joblib.parallel_backend('threading', n_jobs=args.jobs), joblib.Parallel(verbose=10) as parallel:
         # We need to split problems first and then collect questions for each of the datasets
         # because not all problems have questions and we only generate questions samples
         # for problems with at least one question.
-        if args.problems_train is not None and args.problems_validation is not None:
+        if args.problems.train is not None and args.problems.val is not None:
             problems = {
-                'val': tf.data.TextLineDataset(hydra.utils.to_absolute_path(args.problems_validation)),
-                'train': tf.data.TextLineDataset(hydra.utils.to_absolute_path(args.problems_train))
+                'val': tf.data.TextLineDataset(hydra.utils.to_absolute_path(args.problems.val)),
+                'train': tf.data.TextLineDataset(hydra.utils.to_absolute_path(args.problems.train))
             }
             problems_all = problems['val'].concatenate(problems['train'])
         else:
             logging.info('Collecting available problems...')
-            if args.problems is None:
+            if args.problems.names is None:
                 problems_all = datasets.problems.get_dataset(patterns)
             else:
-                problems_all = tf.data.TextLineDataset(args.problems)
+                problems_all = tf.data.TextLineDataset(args.problems.names)
             save_problems(problems_all, os.path.join('problems', 'all.txt'))
-            if args.max_problems is not None:
-                problems_all = problems_all.take(args.max_problems)
+            if args.problems.max_count is not None:
+                problems_all = problems_all.take(args.problems.max_count)
             save_problems(problems_all, os.path.join('problems', 'taken.txt'))
             n_problems = cardinality_finite(problems_all)
             logging.info('Number of problems available: %d', n_problems)
@@ -179,8 +187,8 @@ def main(args: DictConfig) -> None:
                 problem_records[pp][f'dataset_{k}'] = True
 
         with writer_train.as_default():
-            if args.questions_dir_legacy is None:
-                questions_dir = args.questions_dir
+            if args.questions.dir_legacy is None:
+                questions_dir = args.questions.dir
                 if questions_dir is None:
                     questions_dir = 'questions'
                 else:
@@ -190,30 +198,30 @@ def main(args: DictConfig) -> None:
                     logging.info('Generator loaded.')
                     if any(l != r for l, r in itertools.zip_longest(generator.problems, map(py_str, problems_all))):
                         raise RuntimeError('Loaded generator uses different problems.')
-                    if set(generator.randomize) != set(args.questions_randomize):
+                    if set(generator.randomize) != set(args.questions.randomize):
                         raise RuntimeError(
-                            f'Loaded generator randomizes different symbol type. Expected: {args.questions_randomize}. Actual: {generator.randomize}.')
+                            f'Loaded generator randomizes different symbol type. Expected: {args.questions.randomize}. Actual: {generator.randomize}.')
                 except FileNotFoundError:
                     generator = Generator.fresh(list(map(py_str, problems_all)), clausifier,
-                                                randomize=args.questions_randomize,
-                                                hoeffding_exponent=args.hoeffding_exponent)
+                                                randomize=args.questions.randomize,
+                                                hoeffding_exponent=args.questions.hoeffding_exponent)
                     logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
                     questions_all = generator.generate(solver,
-                                                       num_questions_per_batch=args.questions_per_batch,
-                                                       num_questions_per_problem=args.questions_per_problem,
+                                                       num_questions_per_batch=args.questions.batch_size,
+                                                       num_questions_per_problem=args.questions.max_per_problem,
                                                        dir=questions_dir,
-                                                       num_questions=args.questions)
+                                                       num_questions=args.questions.max_count)
             else:
                 # TODO?: Only load questions if the batches are not cached.
                 questions_file = os.path.join(hydra.utils.to_absolute_path('cache'),
                                               f'symbol_type_{args.symbol_type}',
-                                              f'max_questions_per_problem_{args.questions_per_problem}',
+                                              f'max_questions_per_problem_{args.questions.max_per_problem}',
                                               'questions.pkl')
 
                 # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
-                questions_all = datasets.questions.load_questions.load(questions_file, args.questions_dir_legacy,
-                                                                       args.questions_per_problem)
+                questions_all = datasets.questions.load_questions.load(questions_file, args.questions.dir_legacy,
+                                                                       args.questions.max_per_problem)
 
             question_counts = [q.shape[0] for q in questions_all.values()]
             signature_lengths = [q.shape[1] for q in questions_all.values()]
@@ -255,7 +263,7 @@ def main(args: DictConfig) -> None:
             q = datasets.questions.individual.dict_to_dataset(questions_all, p).cache()
             problems_to_graphify.update(py_str(e['problem']) for e in q)
             questions[k] = q
-            batch_size = {'train': args.train_batch_size, 'val': args.val_batch_size}[k]
+            batch_size = {'train': args.batch_size.train, 'val': args.batch_size.val}[k]
             question_batches[k] = datasets.questions.batch.batch(q, batch_size).cache()
             problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
             logging.info(f'Number of {k} problems with questions: {len(problems_with_questions[k])}')
@@ -273,7 +281,7 @@ def main(args: DictConfig) -> None:
         os.makedirs(success_ckpt_dir, exist_ok=True)
         for f in glob.iglob(os.path.join(success_ckpt_dir, 'weights.*.tf.*')):
             os.remove(f)
-        tensorboard = callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.profile_batch, histogram_freq=1,
+        tensorboard = callbacks.TensorBoard(log_dir=log_dir, profile_batch=args.tb.profile_batch, histogram_freq=1,
                                             embeddings_freq=1)
         cbs = [
             tensorboard,
@@ -290,23 +298,23 @@ def main(args: DictConfig) -> None:
         ]
 
         symbol_cost_evaluation_callback = None
-        if args.solver_eval_start is not None or args.solver_eval_step is not None:
+        if args.solver_eval.start is not None or args.solver_eval.step is not None:
             solver_eval_problems = problems['val']
-            if args.solver_eval_val_problems is not None and args.solver_eval_val_problems >= 0:
-                solver_eval_problems = solver_eval_problems.take(args.solver_eval_val_problems)
-            if args.solver_eval_train_without_questions:
+            if args.solver_eval.problems.val is not None and args.solver_eval.problems.val >= 0:
+                solver_eval_problems = solver_eval_problems.take(args.solver_eval.problems.val)
+            if args.solver_eval.train_without_questions:
                 solver_eval_problems_train = problems['train']
             else:
                 solver_eval_problems_train = tf.data.Dataset.from_tensor_slices(problems_with_questions['train'])
-            if args.solver_eval_train_problems is not None and args.solver_eval_train_problems >= 0:
-                solver_eval_problems_train = solver_eval_problems_train.take(args.solver_eval_train_problems)
+            if args.solver_eval.problems.train is not None and args.solver_eval.problems.train >= 0:
+                solver_eval_problems_train = solver_eval_problems_train.take(args.solver_eval.problems.train)
             if cardinality_finite(solver_eval_problems_train, 1) >= 1:
                 solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
             solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
             problems_to_graphify.update(solver_eval_problems)
 
             problem_categories = {'all': None, 'with_questions': questions_all.keys()}
-            for cat_name, cat_filename in args.problem_set:
+            for cat_name, cat_filename in args.solver_eval.problem_set:
                 with open(cat_filename) as f:
                     problem_categories[cat_name] = [l.rstrip('\n') for l in f]
 
@@ -316,29 +324,29 @@ def main(args: DictConfig) -> None:
                 problems=solver_eval_problems,
                 symbol_type=args.symbol_type,
                 splits={k: list(map(py_str, v)) for k, v in problems.items()},
-                batch_size=args.solver_eval_batch_size,
-                start=args.solver_eval_start,
-                step=args.solver_eval_step,
-                iterations=args.solver_eval_iterations,
+                batch_size=args.solver_eval.batch_size,
+                start=args.solver_eval.start,
+                step=args.solver_eval.step,
+                iterations=args.solver_eval.iterations,
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,
-                baseline=args.symbol_cost_model == 'baseline',
+                baseline=args.symbol_cost.model == 'baseline',
                 parallel=parallel,
-                train_without_questions=args.solver_eval_train_without_questions)
+                train_without_questions=args.solver_eval.train_without_questions)
             cbs.append(symbol_cost_evaluation_callback)
 
-        logging.info(f'Symbol cost model: {args.symbol_cost_model}')
-        if args.symbol_cost_model == 'baseline':
+        logging.info(f'Symbol cost model: {args.symbol_cost.model}')
+        if args.symbol_cost.model == 'baseline':
             model_symbol_cost = models.symbol_cost.Baseline()
         else:
-            if args.symbol_cost_model == 'direct':
+            if args.symbol_cost.model == 'direct':
                 model_symbol_cost = models.symbol_cost.Direct(questions_all)
-            elif args.symbol_cost_model == 'composite':
+            elif args.symbol_cost.model == 'composite':
                 embedding_to_cost = None
                 logging.info(f'Symbol embedding model: {args.symbol_embedding_model}')
                 if args.symbol_embedding_model == 'simple':
                     model_symbol_embedding = models.symbol_features.Simple(clausifier, args.symbol_type)
-                    if args.embedding_to_cost_hidden_layer is None:
+                    if args.embedding_to_cost.hidden_units is None:
                         cbs.append(callbacks.Weights(tensorboard))
                     if args.simple_model_kernel is not None:
                         kernel = np.fromstring(args.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
@@ -347,7 +355,7 @@ def main(args: DictConfig) -> None:
                                                                   kernel_initializer=tf.constant_initializer(kernel))
 
                 elif args.symbol_embedding_model == 'gcn':
-                    graphifier = Graphifier(clausifier, max_number_of_nodes=args.max_num_nodes)
+                    graphifier = Graphifier(clausifier, max_number_of_nodes=args.gcn.max_problem_nodes)
                     # problems_to_graphify = set(map(py_str, problems_all))
                     graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
                     for problem_name, rec in graphs_df.iterrows():
@@ -356,41 +364,41 @@ def main(args: DictConfig) -> None:
                     save_df(graphs_df, 'graphs')
 
                     constraint = None
-                    if args.max_norm is not None:
-                        constraint = tf.keras.constraints.max_norm(args.max_norm)
+                    if args.gcn.max_norm is not None:
+                        constraint = tf.keras.constraints.max_norm(args.gcn.max_norm)
                     gcn = models.symbol_features.GCN(graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                                      graphifier.ntype_feat_sizes, output_ntypes=[args.symbol_type],
-                                                     embedding_size=args.message_size, depth=args.depth,
-                                                     conv_norm=args.conv_norm,
-                                                     residual=args.residual, layer_norm=args.layer_norm,
-                                                     dropout_input=args.dropout_input,
-                                                     dropout_hidden=args.dropout_hidden,
+                                                     embedding_size=args.gcn.message_size, depth=args.gcn.depth,
+                                                     conv_norm=args.gcn.conv_norm,
+                                                     residual=args.gcn.residual, layer_norm=args.gcn.layer_norm,
+                                                     dropout_input=args.gcn.dropout.input,
+                                                     dropout_hidden=args.gcn.dropout.hidden,
                                                      constraint=constraint)
                     model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, args.symbol_type, gcn)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {args.symbol_embedding_model}')
                 if embedding_to_cost is None:
-                    if args.embedding_to_cost_hidden_layer is None:
+                    if args.embedding_to_cost.hidden_units is None:
                         embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
                                                                   kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                                      l1=args.embedding_to_cost_l1,
-                                                                      l2=args.embedding_to_cost_l2))
+                                                                      l1=args.embedding_to_cost.l1,
+                                                                      l2=args.embedding_to_cost.l2))
                     else:
                         embedding_to_cost = tf.keras.Sequential([
-                            tf.keras.layers.Dense(args.embedding_to_cost_hidden_layer,
+                            tf.keras.layers.Dense(args.embedding_to_cost.hidden_units,
                                                   activation='relu',
                                                   kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                      l1=args.embedding_to_cost_l1,
-                                                      l2=args.embedding_to_cost_l2)),
+                                                      l1=args.embedding_to_cost.l1,
+                                                      l2=args.embedding_to_cost.l2)),
                             tf.keras.layers.Dense(1,
                                                   kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                      l1=args.embedding_to_cost_l1,
-                                                      l2=args.embedding_to_cost_l2))
+                                                      l1=args.embedding_to_cost.l1,
+                                                      l2=args.embedding_to_cost.l2))
                         ], name='embedding_to_cost')
                 model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
-                                                                 l2=args.symbol_cost_l2)
+                                                                 l2=args.symbol_cost.l2)
             else:
-                raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost_model}')
+                raise ValueError(f'Unsupported symbol cost model: {args.symbol_cost.model}')
 
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
                 'problems')
@@ -423,13 +431,13 @@ def main(args: DictConfig) -> None:
                 for k in question_batches:
                     print(f'Evaluating logit model on {k} questions...')
                     if k == 'train':
-                        x = datasets.questions.batch.batch(questions[k], args.val_batch_size)
+                        x = datasets.questions.batch.batch(questions[k], args.batch_size.val)
                     else:
                         x = question_batches[k]
                     model_logit.evaluate(x)
 
             if args.initial_evaluation_extra:
-                initial_evaluation(model_logit, questions_all, problems_all, args.train_batch_size)
+                initial_evaluation(model_logit, questions_all, problems_all, args.batch_size.train)
 
             if args.epochs >= 1:
                 print('Training...')
