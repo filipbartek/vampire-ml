@@ -84,6 +84,11 @@ optimizer: adam
 learning_rate: 0.001
 epochs: 1000
 
+early_stopping:
+  monitor: val_binary_accuracy
+  patience: 100
+  baseline: 0.5
+
 
 # Evaluation
 
