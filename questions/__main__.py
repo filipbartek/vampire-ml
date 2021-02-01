@@ -102,9 +102,6 @@ def main(cfg: DictConfig) -> None:
         logging.info(f'Hostname: {socket.gethostname()}')
 
     patterns = cfg.problems.patterns
-    if patterns is None or len(patterns) == 0:
-        patterns = ['**/*-*.p', '**/*+*.p']
-        logging.info('Defaulting problem patterns to: %s', patterns)
 
     def normalize_pattern(pattern):
         if re.match(

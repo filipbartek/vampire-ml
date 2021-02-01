@@ -9,7 +9,10 @@ symbol_type: predicate
 
 problems:
   # List of problem path glob patterns
-  patterns: null
+  # TPTP problem naming: http://www.tptp.org/TPTP/TR/TPTPTR.shtml
+  patterns:
+    - "**/*-*.p" # CNF
+    - "**/*+*.p" # FOF
   # List of problem names. Overrides the option `problem`.
   names: null
   train: null
