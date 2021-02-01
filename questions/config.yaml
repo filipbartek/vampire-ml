@@ -62,8 +62,9 @@ gcn:
   max_problem_nodes: 100000
 
 embedding_to_cost:
-  # Number of units in the hidden layer
-  hidden_units: null
+  hidden:
+    units: 0
+    activation: relu
   l1: 0.0
   l2: 0.0
 

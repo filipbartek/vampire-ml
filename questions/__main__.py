@@ -325,7 +325,7 @@ def main(cfg: DictConfig) -> None:
                 logging.info(f'Symbol embedding model: {cfg.symbol_embedding_model}')
                 if cfg.symbol_embedding_model == 'simple':
                     model_symbol_embedding = models.symbol_features.Simple(clausifier, cfg.symbol_type)
-                    if cfg.embedding_to_cost.hidden_units is None:
+                    if cfg.embedding_to_cost.hidden.units > 0:
                         cbs.append(callbacks.Weights(tensorboard))
                     if cfg.simple_model_kernel is not None:
                         kernel = np.fromstring(cfg.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
@@ -357,15 +357,15 @@ def main(cfg: DictConfig) -> None:
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {cfg.symbol_embedding_model}')
                 if embedding_to_cost is None:
-                    if cfg.embedding_to_cost.hidden_units is None:
+                    if cfg.embedding_to_cost.hidden.units <= 0:
                         embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
                                                                   kernel_regularizer=tf.keras.regularizers.L1L2(
                                                                       l1=cfg.embedding_to_cost.l1,
                                                                       l2=cfg.embedding_to_cost.l2))
                     else:
                         embedding_to_cost = tf.keras.Sequential([
-                            tf.keras.layers.Dense(cfg.embedding_to_cost.hidden_units,
-                                                  activation='relu',
+                            tf.keras.layers.Dense(cfg.embedding_to_cost.hidden.units,
+                                                  activation=cfg.embedding_to_cost.hidden.activation,
                                                   kernel_regularizer=tf.keras.regularizers.L1L2(
                                                       l1=cfg.embedding_to_cost.l1,
                                                       l2=cfg.embedding_to_cost.l2)),
