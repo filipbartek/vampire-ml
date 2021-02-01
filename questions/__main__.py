@@ -121,26 +121,8 @@ def main(cfg: DictConfig) -> None:
 
     patterns = list(map(normalize_pattern, patterns))
 
-    default_options = {'encode': 'on'}
-
-    clausifier_options = {**default_options, 'time_limit': '300'}
-    clausifier_options.update(cfg.clausifier.options)
-    clausifier = Solver(options=clausifier_options, timeout=cfg.clausifier.timeout)
-
-    solver_options = {
-        **default_options,
-        'statistics': 'full',
-        'time_statistics': 'on',
-        'proof': 'off',
-        'avatar': 'off',
-        'saturation_algorithm': 'discount',
-        'age_weight_ratio': '10',
-        'literal_comparison_mode': 'predicate',
-        'symbol_precedence': 'frequency',
-        'time_limit': '10'
-    }
-    solver_options.update(cfg.solver.options)
-    solver = Solver(options=solver_options, timeout=cfg.solver.timeout)
+    clausifier = Solver(**OmegaConf.to_container(cfg.clausifier))
+    solver = Solver(**OmegaConf.to_container(cfg.solver))
 
     with joblib.parallel_backend('threading', n_jobs=cfg.jobs), joblib.Parallel(verbose=10) as parallel:
         # We need to split problems first and then collect questions for each of the datasets

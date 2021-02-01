@@ -105,10 +105,24 @@ solver:
   # Options passed to Vampire.
   # Run `vampire --show_options on --show_experimental_options on` to print the available options.
   # Example: {time_limit: 10}
-  options: {}
+  options:
+    encode: "on"
+    statistics: full
+    time_statistics: "on"
+    proof: "off"
+    avatar: "off"
+    saturation_algorithm: discount
+    age_weight_ratio: 10
+    literal_comparison_mode: predicate
+    symbol_precedence: frequency
+    time_limit: 10
+  # Time in seconds after which each call to Vampire is terminated.
   timeout: 20
+
 clausifier:
-  options: {}
+  options:
+    encode: "on"
+    time_limit: 300
   timeout: null
 
 tf:
