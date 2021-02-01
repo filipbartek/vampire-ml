@@ -383,7 +383,11 @@ def main(cfg: DictConfig) -> None:
                 'adam': tf.keras.optimizers.Adam,
                 'rmsprop': tf.keras.optimizers.RMSprop
             }[cfg.optimizer]
-            optimizer = Optimizer(learning_rate=cfg.learning_rate)
+            # https://arxiv.org/pdf/1706.02677.pdf
+            # https://arxiv.org/abs/1711.00489
+            learning_rate = cfg.learning_rate * cfg.batch_size.train
+            neptune.set_property('learning_rate_scaled', learning_rate)
+            optimizer = Optimizer(learning_rate=learning_rate)
 
             model_logit.compile(optimizer=optimizer)
 

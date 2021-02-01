@@ -79,7 +79,8 @@ restore_checkpoint: null
 
 # Choices: adam, sgd, rmsprop
 optimizer: adam
-learning_rate: 0.001
+# Before training the learning rate is multiplied by `batch_size.train`.
+learning_rate: 0.00001
 epochs: 1000
 
 early_stopping:
