@@ -372,14 +372,17 @@ def main(cfg: DictConfig) -> None:
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
                 'problems')
 
+        model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+
+        # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
+        tensorboard.set_model(model_logit)
+
         if symbol_cost_evaluation_callback is not None and symbol_cost_evaluation_callback.start <= -1:
             print('Evaluating symbol cost model before first training epoch...')
             logs = symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
             print(logs)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
-
             Optimizer = {
                 'sgd': tf.keras.optimizers.SGD,
                 'adam': tf.keras.optimizers.Adam,
@@ -395,9 +398,6 @@ def main(cfg: DictConfig) -> None:
 
             if cfg.restore_checkpoint is not None:
                 model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
-
-            # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
-            tensorboard.set_model(model_logit)
 
             if not cfg.initial_eval:
                 print('Initial evaluation of question logit model...')
