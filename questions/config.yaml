@@ -48,7 +48,7 @@ symbol_embedding_model: gcn
 # GCN
 gcn:
   depth: 4
-  message_size: 64
+  message_size: 16
   activation: relu
   aggregate: sum
   dropout:
