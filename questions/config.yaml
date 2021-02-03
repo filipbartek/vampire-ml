@@ -32,6 +32,7 @@ questions:
   batch_size: 1000
   randomize:
     - predicate
+  normalize: true
 
 
 # Model
