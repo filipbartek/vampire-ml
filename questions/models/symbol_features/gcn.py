@@ -58,10 +58,10 @@ class GCN(tf.keras.layers.Layer):
                 if dtype in contributing_dtypes:
                     contributing_stypes.add(stype)
                     if etype not in mods:
-                        if cfg.conv_norm is not None:
-                            norm = cfg.conv_norm
-                        else:
+                        if cfg.conv_norm == 'custom':
                             norm = FormulaVisitor.conv_norm(etype)
+                        else:
+                            norm = cfg.conv_norm
                         mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], norm,
                                                     f'layer_{layer_i}/{etype}')
             if cfg.layer_norm:

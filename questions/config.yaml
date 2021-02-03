@@ -57,9 +57,9 @@ gcn:
   max_norm: null
   residual: true
   layer_norm: true
-  # If null, use a recommended normalization for each edge type.
-  # Choices: both, right, none
-  conv_norm: null
+  # If 'custom', use a recommended normalization for each edge type.
+  # Choices: both, right, none, custom
+  conv_norm: both
   max_problem_nodes: 100000
 
 embedding_to_cost:
