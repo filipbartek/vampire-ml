@@ -75,18 +75,19 @@ def main(cfg: DictConfig) -> None:
     neptune_tensorboard.integrate_with_tensorflow(prefix=True)
 
     logging.info(f'Working directory: {os.getcwd()}')
+    neptune.set_property('cwd', os.getcwd())
 
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
+    neptune.set_property('recursion_limit', sys.getrecursionlimit())
     logging.info('TensorFlow inter-op parallelism threads: %d', tf.config.threading.get_inter_op_parallelism_threads())
     logging.info('TensorFlow intra-op parallelism threads: %d', tf.config.threading.get_intra_op_parallelism_threads())
     logging.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
+    neptune.set_property('tf.physical_devices', tf.config.experimental.list_physical_devices())
 
     logging.info(f'Joblib cache location: {memory.location}')
+    neptune.set_property('joblib.cache.location', memory.location)
 
-    experiment_id = datetime.datetime.now().strftime("%Y-%m-%d/%H-%M-%S")
-    log_dir = os.path.join(hydra.utils.to_absolute_path(cfg.tb.logdir), experiment_id)
-    logging.info(f'Log directory: {log_dir}')
-    writer_train = tf.summary.create_file_writer(os.path.join(log_dir, 'train'))
+    writer_train = tf.summary.create_file_writer('train')
     with writer_train.as_default():
         # https://stackoverflow.com/a/61106106/4054250
         args_series = pd.Series(cfg.__dict__, name='value')
@@ -94,6 +95,7 @@ def main(cfg: DictConfig) -> None:
         tf.summary.text('args', args_series.to_markdown())
         tf.summary.text('command', ' '.join(sys.argv))
         logging.info('Command: %s', ' '.join(sys.argv))
+        neptune.set_property('command', ' '.join(sys.argv))
         tf.summary.text('hostname', socket.gethostname())
         logging.info(f'Hostname: {socket.gethostname()}')
 
@@ -262,7 +264,7 @@ def main(cfg: DictConfig) -> None:
         os.makedirs(success_ckpt_dir, exist_ok=True)
         for f in glob.iglob(os.path.join(success_ckpt_dir, 'weights.*.tf.*')):
             os.remove(f)
-        tensorboard = callbacks.TensorBoard(log_dir=log_dir, profile_batch=cfg.tb.profile_batch, histogram_freq=1,
+        tensorboard = callbacks.TensorBoard(log_dir='.', profile_batch=cfg.tb.profile_batch, histogram_freq=1,
                                             embeddings_freq=1)
         cbs = [
             tensorboard,
