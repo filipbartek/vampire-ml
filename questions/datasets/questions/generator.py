@@ -132,6 +132,7 @@ class Generator:
                         assert len(self.randomize) == 1
                         symbol_type = self.randomize[0]
                         precedences = (question['precedences'][i][symbol_type] for i in range(2))
+                        # We assume that precedences[0] is better than precedences[1].
                         precedences_inverted = tuple(
                             map(functools.partial(utils.invert_permutation, dtype=np.int32), precedences))
                         res = precedences_inverted[1] - precedences_inverted[0]
@@ -226,6 +227,7 @@ class Generator:
                                                                                                        symbol_type),
                                                                             seed=seed)
             results = [solver.solve(problem_name, precedences[i]) for i in range(2)]
+            # Ensure that the output precedence 0 is better than the output precedence 1.
             if is_better(results[0], results[1]):
                 return {
                     'precedences': precedences,
@@ -259,6 +261,7 @@ def get_signature_sizes(problems, clausifier):
 
 
 def is_better(r0, r1):
+    # Returns true if r0 is a better result than t1.
     # Sometimes a failed attempt (`returncode==1`) does not output saturation iteration count.
     assert r0.returncode != 0 or r0.saturation_iterations is not None
     assert r1.returncode != 0 or r1.saturation_iterations is not None
