@@ -86,6 +86,7 @@ learning_rate: 0.00001
 epochs: 1000
 
 early_stopping:
+  # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/EarlyStopping
   monitor: val_binary_accuracy
   patience: 100
   baseline: 0.5
