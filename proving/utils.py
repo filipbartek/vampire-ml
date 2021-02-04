@@ -91,7 +91,7 @@ def count_iter_items(iterable, max_items=None):
 def cardinality_finite(dataset, max_cardinality=None):
     n = dataset.cardinality()
     if n == tf.data.UNKNOWN_CARDINALITY:
-        n = count_iter_items(dataset, max_cardinality)
+        return count_iter_items(dataset, max_cardinality)
     elif n == tf.data.INFINITE_CARDINALITY:
         raise RuntimeError('The dataset has infinite cardinality.')
-    return n
+    return int(n)
