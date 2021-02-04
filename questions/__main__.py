@@ -153,12 +153,14 @@ def main(cfg: DictConfig) -> None:
                 'train': problems_all.skip(problems_validation_count)
             }
         logging.info('Number of problems taken: %d', cardinality_finite(problems_all))
+        neptune.set_property('problems/taken', cardinality_finite(problems_all).numpy())
 
         problem_records = {p: {**tptp.problem_properties(p), **{f'dataset_{k}': False for k in problems}} for p in
                            map(py_str, problems_all)}
         problem_records_types = {**tptp.property_types, **{f'dataset_{k}': np.bool for k in problems}}
         for k, p in problems.items():
             logging.info(f'Number of {k} problems: {cardinality_finite(p)}')
+            neptune.set_property(f'problems/taken/{k}', cardinality_finite(p).numpy())
             save_problems(p, os.path.join('problems', 'dataset', f'{k}.txt'))
             for pp in map(py_str, p):
                 problem_records[pp][f'dataset_{k}'] = True
@@ -199,6 +201,8 @@ def main(cfg: DictConfig) -> None:
                 # Here we load the raw, un-normalized questions (oriented element-wise differences of inverse precedences).
                 questions_all = datasets.questions.load_questions.load(questions_file, cfg.questions.dir_legacy,
                                                                        cfg.questions.max_per_problem)
+
+            neptune.set_property('problems/with_questions', len(questions_all))
 
             question_counts = [q.shape[0] for q in questions_all.values()]
             signature_lengths = [q.shape[1] for q in questions_all.values()]
@@ -250,6 +254,7 @@ def main(cfg: DictConfig) -> None:
             question_batches[k] = datasets.questions.batch.batch(q, batch_size).cache()
             problems_with_questions[k] = [pp for pp in map(py_str, p) if pp in questions_all]
             logging.info(f'Number of {k} problems with questions: {len(problems_with_questions[k])}')
+            neptune.set_property(f'problems/with_questions/{k}', len(problems_with_questions[k]))
 
         checkpoint_dir = 'tf_ckpts'
         epoch_ckpt_dir = os.path.join(checkpoint_dir, 'epoch')
@@ -342,6 +347,7 @@ def main(cfg: DictConfig) -> None:
                     for problem_name, rec in graphs_df.iterrows():
                         problem_records[problem_name].update(rec.to_dict())
                     logging.info(f'Number of problems graphified: {len(graphs)}')
+                    neptune.set_property('problems/graphified', len(graphs))
                     save_df(graphs_df, 'graphs')
 
                     gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
