@@ -160,7 +160,6 @@ tf:
 
 # TensorBoard
 tb:
-  logdir: logs
   profile_batch: 0
 
 # Python default is 1000. 10000 is enough to parse all TPTP problems.
