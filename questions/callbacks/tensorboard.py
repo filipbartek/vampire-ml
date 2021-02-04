@@ -13,3 +13,8 @@ class TensorBoard(tf.keras.callbacks.TensorBoard):
     @property
     def writers(self):
         return {'train': self.train_writer, 'val': self.val_writer}
+
+    def on_epoch_begin(self, epoch, logs=None):
+        super().on_epoch_begin(epoch, logs)
+        with self.train_writer.as_default():
+            tf.summary.scalar('learning_rate', self.model.optimizer.learning_rate, step=epoch)
