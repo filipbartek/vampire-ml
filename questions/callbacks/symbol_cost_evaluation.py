@@ -129,6 +129,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         records_df = df_dataset
                     else:
                         records_df = df_dataset.loc[df_dataset.index.intersection(cat_problems)]
+                    records_df.index.to_series().to_csv(os.path.join(output_dir, f'{dataset_name}&{cat_name}.txt'),
+                                                        header=False, index=False)
                     df_success = records_df[[(i, 'returncode') for i in range(self.iterations)]] == 0
                     if cat_problems is None:
                         count_all = len(set(dataset_problems))
