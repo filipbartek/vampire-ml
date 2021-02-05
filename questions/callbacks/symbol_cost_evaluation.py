@@ -114,6 +114,9 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         header_df = pd.DataFrame(df_data)
         header_df.set_index('problem', inplace=True)
         main_df = pd.concat([header_df, main_iter_df], axis='columns')
+        main_df.index.name = 'problem'
+        output_dir = os.path.join(self.name, symbol_cost_model.name, f'epoch_{epoch}')
+        os.makedirs(output_dir, exist_ok=True)
 
         for dataset_name, dataset_problems in self.splits.items():
             df_dataset = main_df.loc[main_df.index.intersection(dataset_problems)]
@@ -151,7 +154,6 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                     for column_name in ['time_elapsed', 'saturation_iterations']:
                         values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
                         tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
-        output_dir = os.path.join(self.name, symbol_cost_model.name, f'epoch_{epoch}')
         save_df(main_df, os.path.join(output_dir, 'problems'))
 
         with self.tensorboard.train_writer.as_default():
