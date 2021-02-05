@@ -76,6 +76,8 @@ def main(cfg: DictConfig) -> None:
 
     logging.info(f'Working directory: {os.getcwd()}')
     neptune.set_property('cwd', os.getcwd())
+    neptune.set_property('original_cwd', hydra.utils.get_original_cwd())
+    neptune.set_property('cwd_relpath', os.path.relpath(os.getcwd(), hydra.utils.get_original_cwd()))
 
     logging.info('Python recursion limit: %d', sys.getrecursionlimit())
     neptune.set_property('recursion_limit', sys.getrecursionlimit())
