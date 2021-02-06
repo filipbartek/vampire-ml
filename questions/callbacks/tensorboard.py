@@ -10,9 +10,8 @@ class TensorBoard(tf.keras.callbacks.TensorBoard):
     def val_writer(self):
         return self._val_writer
 
-    @property
-    def writers(self):
-        return {'train': self.train_writer, 'val': self.val_writer}
+    def writer(self, name):
+        return getattr(self, f'{name}_writer')
 
     def on_epoch_begin(self, epoch, logs=None):
         super().on_epoch_begin(epoch, logs)

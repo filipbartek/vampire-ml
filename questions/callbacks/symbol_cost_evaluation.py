@@ -57,9 +57,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     def evaluate(self, symbol_cost_model, epoch=None):
         time_begin = tf.timestamp()
 
-        logs = {}
         if len(self.problems) == 0:
-            return logs
+            return {}
 
         print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on {len(self.problems)} problems...')
 
@@ -115,12 +114,26 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         header_df.set_index('problem', inplace=True)
         main_df = pd.concat([header_df, main_iter_df], axis='columns')
         main_df.index.name = 'problem'
-        output_dir = os.path.join(self.name, symbol_cost_model.name, f'epoch_{epoch}')
-        os.makedirs(output_dir, exist_ok=True)
 
+        logs = self.evaluate_dataframe(main_df, symbol_cost_model.name, self.iterations, epoch)
+
+        with self.tensorboard.train_writer.as_default():
+            tf.summary.scalar('time/epoch/solver_eval', tf.timestamp() - time_begin, step=epoch)
+
+        return logs
+
+    def evaluate_dataframe(self, main_df, df_name, iterations, epoch=None):
+        # If epoch is not specified, then TensorBoard logging is omitted.
+        output_dir = os.path.join(self.name, df_name, f'epoch_{epoch}')
+
+        save_df(main_df, os.path.join(output_dir, 'problems'))
+
+        logs = {}
         for dataset_name, dataset_problems in self.splits.items():
             df_dataset = main_df.loc[main_df.index.intersection(dataset_problems)]
-            with self.tensorboard.writers[dataset_name].as_default():
+            dataset_dir = os.path.join(output_dir, dataset_name)
+            os.makedirs(dataset_dir, exist_ok=True)
+            with self.tensorboard.writer(dataset_name).as_default():
                 for cat_name, cat_problems in self.problem_categories.items():
                     if dataset_name == 'train' and cat_name == 'all' and not self.train_without_questions:
                         continue
@@ -129,38 +142,41 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         records_df = df_dataset
                     else:
                         records_df = df_dataset.loc[df_dataset.index.intersection(cat_problems)]
-                    records_df.index.to_series().to_csv(os.path.join(output_dir, f'{dataset_name}&{cat_name}.txt'),
+                    records_df.index.to_series().to_csv(os.path.join(dataset_dir, f'{cat_name}.txt'),
                                                         header=False, index=False)
-                    df_success = records_df[[(i, 'returncode') for i in range(self.iterations)]] == 0
-                    if cat_problems is None:
-                        count_all = len(set(dataset_problems))
-                        count_filtered = len(set(self.problems) & set(dataset_problems))
-                    else:
-                        count_all = len(set(dataset_problems) & set(cat_problems))
-                        count_filtered = len(set(self.problems) & set(dataset_problems) & set(cat_problems))
                     res = {
-                        'problem/count/split': count_all,
-                        'problem/count/eval': count_filtered,
-                        'problem/count/valid': len(records_df),
+                        'problems/measured': len(main_df),
+                        'problems/split': len(dataset_problems),
+                        'problems/measured&split': len(df_dataset)
+                    }
+                    if cat_problems is None:
+                        res['problems/category'] = len(self.problems)
+                    else:
+                        res['problems/category'] = len(cat_problems)
+                    res['problems/measured&split&category'] = len(records_df)
+
+                    df_success = records_df[[(i, 'returncode') for i in range(iterations)]] == 0
+                    res.update({
                         'success/count/mean': df_success.sum(axis=0).mean(),
                         'success/count/std': np.std(df_success.sum(axis=0)),
                         'success/rate/mean': df_success.mean(axis=0).mean()
-                    }
-                    for k, v in res.items():
-                        logs[f'{dataset_name}/{cat_name}/{k}'] = v
-                        tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
-                    if not self.baseline:
-                        for column_name in ['symbols', 'precedence_cost']:
-                            values = records_df[column_name]
-                            tf.summary.histogram(f'{summary_name}/{column_name}', values, step=epoch)
-                    for column_name in ['time_elapsed', 'saturation_iterations']:
-                        values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
-                        tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
-        save_df(main_df, os.path.join(output_dir, 'problems'))
+                    })
 
-        with self.tensorboard.train_writer.as_default():
-            tf.summary.scalar('time/epoch/solver_eval', tf.timestamp() - time_begin, step=epoch)
+                    # TODO: Compute maximum symmetric difference between iterations.
+                    # TODO: Plot some distribution plots and scatter plots (e.g. 'precedence_cost' x success).
 
+                    logs.update({f'{dataset_name}/{cat_name}/{k}': v for k, v in res.items()})
+
+                    if epoch is not None:
+                        for k, v in res.items():
+                            tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
+                        if not self.baseline:
+                            for column_name in ['symbols', 'precedence_cost']:
+                                values = records_df[column_name]
+                                tf.summary.histogram(f'{summary_name}/{column_name}', values, step=epoch)
+                        for column_name in ['time_elapsed', 'saturation_iterations']:
+                            values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
+                            tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
         return logs
 
     def precedences(self, symbol_costs):
