@@ -18,6 +18,7 @@ import pandas as pd
 import scipy
 import seaborn as sns
 import tensorflow as tf
+import yaml
 from omegaconf import DictConfig, OmegaConf
 from ordered_set import OrderedSet
 from tqdm import tqdm
@@ -29,6 +30,7 @@ from proving.memory import memory
 from proving.solver import Solver
 from proving.utils import cardinality_finite
 from proving.utils import dataframe_from_records
+from proving.utils import flatten_dict
 from proving.utils import py_str
 from questions import callbacks
 from questions import datasets
@@ -48,10 +50,6 @@ def save_problems(problems, filename):
 
 def flatten_config(cfg):
     return flatten_dict(OmegaConf.to_container(cfg))
-
-
-def flatten_dict(d):
-    return pd.json_normalize(d).to_dict(orient='records')[0]
 
 
 @hydra.main(config_name='config')
@@ -288,7 +286,7 @@ def main(cfg: DictConfig) -> None:
             tf.keras.callbacks.ReduceLROnPlateau(**cfg.reduce_lr_on_plateau)
         ]
 
-        symbol_cost_evaluation_callback = None
+        solver_eval_problems = None
         if cfg.solver_eval.start is not None or cfg.solver_eval.step is not None:
             solver_eval_problems = problems['val']
             if cfg.solver_eval.problems.val is not None and cfg.solver_eval.problems.val >= 0:
@@ -303,24 +301,6 @@ def main(cfg: DictConfig) -> None:
                 solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
             solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
             problems_to_graphify.update(solver_eval_problems)
-
-            problem_categories = {'all': None, 'with_questions': questions_all.keys()}
-            for cat_name, cat_filename in cfg.solver_eval.problem_set:
-                with open(cat_filename) as f:
-                    problem_categories[cat_name] = [l.rstrip('\n') for l in f]
-
-            symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
-                cfg.solver_eval,
-                'epochs_solver_eval.csv',
-                solver=solver,
-                problems=solver_eval_problems,
-                symbol_type=cfg.symbol_type,
-                splits={k: list(map(py_str, v)) for k, v in problems.items()},
-                tensorboard=tensorboard,
-                problem_categories=problem_categories,
-                baseline=cfg.symbol_cost.model == 'baseline',
-                parallel=parallel)
-            cbs.append(symbol_cost_evaluation_callback)
 
         logging.info(f'Symbol cost model: {cfg.symbol_cost.model}')
         if cfg.symbol_cost.model == 'baseline':
@@ -387,10 +367,37 @@ def main(cfg: DictConfig) -> None:
         # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
         tensorboard.set_model(model_logit)
 
-        if symbol_cost_evaluation_callback is not None and symbol_cost_evaluation_callback.start <= -1:
-            print('Evaluating symbol cost model before first training epoch...')
-            logs = symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
-            print(logs)
+        if solver_eval_problems is not None:
+            problem_categories = {
+                'all': None,
+                'with_questions': questions_all.keys(),
+                'graphified': graphs.keys(),
+                'with_questions&graphified': OrderedSet(questions_all.keys()) & graphs.keys()
+            }
+            for cat_name, cat_filename in cfg.solver_eval.problem_set:
+                with open(cat_filename) as f:
+                    problem_categories[cat_name] = [l.rstrip('\n') for l in f]
+
+            symbol_cost_evaluation_callback = callbacks.SymbolCostEvaluation(
+                cfg.solver_eval,
+                'epochs_solver_eval.csv',
+                solver=solver,
+                problems=solver_eval_problems,
+                symbol_type=cfg.symbol_type,
+                splits={k: list(map(py_str, v)) for k, v in problems.items()},
+                tensorboard=tensorboard,
+                problem_categories=problem_categories,
+                baseline=cfg.symbol_cost.model == 'baseline',
+                parallel=parallel)
+            cbs.append(symbol_cost_evaluation_callback)
+
+            for name, d in cfg.solver_eval.baselines.items():
+                df = pd.read_pickle(hydra.utils.to_absolute_path(d.filename))
+                logs = symbol_cost_evaluation_callback.evaluate_dataframe(df, name, d.iterations)
+                print(f'Baseline \'{name}\':\n{yaml.dump(logs)}')
+
+            if symbol_cost_evaluation_callback.start <= -1:
+                symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
             Optimizer = {

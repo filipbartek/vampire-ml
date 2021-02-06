@@ -8,9 +8,11 @@ import numpy as np
 import pandas as pd
 import scipy
 import tensorflow as tf
+import yaml
 
 from proving import vampire
 from proving.utils import dataframe_from_records
+from proving.utils import flatten_dict
 from proving.utils import py_str
 from vampire_ml.results import save_df
 
@@ -50,9 +52,12 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         logs = logs or {}
         if self.start is not None and self.step is not None and epoch >= self.start and (
                 epoch - self.start) % self.step == 0:
-            logs.update(self.evaluate(self.model.symbol_cost_model, epoch))
-            print(f'Metrics after epoch {epoch}: {logs}')
+            logs.update(self.flatten_logs(self.evaluate(self.model.symbol_cost_model, epoch)))
             super().on_epoch_end(epoch, logs=logs)
+
+    @staticmethod
+    def flatten_logs(logs):
+        return flatten_dict(logs, sep='/')
 
     def evaluate(self, symbol_cost_model, epoch=None):
         time_begin = tf.timestamp()
@@ -60,7 +65,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         if len(self.problems) == 0:
             return {}
 
-        print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on {len(self.problems)} problems...')
+        print(f'Evaluating symbol cost model \'{symbol_cost_model.name}\' on {len(self.problems)} problems after epoch {epoch}...')
 
         print(f'Predicting symbol costs on {len(self.problems)} problems...')
         res = symbol_cost_model.predict(self.problems_dataset, verbose=1)
@@ -120,6 +125,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         with self.tensorboard.train_writer.as_default():
             tf.summary.scalar('time/epoch/solver_eval', tf.timestamp() - time_begin, step=epoch)
 
+        print(f'Solver evaluation after epoch {epoch}:\n{yaml.dump(logs)}')
+
         return logs
 
     def evaluate_dataframe(self, main_df, df_name, iterations, epoch=None):
@@ -128,9 +135,10 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
 
         save_df(main_df, os.path.join(output_dir, 'problems'))
 
-        logs = {}
+        logs = {'problems/measured': len(main_df)}
         for dataset_name, dataset_problems in self.splits.items():
             df_dataset = main_df.loc[main_df.index.intersection(dataset_problems)]
+            logs[dataset_name] = {'problems/split': len(dataset_problems), 'problems/measured&split': len(df_dataset)}
             dataset_dir = os.path.join(output_dir, dataset_name)
             os.makedirs(dataset_dir, exist_ok=True)
             with self.tensorboard.writer(dataset_name).as_default():
@@ -144,31 +152,28 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         records_df = df_dataset.loc[df_dataset.index.intersection(cat_problems)]
                     records_df.index.to_series().to_csv(os.path.join(dataset_dir, f'{cat_name}.txt'),
                                                         header=False, index=False)
-                    res = {
-                        'problems/measured': len(main_df),
-                        'problems/split': len(dataset_problems),
-                        'problems/measured&split': len(df_dataset)
-                    }
+
+                    res = {'problems': {}}
                     if cat_problems is None:
-                        res['problems/category'] = len(self.problems)
+                        res['problems']['category'] = len(self.problems)
                     else:
-                        res['problems/category'] = len(cat_problems)
-                    res['problems/measured&split&category'] = len(records_df)
+                        res['problems']['category'] = len(cat_problems)
+                    res['problems']['measured&split&category'] = len(records_df)
 
                     df_success = records_df[[(i, 'returncode') for i in range(iterations)]] == 0
-                    res.update({
-                        'success/count/mean': df_success.sum(axis=0).mean(),
-                        'success/count/std': np.std(df_success.sum(axis=0)),
-                        'success/rate/mean': df_success.mean(axis=0).mean()
-                    })
+                    res['success'] = {
+                        'count/mean': float(df_success.sum(axis=0).mean()),
+                        'count/std': float(np.std(df_success.sum(axis=0))),
+                        'rate/mean': float(df_success.mean(axis=0).mean())
+                    }
 
                     # TODO: Compute maximum symmetric difference between iterations.
                     # TODO: Plot some distribution plots and scatter plots (e.g. 'precedence_cost' x success).
 
-                    logs.update({f'{dataset_name}/{cat_name}/{k}': v for k, v in res.items()})
+                    logs[dataset_name][cat_name] = res
 
                     if epoch is not None:
-                        for k, v in res.items():
+                        for k, v in self.flatten_logs(res).items():
                             tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
                         if not self.baseline:
                             for column_name in ['symbols', 'precedence_cost']:
@@ -177,6 +182,10 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         for column_name in ['time_elapsed', 'saturation_iterations']:
                             values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
                             tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
+
+        with open(os.path.join(output_dir, 'logs.yaml'), 'w') as file:
+            yaml.dump(logs, file)
+
         return logs
 
     def precedences(self, symbol_costs):

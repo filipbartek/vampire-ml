@@ -95,3 +95,7 @@ def cardinality_finite(dataset, max_cardinality=None):
     elif n == tf.data.INFINITE_CARDINALITY:
         raise RuntimeError('The dataset has infinite cardinality.')
     return int(n)
+
+
+def flatten_dict(d, **kwargs):
+    return pd.json_normalize(d, **kwargs).to_dict(orient='records')[0]

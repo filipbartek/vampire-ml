@@ -115,6 +115,7 @@ solver_eval:
   batch_size: 1000
   train_without_questions: false
   problem_set: []
+  baselines: {}
 
 
 # Advanced configuration
