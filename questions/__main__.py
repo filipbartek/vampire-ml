@@ -415,6 +415,7 @@ def main(cfg: DictConfig) -> None:
 
             if cfg.restore_checkpoint is not None:
                 model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
+                logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(cfg.restore_checkpoint)}')
 
             if not cfg.initial_eval:
                 print('Initial evaluation of question logit model...')
