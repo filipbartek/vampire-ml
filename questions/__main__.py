@@ -367,6 +367,24 @@ def main(cfg: DictConfig) -> None:
         # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
         tensorboard.set_model(model_logit)
 
+        if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
+            Optimizer = {
+                'sgd': tf.keras.optimizers.SGD,
+                'adam': tf.keras.optimizers.Adam,
+                'rmsprop': tf.keras.optimizers.RMSprop
+            }[cfg.optimizer]
+            # https://arxiv.org/pdf/1706.02677.pdf
+            # https://arxiv.org/abs/1711.00489
+            learning_rate = cfg.learning_rate * cfg.batch_size.train
+            neptune.set_property('learning_rate_scaled', learning_rate)
+            optimizer = Optimizer(learning_rate=learning_rate)
+
+            model_logit.compile(optimizer=optimizer)
+
+            if cfg.restore_checkpoint is not None:
+                model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
+                logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(cfg.restore_checkpoint)}')
+
         if solver_eval_problems is not None:
             problem_categories = {
                 'all': None,
@@ -400,23 +418,6 @@ def main(cfg: DictConfig) -> None:
                 symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            Optimizer = {
-                'sgd': tf.keras.optimizers.SGD,
-                'adam': tf.keras.optimizers.Adam,
-                'rmsprop': tf.keras.optimizers.RMSprop
-            }[cfg.optimizer]
-            # https://arxiv.org/pdf/1706.02677.pdf
-            # https://arxiv.org/abs/1711.00489
-            learning_rate = cfg.learning_rate * cfg.batch_size.train
-            neptune.set_property('learning_rate_scaled', learning_rate)
-            optimizer = Optimizer(learning_rate=learning_rate)
-
-            model_logit.compile(optimizer=optimizer)
-
-            if cfg.restore_checkpoint is not None:
-                model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
-                logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(cfg.restore_checkpoint)}')
-
             if not cfg.initial_eval:
                 print('Initial evaluation of question logit model...')
                 for k in question_batches:
