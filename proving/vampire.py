@@ -63,10 +63,7 @@ def call(problem, options=None, timeout=None, precedences=None, get_symbols=Fals
         mode = options['mode']
     except KeyError:
         mode = None
-    precedence_strings = None
-    if precedences is not None:
-        precedence_strings = {k: utils.type_len(v) for k, v in precedences.items()}
-    log.debug(f'Running Vampire. Problem: {problem}. Mode: {mode}. Precedences: {precedence_strings}.')
+    log.debug(f'Running Vampire. Problem: {problem}. Mode: {mode}.')
     result_symbols = None
     clauses = None
     with OptionManager(problem, base_options=options, precedences=precedences, get_symbols=get_symbols,
