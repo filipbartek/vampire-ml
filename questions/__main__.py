@@ -277,7 +277,7 @@ def main(cfg: DictConfig) -> None:
                            tensorboard=tensorboard),
             tf.keras.callbacks.CSVLogger('epochs.csv'),
             tf.keras.callbacks.ModelCheckpoint(
-                os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
+                os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}.tf'),
                 save_weights_only=True, verbose=0),
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(acc_ckpt_dir, 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
