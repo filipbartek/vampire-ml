@@ -120,7 +120,7 @@ class Generator:
         cache_filename = os.path.join(questions_dir,
                                       f'per_problem_{num_questions_per_problem}',
                                       f'count_{num_questions}',
-                                      'questions.joblib')
+                                      'attempts.joblib')
         try:
             results = joblib.load(cache_filename)
             logging.info(f'Questions loaded from a cache file: {cache_filename}')
@@ -131,30 +131,51 @@ class Generator:
                 if num_questions is not None and num_loaded >= num_questions:
                     break
                 filename = os.path.join(questions_dir, f'{step}.joblib')
-                for problem_i, question in joblib.load(filename):
+                for problem_i, attempt in joblib.load(filename):
                     if num_questions is not None and num_loaded >= num_questions:
                         break
                     problem_name = self.problems[problem_i]
-                    if num_questions_per_problem is None or len(results[problem_name]) < num_questions_per_problem:
-                        assert len(self.randomize) == 1
-                        symbol_type = self.randomize[0]
-                        precedences = (question['precedences'][i][symbol_type] for i in range(2))
-                        # We assume that precedences[0] is better than precedences[1].
-                        precedences_inverted = tuple(
-                            map(functools.partial(utils.invert_permutation, dtype=np.int32), precedences))
-                        res = precedences_inverted[1] - precedences_inverted[0]
-                        results[problem_name].append(res)
-                        num_loaded += 1
+                    if num_questions_per_problem is not None and len(results[problem_name]) >= num_questions_per_problem:
+                        continue
+                    question = self.get_question(*attempt)
+                    if question is None:
+                        continue
+                    assert len(self.randomize) == 1
+                    symbol_type = self.randomize[0]
+                    precedences = (question['precedences'][i][symbol_type] for i in range(2))
+                    # We assume that precedences[0] is better than precedences[1].
+                    precedences_inverted = tuple(
+                        map(functools.partial(utils.invert_permutation, dtype=np.int32), precedences))
+                    res = precedences_inverted[1] - precedences_inverted[0]
+                    results[problem_name].append(res)
+                    num_loaded += 1
             results = {k: np.asarray(v) for k, v in results.items()}
             os.makedirs(os.path.dirname(cache_filename), exist_ok=True)
             joblib.dump(results, cache_filename)
             logging.info(f'Questions saved to a cache file: {cache_filename}')
         return results
 
+    @staticmethod
+    def get_question(precedences, results):
+        # Ensure that the output precedence 0 is better than the output precedence 1.
+        if is_better(results[0], results[1]):
+            return {
+                'precedences': precedences,
+                'results': results
+            }
+        elif is_better(results[1], results[0]):
+            return {
+                'precedences': [precedences[1], precedences[0]],
+                'results': [results[1], results[0]]
+            }
+        return None
+
     def generate(self, solver, num_questions_per_batch=1000, num_questions_per_problem=None, num_questions=None,
                  dir=None, scatter_period=10):
-        questions_dir = os.path.join(dir, 'questions')
-        os.makedirs(questions_dir, exist_ok=True)
+        questions_dir = None
+        if dir is not None:
+            questions_dir = os.path.join(dir, 'attempts')
+            os.makedirs(questions_dir, exist_ok=True)
         while num_questions is None or self.num_hits < num_questions:
             tf.summary.experimental.set_step(self.step)
             if num_questions_per_problem is not None and np.all(self.problem_hits >= num_questions_per_problem):
@@ -186,26 +207,34 @@ class Generator:
                     batch.append((best, self.problem_attempts[best]))
                     self.problem_attempts[best] += 1
             logging.info(f'Generating {len(batch)} questions...')
-            questions = Parallel(verbose=1)(
+            attempts = Parallel(verbose=1)(
                 delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
-            result = [(problem_i, question) for (problem_i, case), question in zip(batch, questions) if
-                      question is not None]
-            for problem_i, question in result:
-                self.problem_hits[problem_i] += 1
+            attempts_with_indices = list(zip(tuple(zip(*batch))[0], attempts))
+            batch_hits = 0
+            for problem_i, attempt in attempts_with_indices:
+                if self.get_question(*attempt) is not None:
+                    self.problem_hits[problem_i] += 1
+                    batch_hits += 1
+            if questions_dir is not None:
+                joblib.dump(attempts_with_indices, os.path.join(questions_dir, f'{self.step}.joblib'))
             if dir is not None:
-                joblib.dump(result, os.path.join(questions_dir, f'{self.step}.joblib'))
                 self.save(dir)
             logging.info(
-                f'Step {self.step}: Problems with at least one question: {np.sum(self.problem_hits >= 1)}/{self.num_problems}. Total questions: {self.num_hits}/{self.num_attempts}/{num_questions}.')
-            tf.summary.scalar('num_problems_with_questions', np.sum(self.problem_hits >= 1))
-            tf.summary.scalar('num_questions', self.num_hits)
-            tf.summary.scalar('num_attempts', self.num_attempts)
-            tf.summary.scalar('batch_questions', sum(question is not None for question in questions))
-            tf.summary.histogram('ucbs', self.problem_ucbs().astype(np.float64))
-            tf.summary.histogram('attempts', self.problem_attempts.astype(np.uint32))
-            tf.summary.histogram('hits', self.problem_hits.astype(np.uint32))
-            tf.summary.histogram('hit_rates', self.problem_mean_rewards.astype(np.float64))
-            tf.summary.histogram('confidence_margins', (self.problem_ucbs() - self.problem_mean_rewards).astype(np.float64))
+                f'Step {self.step}: Total problems hit: {np.sum(self.problem_hits >= 1)}/{self.num_problems}. Total hits: {self.num_hits}/{self.num_attempts}/{num_questions}.')
+            tf.summary.scalar(f'{self.name}/total_problems_hit', np.sum(self.problem_hits >= 1))
+            tf.summary.scalar(f'{self.name}/total_hits', self.num_hits)
+            tf.summary.scalar(f'{self.name}/attempts/sum', self.num_attempts)
+            tf.summary.scalar(f'{self.name}/attempts/min', self.problem_attempts.min())
+            tf.summary.scalar(f'{self.name}/attempts/max', self.problem_attempts.max())
+            tf.summary.scalar(f'{self.name}/total_hit_rate', self.num_hits / self.num_attempts)
+            tf.summary.scalar(f'{self.name}/batch_hits', batch_hits)
+            tf.summary.scalar(f'{self.name}/batch_hit_rate', batch_hits / len(batch))
+            tf.summary.histogram(f'{self.name}/ucbs', self.problem_ucbs().astype(np.float64))
+            tf.summary.histogram(f'{self.name}/attempts', self.problem_attempts.astype(np.uint32))
+            tf.summary.histogram(f'{self.name}/hits', self.problem_hits.astype(np.uint32))
+            tf.summary.histogram(f'{self.name}/hit_rates', self.problem_mean_rewards.astype(np.float64))
+            tf.summary.histogram(f'{self.name}/ucb_margins',
+                                 (self.problem_ucbs() - self.problem_mean_rewards).astype(np.float64))
             if self.step % scatter_period == 0:
                 plot.scatter(self.df['predicates'], self.df['functions'], name=f'{self.name}/predicates/functions',
                              xlabel='predicates', ylabel='functions', xscale='log', yscale='log')
@@ -241,18 +270,7 @@ class Generator:
                                                                                                        symbol_type),
                                                                             seed=seed)
             results = [solver.solve(problem_name, precedences[i]) for i in range(2)]
-            # Ensure that the output precedence 0 is better than the output precedence 1.
-            if is_better(results[0], results[1]):
-                return {
-                    'precedences': precedences,
-                    'results': results
-                }
-            elif is_better(results[1], results[0]):
-                return {
-                    'precedences': [precedences[1], precedences[0]],
-                    'results': [results[1], results[0]]
-                }
-            return None
+            return precedences, results
         except Exception as e:
             raise RuntimeError(f'Failed to generate question {case} for problem {problem_name}.') from e
 
