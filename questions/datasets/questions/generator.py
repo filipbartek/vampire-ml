@@ -76,11 +76,11 @@ class Generator:
 
     @property
     def problem_attempts(self):
-        return self.df.loc[:, 'attempts']
+        return self.df['attempts']
 
     @property
     def problem_hits(self):
-        return self.df.loc[:, 'hits']
+        return self.df['hits']
 
     @property
     def problem_mean_rewards(self):
