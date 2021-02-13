@@ -65,12 +65,12 @@ class Graphifier:
                                        record['clausify_returncode'])
                 logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
                 graph = None
-            elif record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
+            elif self.max_number_of_nodes is not None and record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
                 logging.debug(f'Skipping graphification of {problem_name} because it has at least %d nodes.',
                               record['graph_nodes_lower_bound'])
                 graph = None
             else:
-                assert 'graph_nodes' not in record or record['graph_nodes'] <= self.max_number_of_nodes
+                assert 'graph_nodes' not in record or self.max_number_of_nodes is None or record['graph_nodes'] <= self.max_number_of_nodes
                 # Raises ValueError if reading reaches an unexpected EOF.
                 graph = joblib.load(filename_graph)
                 logging.debug(f'Graph of {problem_name} loaded.')
@@ -86,7 +86,7 @@ class Graphifier:
         except Exception as e:
             raise RuntimeError(
                 f'Failed to produce graph of problem {problem_name}. Graph file: {filename_graph}') from e
-        assert graph is None or graph.num_nodes() <= self.max_number_of_nodes
+        assert graph is None or self.max_number_of_nodes is None or graph.num_nodes() <= self.max_number_of_nodes
         return graph, record
 
     @functools.lru_cache(maxsize=1)
@@ -115,7 +115,7 @@ class Graphifier:
         logging.debug(f'Graphifying problem {problem}...')
         record = {'problem': problem, 'error': None}
         nodes_lower_bound = self.nodes_lower_bound(problem)
-        if nodes_lower_bound > self.max_number_of_nodes:
+        if self.max_number_of_nodes is not None and nodes_lower_bound > self.max_number_of_nodes:
             record['error'] = 'nodes_from_tptp_header'
             record['graph_nodes_lower_bound'] = nodes_lower_bound
             return None, record
