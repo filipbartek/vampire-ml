@@ -21,6 +21,9 @@ def instance_str(instance):
 
 
 def dataframe_from_records(records, index_keys=None, dtypes=None, index=None):
+    if isinstance(records, dict):
+        assert index is None
+        index, records = zip(*records.items())
     if dtypes is None:
         dtypes = {}
     df = pd.DataFrame.from_records(records, index=index)
