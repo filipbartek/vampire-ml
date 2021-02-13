@@ -7,6 +7,7 @@ import os
 import re
 import socket
 import sys
+import warnings
 
 import hydra
 import joblib
@@ -246,7 +247,10 @@ def main(cfg: DictConfig) -> None:
         problems_to_graphify = OrderedSet()
         problems_with_questions = {}
         for k, p in problems.items():
-            q = datasets.questions.individual.dict_to_dataset(questions_all, p, normalize=cfg.questions.normalize).cache()
+            q = datasets.questions.individual.dict_to_dataset(questions_all, p,
+                                                              normalize=cfg.questions.normalize).cache()
+            if dataset_is_empty(q):
+                warnings.warn(f'Dataset \'{k}\' is empty.')
             problems_to_graphify.update(py_str(e['problem']) for e in q)
             questions[k] = q
             batch_size = {'train': cfg.batch_size.train, 'val': cfg.batch_size.val}[k]
