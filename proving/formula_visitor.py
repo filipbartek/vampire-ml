@@ -240,13 +240,16 @@ class FormulaVisitor:
         'argument_precedes_argument': ('none', 'none')
     }
 
+    # https://arxiv.org/pdf/1703.06103.pdf : 'inv'
+    inverse_token = 'inverse'
+
     @classmethod
     def conv_norm(cls, etype):
         orientation = 0
         split = etype.rsplit(sep='_', maxsplit=1)
         if split[1] == 'self':
             return 'none'
-        if split[1] == 'inverse':
+        if split[1] == cls.inverse_token:
             etype = split[0]
             orientation = 1
         split = etype.rsplit(sep='_', maxsplit=1)
@@ -270,7 +273,7 @@ class FormulaVisitor:
         if edge_subtype is not None:
             etype = f'{etype}_{edge_subtype}'
         if orientation <= 0:
-            etype = f'{etype}_inverse'
+            etype = f'{etype}_{cls.inverse_token}'
         return etype
 
     def graph(self, output_ntypes, node_features=None, dtype_id=tf.int32, dtype_feat=tf.float32):
