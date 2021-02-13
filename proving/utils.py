@@ -100,5 +100,9 @@ def cardinality_finite(dataset, max_cardinality=None):
     return int(n)
 
 
+def dataset_is_empty(dataset):
+    return cardinality_finite(dataset, 1) == 0
+
+
 def flatten_dict(d, **kwargs):
     return pd.json_normalize(d, **kwargs).to_dict(orient='records')[0]

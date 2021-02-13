@@ -28,7 +28,7 @@ from proving.graphifier import Graphifier
 from proving.graphifier import get_graphs
 from proving.memory import memory
 from proving.solver import Solver
-from proving.utils import cardinality_finite
+from proving.utils import cardinality_finite, dataset_is_empty
 from proving.utils import dataframe_from_records
 from proving.utils import flatten_dict
 from proving.utils import py_str
@@ -272,9 +272,9 @@ def main(cfg: DictConfig) -> None:
                                             embeddings_freq=1)
         cbs = [
             tensorboard,
-            callbacks.Time(problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items() if
-                                     cardinality_finite(v) > 0},
-                           tensorboard=tensorboard),
+            callbacks.Time(
+                problems={k: next(iter(v.take(32).batch(32))) for k, v in problems.items() if not dataset_is_empty(v)},
+                tensorboard=tensorboard),
             tf.keras.callbacks.CSVLogger('epochs.csv'),
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(epoch_ckpt_dir, 'weights.{epoch:05d}.tf'),
@@ -297,7 +297,7 @@ def main(cfg: DictConfig) -> None:
                 solver_eval_problems_train = tf.data.Dataset.from_tensor_slices(problems_with_questions['train'])
             if cfg.solver_eval.problems.train is not None and cfg.solver_eval.problems.train >= 0:
                 solver_eval_problems_train = solver_eval_problems_train.take(cfg.solver_eval.problems.train)
-            if cardinality_finite(solver_eval_problems_train, 1) >= 1:
+            if not dataset_is_empty(solver_eval_problems_train):
                 solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
             solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
             problems_to_graphify.update(solver_eval_problems)
