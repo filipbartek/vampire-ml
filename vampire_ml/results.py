@@ -34,7 +34,10 @@ def save_df(df, basename, index=True):
     df.to_pickle(f'{basename}.pkl')
     with np.printoptions(threshold=sys.maxsize, linewidth=sys.maxsize):
         df.to_csv(f'{basename}.csv', index=index, header=df.columns.values)
-    neptune.log_artifact(f'{basename}.csv')
+    try:
+        neptune.log_artifact(f'{basename}.csv')
+    except neptune.NeptuneUninitializedException:
+        pass
     logging.info(f'DataFrame of length {len(df.index)} saved: {basename}.{{pkl,csv}}')
 
 
