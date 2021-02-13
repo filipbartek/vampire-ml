@@ -1,5 +1,6 @@
 import collections
 import functools
+import itertools
 import logging
 import os
 import warnings
@@ -78,6 +79,10 @@ class Generator:
     def problem_attempts(self):
         return self.df['attempts']
 
+    @problem_attempts.setter
+    def problem_attempts(self, value):
+        self.df['attempts'] = value
+
     @property
     def problem_hits(self):
         return self.df['hits']
@@ -153,24 +158,30 @@ class Generator:
             if num_questions_per_problem is not None and np.all(self.problem_hits >= num_questions_per_problem):
                 logging.info('All problems have been saturated.')
                 break
-            batch = []
             bootstrap_batch = self.num_attempts == 0
             if bootstrap_batch:
-                cur_batch_size = self.num_problems
-            else:
-                cur_batch_size = num_questions_per_batch
-            for _ in range(cur_batch_size):
-                if bootstrap_batch:
-                    best = np.argmin(self.problem_attempts)
+                if num_questions is not None:
+                    # Bootstrap with multiple trials per problem. Use a lower bound on the final number of runs per problem. This gives better initial estimates of rewards.
+                    # https://www.wolframalpha.com/input/?i=plot+%284+log%28q%29%29+%2F+%282+sqrt%281+%2B+%284+log%28q%29+p%29+%2F+%282+q%29%29%29%2C+q%3D1..1000000%2C+p%3D1..20000
+                    c = self.hoeffding_exponent * np.log(num_questions)
+                    bootstrap_copies = int(
+                        np.ceil(c / (2 * np.square(1 + np.sqrt(c * self.num_problems / (2 * num_questions))))))
                 else:
+                    bootstrap_copies = 1
+                batch = [(problem_i, attempt_i) for attempt_i, problem_i in
+                         itertools.product(range(bootstrap_copies), range(self.num_problems))]
+                self.problem_attempts += bootstrap_copies
+            else:
+                batch = []
+                for _ in range(num_questions_per_batch):
                     problem_ucbs = self.problem_ucbs()
                     if num_questions_per_problem is not None:
                         problem_ucbs[self.problem_hits.to_numpy() >= num_questions_per_problem] = np.NINF
                     best = np.argmax(problem_ucbs)
-                # We specify the case number uniquely across problems.
-                # If we maintained case id for each problem independently,
-                batch.append((best, self.problem_attempts[best]))
-                self.problem_attempts[best] += 1
+                    # We specify the case number uniquely across problems.
+                    # If we maintained case id for each problem independently,
+                    batch.append((best, self.problem_attempts[best]))
+                    self.problem_attempts[best] += 1
             logging.info(f'Generating {len(batch)} questions...')
             questions = Parallel(verbose=1)(
                 delayed(self.generate_one)(problem_i, case, solver) for problem_i, case in batch)
