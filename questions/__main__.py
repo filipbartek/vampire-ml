@@ -244,16 +244,40 @@ def main(cfg: DictConfig) -> None:
                 v['num_questions'] = 0
         problem_records_types.update({'num_questions': pd.UInt32Dtype(), 'num_symbols': pd.UInt32Dtype()})
 
+        # Graphify problems
+        if cfg.symbol_cost.model == 'composite' and cfg.symbol_embedding_model == 'gcn':
+            graphifier = Graphifier(clausifier)
+            graphs, graphs_df = get_graphs(graphifier, OrderedSet(map(py_str, problems_all)))
+            for problem_name, rec in graphs_df.iterrows():
+                problem_records[problem_name].update(rec.to_dict())
+            logging.info(f'Number of problems graphified: {len(graphs)}')
+            neptune.set_property('problems/graphified', len(graphs))
+            save_df(graphs_df, 'graphs')
+
+            # Drop problems that have too large graphs
+            for k, v in problems.items():
+                num_before = cardinality_finite(v)
+
+                def is_sufficiently_small_py(problem):
+                    return cfg.gcn.max_problem_nodes[k] is None or graphs[py_str(problem)].num_nodes() <= \
+                           cfg.gcn.max_problem_nodes[k]
+
+                def is_sufficiently_small_tf(problem):
+                    return tf.py_function(is_sufficiently_small_py, [problem], tf.bool)
+
+                problems[k] = v.filter(is_sufficiently_small_tf)
+                num_after = cardinality_finite(problems[k])
+                logging.info(
+                    f'{k}: {num_after}/{num_before} problems kept because their size is at most {cfg.gcn.max_problem_nodes[k]}.')
+
         questions = {}
         question_batches = {}
-        problems_to_graphify = OrderedSet()
         problems_with_questions = {}
         for k, p in problems.items():
             q = datasets.questions.individual.dict_to_dataset(questions_all, p,
                                                               normalize=cfg.questions.normalize).cache()
             if dataset_is_empty(q):
                 warnings.warn(f'Dataset \'{k}\' is empty.')
-            problems_to_graphify.update(py_str(e['problem']) for e in q)
             questions[k] = q
             batch_size = {'train': cfg.batch_size.train, 'val': cfg.batch_size.val}[k]
             question_batches[k] = datasets.questions.batch.batch(q, batch_size).cache()
@@ -306,7 +330,6 @@ def main(cfg: DictConfig) -> None:
             if not dataset_is_empty(solver_eval_problems_train):
                 solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
             solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
-            problems_to_graphify.update(solver_eval_problems)
 
         logging.info(f'Symbol cost model: {cfg.symbol_cost.model}')
         if cfg.symbol_cost.model == 'baseline':
@@ -328,15 +351,6 @@ def main(cfg: DictConfig) -> None:
                                                                   kernel_initializer=tf.constant_initializer(kernel))
 
                 elif cfg.symbol_embedding_model == 'gcn':
-                    graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.gcn.max_problem_nodes)
-                    # problems_to_graphify = set(map(py_str, problems_all))
-                    graphs, graphs_df = get_graphs(graphifier, problems_to_graphify)
-                    for problem_name, rec in graphs_df.iterrows():
-                        problem_records[problem_name].update(rec.to_dict())
-                    logging.info(f'Number of problems graphified: {len(graphs)}')
-                    neptune.set_property('problems/graphified', len(graphs))
-                    save_df(graphs_df, 'graphs')
-
                     gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                                      graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
                     model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, cfg.symbol_type, gcn)

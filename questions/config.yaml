@@ -61,7 +61,9 @@ gcn:
   # If 'custom', use a recommended normalization for each edge type.
   # Choices: both, right, none, custom
   conv_norm: both
-  max_problem_nodes: 100000
+  max_problem_nodes:
+    train: 100000
+    val: null
 
 embedding_to_cost:
   hidden:
