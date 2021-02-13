@@ -123,6 +123,7 @@ def main(cfg: DictConfig) -> None:
     solver = Solver(**OmegaConf.to_container(cfg.solver))
 
     with joblib.parallel_backend('threading', n_jobs=cfg.jobs), joblib.Parallel(verbose=10) as parallel:
+        # Collect problem datasets
         # We need to split problems first and then collect questions for each of the datasets
         # because not all problems have questions and we only generate questions samples
         # for problems with at least one question.
@@ -165,6 +166,7 @@ def main(cfg: DictConfig) -> None:
             for pp in map(py_str, p):
                 problem_records[pp][f'dataset_{k}'] = True
 
+        # Generate questions
         with writer_train.as_default():
             if cfg.questions.dir_legacy is None:
                 questions_dir = cfg.questions.dir
