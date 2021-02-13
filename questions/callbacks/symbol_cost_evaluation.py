@@ -81,12 +81,13 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         else:
             precedences = itertools.repeat(None, len(problems))
 
-        print(f'Evaluating with solver on {tf.shape(problems)[0]} problems {self.iterations} times...')
+        cases = more_itertools.ncycles(zip(problems, precedences), self.iterations)
+
+        print(f'Evaluating with solver on {tf.shape(problems)[0]} problems {self.iterations} times (total cases: {tf.shape(problems)[0] * self.iterations})...')
         if self.cache and self.iterations > 1:
             warnings.warn(
                 f'Evaluating with caching and {self.iterations} iterations. Evaluating more than once only makes sense without caching.')
-        records = self.parallel(joblib.delayed(self.solve_one)(problem, precedence) for problem, precedence in
-                                more_itertools.ncycles(zip(problems, precedences), self.iterations))
+        records = self.parallel(joblib.delayed(self.solve_one)(problem, precedence) for problem, precedence in cases)
 
         problems_list = list(map(py_str, problems))
         df_data = {'problem': problems_list}
