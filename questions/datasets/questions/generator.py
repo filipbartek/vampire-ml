@@ -168,6 +168,7 @@ class Generator:
                         np.ceil(c / (2 * np.square(1 + np.sqrt(c * self.num_problems / (2 * num_questions))))))
                 else:
                     bootstrap_copies = 1
+                logging.info(f'Bootstrapping with {bootstrap_copies} attempts per problem.')
                 batch = [(problem_i, attempt_i) for attempt_i, problem_i in
                          itertools.product(range(bootstrap_copies), range(self.num_problems))]
                 self.problem_attempts += bootstrap_copies
