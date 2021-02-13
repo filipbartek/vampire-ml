@@ -34,6 +34,8 @@ class Generator:
         self.hoeffding_exponent = hoeffding_exponent
         self.step = step
 
+    name = 'generator'
+
     @classmethod
     def fresh(cls, problems, clausifier, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4):
         signature_sizes = get_signature_sizes(problems, clausifier)
@@ -205,20 +207,20 @@ class Generator:
             tf.summary.histogram('hit_rates', self.problem_mean_rewards.astype(np.float64))
             tf.summary.histogram('confidence_margins', (self.problem_ucbs() - self.problem_mean_rewards).astype(np.float64))
             if self.step % scatter_period == 0:
-                plot.scatter(self.df[f'predicates'], self.df[f'functions'], name=f'problems/predicates_functions',
+                plot.scatter(self.df['predicates'], self.df['functions'], name=f'{self.name}/predicates/functions',
                              xlabel='predicates', ylabel='functions', xscale='log', yscale='log')
-                plot.scatter(self.problem_attempts, self.problem_hits, name=f'problems/attempts_hits',
+                plot.scatter(self.problem_attempts, self.problem_hits, name=f'{self.name}/attempts/hits',
                              xlabel='Attempts', ylabel='Hits', xscale='log', yscale='log')
                 for symbol_type in symbol_types:
                     x_col = f'{symbol_type}s'
                     x = self.df[x_col]
-                    plot.scatter(x, self.problem_attempts, name=f'problems_{x_col}/attempts',
+                    plot.scatter(x, self.problem_attempts, name=f'{self.name}/{x_col}/attempts',
                                  xlabel=x_col, ylabel='Attempts', xscale='log', yscale='log')
-                    plot.scatter(x, self.problem_hits, name=f'problems_{x_col}/hits',
+                    plot.scatter(x, self.problem_hits, name=f'{self.name}/{x_col}/hits',
                                  xlabel=x_col, ylabel='Hits', xscale='log', yscale='log')
-                    plot.scatter(x, self.problem_mean_rewards, name=f'problems_{x_col}/hit_rates',
+                    plot.scatter(x, self.problem_mean_rewards, name=f'{self.name}/{x_col}/hit_rates',
                                  xlabel=x_col, ylabel='Hit rate', xscale='log')
-                    plot.scatter(x, self.problem_ucbs(), name=f'problems_{x_col}/ucbs',
+                    plot.scatter(x, self.problem_ucbs(), name=f'{self.name}/{x_col}/ucbs',
                                  xlabel=x_col, ylabel='UCB', xscale='log')
             self.step += 1
         return self.load_questions(questions_dir, num_questions_per_problem=num_questions_per_problem,
