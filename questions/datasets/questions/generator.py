@@ -120,7 +120,7 @@ class Generator:
         cache_filename = os.path.join(questions_dir,
                                       f'per_problem_{num_questions_per_problem}',
                                       f'count_{num_questions}',
-                                      'attempts.joblib')
+                                      'questions.joblib')
         try:
             results = joblib.load(cache_filename)
             logging.info(f'Questions loaded from a cache file: {cache_filename}')
