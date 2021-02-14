@@ -180,7 +180,7 @@ class Generator:
                  dir=None, scatter_period=10):
         questions_dir = None
         if dir is not None:
-            questions_dir = os.path.join(dir, 'attempts')
+            questions_dir = os.path.join(dir, 'questions')
             os.makedirs(questions_dir, exist_ok=True)
         while num_questions is None or self.num_hits < num_questions:
             tf.summary.experimental.set_step(self.step)
