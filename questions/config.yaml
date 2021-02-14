@@ -63,7 +63,7 @@ gcn:
   conv_norm: both
   max_problem_nodes:
     train: 100000
-    val: null
+    val: 1000000
 
 embedding_to_cost:
   hidden:
