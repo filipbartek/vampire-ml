@@ -137,7 +137,7 @@ class Generator:
                     problem_name = self.problems[problem_i]
                     if num_questions_per_problem is not None and len(results[problem_name]) >= num_questions_per_problem:
                         continue
-                    question = self.get_question(*attempt)
+                    question = self.get_question(attempt)
                     if question is None:
                         continue
                     assert len(self.randomize) == 1
@@ -156,7 +156,12 @@ class Generator:
         return results
 
     @staticmethod
-    def get_question(precedences, results):
+    def get_question(attempt):
+        if isinstance(attempt, dict):
+            # Legacy fallback for the case of loading old datasets
+            assert isinstance(attempt, dict) and 'precedences' in attempt and 'results' in attempt
+            return attempt
+        precedences, results = attempt
         # Ensure that the output precedence 0 is better than the output precedence 1.
         if is_better(results[0], results[1]):
             return {
@@ -212,7 +217,7 @@ class Generator:
             attempts_with_indices = list(zip(tuple(zip(*batch))[0], attempts))
             batch_hits = 0
             for problem_i, attempt in attempts_with_indices:
-                if self.get_question(*attempt) is not None:
+                if self.get_question(attempt) is not None:
                     self.problem_hits[problem_i] += 1
                     batch_hits += 1
             if questions_dir is not None:
