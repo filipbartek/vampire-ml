@@ -246,7 +246,14 @@ def main(cfg: DictConfig) -> None:
 
         # Graphify problems
         if cfg.symbol_cost.model == 'composite' and cfg.symbol_embedding_model == 'gcn':
-            graphifier = Graphifier(clausifier)
+            max_num_nodes = None
+            for k in problems:
+                if cfg.gcn.max_problem_nodes[k] is not None:
+                    if max_num_nodes is None:
+                        max_num_nodes = cfg.gcn.max_problem_nodes[k]
+                    else:
+                        max_num_nodes = max(max_num_nodes, cfg.gcn.max_problem_nodes[k])
+            graphifier = Graphifier(clausifier, max_number_of_nodes=max_num_nodes)
             graphs, graphs_df = get_graphs(graphifier, OrderedSet(map(py_str, problems_all)))
             for problem_name, rec in graphs_df.iterrows():
                 problem_records[problem_name].update(rec.to_dict())
