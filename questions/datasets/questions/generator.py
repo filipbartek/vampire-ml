@@ -135,7 +135,8 @@ class Generator:
                     if num_questions is not None and num_loaded >= num_questions:
                         break
                     problem_name = self.problems[problem_i]
-                    if num_questions_per_problem is not None and len(results[problem_name]) >= num_questions_per_problem:
+                    if num_questions_per_problem is not None and len(
+                            results[problem_name]) >= num_questions_per_problem:
                         continue
                     question = self.get_question(attempt)
                     if question is None:
