@@ -363,7 +363,7 @@ def main(cfg: DictConfig) -> None:
                 elif cfg.symbol_embedding_model == 'gcn':
                     gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                                      graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
-                    model_symbol_embedding = models.symbol_features.Graph(graphifier, graphs, cfg.symbol_type, gcn)
+                    model_symbol_embedding = models.symbol_features.Graph(graphifier, cfg.symbol_type, gcn)
                 else:
                     raise ValueError(f'Unsupported symbol embedding model: {cfg.symbol_embedding_model}')
                 if embedding_to_cost is None:

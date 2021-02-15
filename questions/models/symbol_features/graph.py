@@ -6,11 +6,10 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, graphs, symbol_type, gcn):
+    def __init__(self, graphifier, symbol_type, gcn):
         SymbolFeatures.__init__(self, dynamic=True)
         self.gcn = gcn
         self.graphifier = graphifier
-        self.graphs = graphs
         self.symbol_type = symbol_type
 
     def call(self, problems, training=False):
@@ -19,14 +18,16 @@ class Graph(SymbolFeatures):
         return {'embeddings': res, 'valid': valid}
 
     def problems_to_batch_graph(self, problems):
-        def gen():
-            for p in problems:
-                try:
-                    yield self.graphs[py_str(p)], True
-                except KeyError:
-                    yield self.graphifier.empty_graph(), False
+        problems = list(map(py_str, problems))
+        graphs = self.graphifier.get_graphs(problems, get_df=False)
 
-        graphs, valid = zip(*gen())
+        def convert(g):
+            if g is None:
+                return self.graphifier.empty_graph(), False
+            else:
+                return g, True
+
+        graphs, valid = zip(*map(convert, graphs))
         batch_graph = dgl.batch(graphs)
         valid = tf.convert_to_tensor(valid, dtype=tf.bool)
         return batch_graph, valid
