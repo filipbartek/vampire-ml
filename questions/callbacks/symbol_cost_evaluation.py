@@ -198,9 +198,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         # We sort the symbols by cost in non-decreasing order.
         precedence = tf.argsort(symbol_cost, direction='DESCENDING')
         n_symbols = symbol_cost.shape[0]
-        precedence_cost = tf.tensordot(tf.gather(symbol_cost, precedence),
-                                       tf.range(n_symbols, dtype=symbol_cost.dtype), 1) * 2 / (
-                                      n_symbols * (n_symbols + 1))
+        precedence_cost = tf.tensordot(tf.gather(symbol_cost, precedence), tf.range(n_symbols, dtype=symbol_cost.dtype),
+                                       1) * 2 / (n_symbols * (n_symbols + 1))
         return precedence, precedence_cost
 
     def solve_one(self, problem, precedence=None):
