@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 
 import joblib
 import pandas as pd
@@ -73,8 +74,13 @@ class Graphifier:
         }
 
     def compute_graphs(self, problems, cache=True):
-        logging.info(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...')
-        return Parallel(verbose=10)(delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
+        if len(problems) > 1:
+            print(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...',
+                  file=sys.stderr)
+            verbose = 10
+        else:
+            verbose = 0
+        return Parallel(verbose=verbose)(delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
 
     def problem_to_graph(self, problem_name, cache=True):
         graph = None
