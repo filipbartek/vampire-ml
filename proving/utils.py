@@ -1,8 +1,10 @@
 import collections
 import itertools
 import os
+import time
 import warnings
 
+import contexttimer
 import numpy as np
 import pandas as pd
 import tensorflow as tf
@@ -106,3 +108,7 @@ def dataset_is_empty(dataset):
 
 def flatten_dict(d, **kwargs):
     return pd.json_normalize(d, **kwargs).to_dict(orient='records')[0]
+
+
+def timer(*args, **kwargs):
+    return contexttimer.Timer(*args, **kwargs, timer=time.perf_counter)

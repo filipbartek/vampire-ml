@@ -1,6 +1,5 @@
 import logging
 import subprocess
-import time
 
 from proving import utils
 
@@ -36,21 +35,19 @@ def decode(b):
 
 def run(args, timeout=None, capture_stdout=True, capture_stderr=True):
     log.debug('Running process: %s', ' '.join(args))
-    time_start = time.time()
-    try:
-        cp = subprocess.run(args,
-                            stdout=(subprocess.PIPE if capture_stdout else subprocess.DEVNULL),
-                            stderr=(subprocess.PIPE if capture_stderr else subprocess.DEVNULL), timeout=timeout,
-                            universal_newlines=True)
-        time_elapsed = time.time() - time_start
-        returncode = cp.returncode
-        stdout = cp.stdout
-        stderr = cp.stderr
-    except subprocess.TimeoutExpired as e:
-        time_elapsed = time.time() - time_start
-        returncode = None
-        stdout = decode(e.output)
-        stderr = decode(e.stderr)
-    result = Result(returncode, time_elapsed, stdout, stderr)
+    with utils.timer() as t:
+        try:
+            cp = subprocess.run(args,
+                                stdout=(subprocess.PIPE if capture_stdout else subprocess.DEVNULL),
+                                stderr=(subprocess.PIPE if capture_stderr else subprocess.DEVNULL), timeout=timeout,
+                                universal_newlines=True)
+            returncode = cp.returncode
+            stdout = cp.stdout
+            stderr = cp.stderr
+        except subprocess.TimeoutExpired as e:
+            returncode = None
+            stdout = decode(e.output)
+            stderr = decode(e.stderr)
+    result = Result(returncode, t.elapsed, stdout, stderr)
     log.debug(result)
     return result

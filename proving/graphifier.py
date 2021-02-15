@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import os
-import time
 
 import joblib
 import pandas as pd
@@ -15,6 +14,7 @@ from proving import tptp
 from proving.formula_visitor import FormulaVisitor
 from proving.memory import memory
 from proving.utils import py_str
+from proving.utils import timer
 
 
 @memory.cache(verbose=2)
@@ -119,10 +119,11 @@ class Graphifier:
             record['error'] = 'nodes_from_tptp_header'
             record['graph_nodes_lower_bound'] = nodes_lower_bound
             return None, record
-        time_start = time.time()
-        clausify_result = self.clausifier.clausify(problem)
-        time_elapsed = time.time() - time_start
-        record.update({'clausify_returncode': clausify_result.returncode, 'clausify_time': time_elapsed})
+        with timer() as t:
+            clausify_result = self.clausifier.clausify(problem)
+        record.update({'clausify_returncode': clausify_result.returncode,
+                       'clausify_time': t.elapsed,
+                       'clausify_time_original': clausify_result.time_elapsed})
         if clausify_result.returncode != 0 or clausify_result.clauses is None or clausify_result.symbols is None:
             logging.debug(f'Failed to graphify problem {problem}: clausification failed.')
             record['error'] = 'clausify'
@@ -131,17 +132,16 @@ class Graphifier:
         symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
         record['num_clauses'] = len(clausify_result.clauses)
         record.update({f'num_{symbol_type}': len(symbols[symbol_type]) for symbol_type in symbol_types})
-        time_start = time.time()
-        try:
-            g = self.clausify_result_to_graph(clausify_result)
-        except FormulaVisitor.NumNodesError as e:
-            # The graph would be too large (too many nodes).
-            logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
-            record['error'] = 'node_count'
-            g = None
-            record['graph_nodes_lower_bound'] = e.actual
-        time_elapsed = time.time() - time_start
-        record['graph_time'] = time_elapsed
+        with timer() as t:
+            try:
+                g = self.clausify_result_to_graph(clausify_result)
+            except FormulaVisitor.NumNodesError as e:
+                # The graph would be too large (too many nodes).
+                logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
+                record['error'] = 'node_count'
+                g = None
+                record['graph_nodes_lower_bound'] = e.actual
+        record['graph_time'] = t.elapsed
         if g is not None:
             record['graph_nodes'] = g.num_nodes()
             record['graph_nodes_lower_bound'] = g.num_nodes()
