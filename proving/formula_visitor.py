@@ -1,6 +1,7 @@
 import collections
 import functools
 import hashlib
+import itertools
 import json
 
 import dgl
@@ -83,6 +84,9 @@ class FormulaVisitor:
             if self.equality_predicate_edge:
                 res.add(('equality', 'predicate', None))
         return res
+
+    def ntypes(self):
+        return OrderedSet(itertools.chain.from_iterable((e[i] for e in self.edge_types()) for i in (0, 1)))
 
     def visit_formula(self, formula):
         cur_id_pair = None

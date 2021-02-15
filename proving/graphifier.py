@@ -13,13 +13,14 @@ from proving import config
 from proving import tptp
 from proving.formula_visitor import FormulaVisitor
 from proving.memory import memory
+from proving.utils import dataframe_from_records
 from proving.utils import py_str
 from proving.utils import timer
 
 
-@memory.cache(verbose=2)
-def get_graphs(graphifier, problems):
-    return graphifier.problems_to_graphs_dict(problems)
+@memory.cache(verbose=1)
+def problems_to_graphs_list(graphifier, problems):
+    return graphifier.compute_graphs(problems)
 
 
 class Graphifier:
@@ -39,53 +40,88 @@ class Graphifier:
     def canonical_etypes(self):
         return self.empty_graph().canonical_etypes
 
-    def problems_to_graphs_dict(self, problems):
-        logging.info(f'Graphifying {len(problems)} problems...')
-        graphs_records = Parallel(verbose=10)(delayed(self.problem_to_graph)(problem) for problem in problems)
-        graphs, records = zip(*graphs_records)
+    def get_graphs_dict(self, problems, cache=True):
+        graphs, df = self.get_graphs(problems, cache=cache)
+        records = (x[1] for x in df.iterrows())
         problem_graphs = {p: g for p, g, r in zip(problems, graphs, records) if
                           g is not None and r is not None and r['error'] is None}
-        logging.info(f'Problems graphified. {len(problem_graphs)}/{len(graphs_records)} graphified successfully.')
-        df = pd.DataFrame.from_records(records, index='problem')
+        logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def problem_to_graph(self, problem_name):
+    def get_graphs(self, problems, cache=True, get_df=True):
+        if cache:
+            graphs_records = problems_to_graphs_list(self, problems)
+        else:
+            graphs_records = self.compute_graphs(problems, cache=cache)
+        graphs, records = zip(*graphs_records)
+        if get_df:
+            df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
+            return graphs, df
+        else:
+            return graphs
+
+    def dtypes(self):
+        return {
+            'clausify_returncode': 'category',
+            'num_clauses': pd.UInt32Dtype(),
+            'num_predicate': pd.UInt32Dtype(),
+            'num_function': pd.UInt32Dtype(),
+            'graph_nodes': pd.UInt32Dtype(),
+            'graph_nodes_lower_bound': pd.UInt32Dtype(),
+            **{f'graph_nodes_{ntype}': pd.UInt32Dtype() for ntype in self.formula_visitor().ntypes()},
+            'graph_edges': pd.UInt32Dtype()
+        }
+
+    def compute_graphs(self, problems, cache=True):
+        logging.info(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...')
+        return Parallel(verbose=10)(delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
+
+    def problem_to_graph(self, problem_name, cache=True):
+        graph = None
+        record = None
         if os.path.isabs(problem_name):
             cache_dir_full = os.path.join(self.cache_dir(), hashlib.md5(problem_name.encode()).hexdigest())
         else:
             cache_dir_full = os.path.join(self.cache_dir(), problem_name)
         filename_graph = os.path.join(cache_dir_full, 'graph.joblib')
         filename_record = os.path.join(cache_dir_full, 'record.json')
-        try:
-            with open(filename_record) as fp:
-                record = json.load(fp)
-            if record['error'] == 'clausify':
-                if record['clausify_returncode'] is not None and record['clausify_returncode'] < 0:
-                    raise RuntimeError('Clausification failed with negative return code: %d',
-                                       record['clausify_returncode'])
-                logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
-                graph = None
-            elif self.max_number_of_nodes is not None and record['graph_nodes_lower_bound'] > self.max_number_of_nodes:
-                logging.debug(f'Skipping graphification of {problem_name} because it has at least %d nodes.',
-                              record['graph_nodes_lower_bound'])
-                graph = None
-            else:
-                assert 'graph_nodes' not in record or self.max_number_of_nodes is None or record['graph_nodes'] <= self.max_number_of_nodes
-                # Raises ValueError if reading reaches an unexpected EOF.
-                graph = joblib.load(filename_graph)
-                logging.debug(f'Graph of {problem_name} loaded.')
-                assert graph.num_nodes() == record['graph_nodes']
-        except (FileNotFoundError, RuntimeError, ValueError):
-            logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
-            graph, record = self.graphify(problem_name)
-            os.makedirs(cache_dir_full, exist_ok=True)
-            with open(filename_record, 'w') as fp:
-                json.dump(record, fp, indent=4, default=int)
-            if graph is not None:
-                joblib.dump(graph, filename_graph)
-        except Exception as e:
-            raise RuntimeError(
-                f'Failed to produce graph of problem {problem_name}. Graph file: {filename_graph}') from e
+        graph_instantiated = False
+        if cache:
+            try:
+                with open(filename_record) as fp:
+                    record = json.load(fp)
+                if record['error'] == 'clausify':
+                    if record['clausify_returncode'] is not None and record['clausify_returncode'] < 0:
+                        raise RuntimeError('Clausification failed with negative return code: %d',
+                                           record['clausify_returncode'])
+                    logging.debug(f'Skipping graphification of {problem_name} because its clausification failed.')
+                    graph = None
+                elif self.max_number_of_nodes is not None and record[
+                    'graph_nodes_lower_bound'] > self.max_number_of_nodes:
+                    logging.debug(f'Skipping graphification of {problem_name} because it has at least %d nodes.',
+                                  record['graph_nodes_lower_bound'])
+                    graph = None
+                else:
+                    assert 'graph_nodes' not in record or self.max_number_of_nodes is None or record[
+                        'graph_nodes'] <= self.max_number_of_nodes
+                    # Raises ValueError if reading reaches an unexpected EOF.
+                    graph = joblib.load(filename_graph)
+                    logging.debug(f'Graph of {problem_name} loaded.')
+                    assert graph.num_nodes() == record['graph_nodes']
+                graph_instantiated = True
+            except (FileNotFoundError, RuntimeError, ValueError):
+                logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
+            except Exception as e:
+                raise RuntimeError(
+                    f'Failed to produce graph of problem {problem_name}. Graph file: {filename_graph}') from e
+        if not graph_instantiated:
+            graph, record = self.graphify(problem_name, cache=cache)
+            if cache:
+                os.makedirs(cache_dir_full, exist_ok=True)
+                with open(filename_record, 'w') as fp:
+                    json.dump(record, fp, indent=4, default=int)
+                if graph is not None:
+                    joblib.dump(graph, filename_graph)
         assert graph is None or self.max_number_of_nodes is None or graph.num_nodes() <= self.max_number_of_nodes
         return graph, record
 
@@ -110,17 +146,18 @@ class Graphifier:
         props = tptp.problem_properties(problem)
         return props['atoms'] + props['predicates'] + props['functors'] + props['variables']
 
-    def graphify(self, problem):
+    def graphify(self, problem, cache=True):
+        # TODO: Time the whole call (all inclusive).
         problem = py_str(problem)
         logging.debug(f'Graphifying problem {problem}...')
-        record = {'problem': problem, 'error': None}
+        record = {'problem': problem, 'error': None, 'clausify_cached': cache}
         nodes_lower_bound = self.nodes_lower_bound(problem)
         if self.max_number_of_nodes is not None and nodes_lower_bound > self.max_number_of_nodes:
             record['error'] = 'nodes_from_tptp_header'
             record['graph_nodes_lower_bound'] = nodes_lower_bound
             return None, record
         with timer() as t:
-            clausify_result = self.clausifier.clausify(problem)
+            clausify_result = self.clausifier.clausify(problem, cache=cache)
         record.update({'clausify_returncode': clausify_result.returncode,
                        'clausify_time': t.elapsed,
                        'clausify_time_original': clausify_result.time_elapsed})

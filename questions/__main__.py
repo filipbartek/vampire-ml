@@ -26,7 +26,6 @@ from tqdm import tqdm
 
 from proving import tptp
 from proving.graphifier import Graphifier
-from proving.graphifier import get_graphs
 from proving.memory import memory
 from proving.solver import Solver
 from proving.utils import cardinality_finite, dataset_is_empty
@@ -254,7 +253,7 @@ def main(cfg: DictConfig) -> None:
                     else:
                         max_num_nodes = max(max_num_nodes, cfg.gcn.max_problem_nodes[k])
             graphifier = Graphifier(clausifier, max_number_of_nodes=max_num_nodes)
-            graphs, graphs_df = get_graphs(graphifier, OrderedSet(map(py_str, problems_all)))
+            graphs, graphs_df = graphifier.get_graphs_dict(OrderedSet(map(py_str, problems_all)))
             for problem_name, rec in graphs_df.iterrows():
                 problem_records[problem_name].update(rec.to_dict())
             logging.info(f'Number of problems graphified: {len(graphs)}')
