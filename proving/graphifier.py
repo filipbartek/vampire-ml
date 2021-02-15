@@ -136,7 +136,7 @@ class Graphifier:
     @functools.lru_cache(maxsize=1)
     def get_config(self):
         attrs = (
-        'version', 'clausifier', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes', 'output_ntypes')
+            'version', 'clausifier', 'arg_order', 'arg_backedge', 'equality', 'max_number_of_nodes', 'output_ntypes')
         return {k: getattr(self, k) for k in attrs}
 
     def __repr__(self):
