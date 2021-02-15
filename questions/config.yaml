@@ -111,6 +111,7 @@ solver_eval:
   step: null
   iterations: 1
   cache: false
+  isolated: false
   problems:
     train: 1000
     val: 1000

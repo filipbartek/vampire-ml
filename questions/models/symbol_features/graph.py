@@ -12,14 +12,14 @@ class Graph(SymbolFeatures):
         self.graphifier = graphifier
         self.symbol_type = symbol_type
 
-    def call(self, problems, training=False):
-        batch_graph, valid = self.problems_to_batch_graph(problems)
+    def call(self, problems, training=False, cache=True):
+        batch_graph, valid = self.problems_to_batch_graph(problems, cache=cache)
         res = self.resolve_batch_graph(batch_graph, training=training)
         return {'embeddings': res, 'valid': valid}
 
-    def problems_to_batch_graph(self, problems):
+    def problems_to_batch_graph(self, problems, cache):
         problems = list(map(py_str, problems))
-        graphs = self.graphifier.get_graphs(problems, get_df=False)
+        graphs = self.graphifier.get_graphs(problems, cache=cache, get_df=False)
 
         def convert(g):
             if g is None:
