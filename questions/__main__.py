@@ -265,8 +265,12 @@ def main(cfg: DictConfig) -> None:
                 num_before = cardinality_finite(v)
 
                 def is_sufficiently_small_py(problem):
-                    return cfg.gcn.max_problem_nodes[k] is None or graphs[py_str(problem)].num_nodes() <= \
-                           cfg.gcn.max_problem_nodes[k]
+                    if cfg.gcn.max_problem_nodes[k] is None:
+                        return True
+                    num_nodes = graphs_df['graph_nodes'][py_str(problem)]
+                    if pd.notna(num_nodes) and num_nodes <= cfg.gcn.max_problem_nodes[k]:
+                        return True
+                    return False
 
                 def is_sufficiently_small_tf(problem):
                     return tf.py_function(is_sufficiently_small_py, [problem], tf.bool)
