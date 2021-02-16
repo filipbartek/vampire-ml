@@ -160,6 +160,7 @@ neptune:
       - vampire_ml/**/*.py
 
 tf:
+  # https://www.tensorflow.org/api_docs/python/tf/config/run_functions_eagerly
   run_eagerly: false
 
 # TensorBoard
