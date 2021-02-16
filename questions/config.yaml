@@ -162,6 +162,10 @@ neptune:
 tf:
   # https://www.tensorflow.org/api_docs/python/tf/config/run_functions_eagerly
   run_eagerly: false
+  # https://www.tensorflow.org/api_docs/python/tf/config/threading
+  threads:
+    inter: 0
+    intra: 0
 
 # TensorBoard
 tb:

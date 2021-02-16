@@ -25,16 +25,14 @@ from ordered_set import OrderedSet
 from tqdm import tqdm
 
 from proving import tptp
-from proving.graphifier import Graphifier
+from proving.utils import flatten_dict
+from proving.utils import py_str
 from proving.memory import memory
 from proving.solver import Solver
 from proving.utils import cardinality_finite, dataset_is_empty
 from proving.utils import dataframe_from_records
-from proving.utils import flatten_dict
-from proving.utils import py_str
 from questions import callbacks
 from questions import datasets
-from questions import models
 from questions import plot
 from questions.datasets.questions import Generator
 from vampire_ml.results import save_df
@@ -54,6 +52,13 @@ def flatten_config(cfg):
 
 @hydra.main(config_name='config')
 def main(cfg: DictConfig) -> None:
+    tf.config.threading.set_inter_op_parallelism_threads(cfg.tf.threads.inter)
+    tf.config.threading.set_intra_op_parallelism_threads(cfg.tf.threads.intra)
+
+    # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
+    from proving.graphifier import Graphifier
+    from questions import models
+
     logging.basicConfig(level=cfg.log_level)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
     tf.random.set_seed(0)
