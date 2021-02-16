@@ -4,9 +4,6 @@ import tensorflow as tf
 from proving.formula_visitor import FormulaVisitor
 
 
-dtype_tf_float = tf.float32
-
-
 class GCN(tf.keras.layers.Layer):
     def __init__(self, cfg, canonical_etypes, ntype_in_degrees, ntype_feat_sizes, output_ntypes=None, name='gcn',
                  **kwargs):
