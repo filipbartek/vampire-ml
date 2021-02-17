@@ -475,8 +475,8 @@ def main(cfg: DictConfig) -> None:
                         x = datasets.questions.batch.batch(questions[k], cfg.batch_size.val)
                     else:
                         x = question_batches[k]
-                    metrics = model_logit.evaluate(x)
-                    print(metrics)
+                    metrics = model_logit.evaluate(x, return_dict=True)
+                    print(f'Initial evaluation on {k} set: {metrics}')
 
             if cfg.initial_evaluation_extra:
                 initial_evaluation(model_logit, questions_all, problems_all, cfg.batch_size.train)
