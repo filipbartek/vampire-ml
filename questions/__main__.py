@@ -468,10 +468,9 @@ def main(cfg: DictConfig) -> None:
                 symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            if not cfg.initial_eval:
-                print('Initial evaluation of question logit model...')
+            if cfg.initial_eval:
                 for k in question_batches:
-                    print(f'Evaluating logit model on {k} questions...')
+                    print(f'Initial evaluation of the logit model on {k} questions...')
                     if k == 'train':
                         x = datasets.questions.batch.batch(questions[k], cfg.batch_size.val)
                     else:
