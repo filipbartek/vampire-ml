@@ -12,7 +12,6 @@ import pandas as pd
 from proving import config
 from proving import process
 from proving import symbols
-from proving import utils
 
 log = logging.getLogger(__name__)
 supported_precedence_names = ['predicate', 'function']
