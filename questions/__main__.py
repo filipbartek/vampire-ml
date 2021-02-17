@@ -50,7 +50,7 @@ def flatten_config(cfg):
     return flatten_dict(OmegaConf.to_container(cfg))
 
 
-def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, graphifier):
+def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, graphifier, symbol_type):
     from questions import models
 
     logging.info(f'Symbol cost model: {cfg.symbol_cost.model}')
@@ -62,7 +62,7 @@ def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, grap
         elif cfg.symbol_cost.model in ['gcn', 'simple']:
             embedding_to_cost = None
             if cfg.symbol_cost.model == 'simple':
-                model_symbol_embedding = models.symbol_features.Simple(clausifier, cfg.symbol_type)
+                model_symbol_embedding = models.symbol_features.Simple(clausifier, symbol_type)
                 if cfg.embedding_to_cost.hidden.units > 0:
                     cbs.append(callbacks.Weights(tensorboard))
                 if cfg.simple_model_kernel is not None:
@@ -73,8 +73,8 @@ def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, grap
 
             elif cfg.symbol_cost.model == 'gcn':
                 gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
-                                                 graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
-                model_symbol_embedding = models.symbol_features.Graph(graphifier, cfg.symbol_type, gcn)
+                                                 graphifier.ntype_feat_sizes, output_ntypes=[symbol_type])
+                model_symbol_embedding = models.symbol_features.Graph(graphifier, symbol_type, gcn)
             else:
                 raise ValueError(f'Unsupported symbol cost model: {cfg.symbol_cost.model}')
             if embedding_to_cost is None:
@@ -103,10 +103,10 @@ def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, grap
     return model_symbol_cost
 
 
-def get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier):
+def get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier, symbol_type):
     from questions import models
 
-    model_symbol_cost = get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, graphifier)
+    model_symbol_cost = get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, graphifier, symbol_type)
     model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
 
     if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
@@ -122,10 +122,6 @@ def get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier
         optimizer = Optimizer(learning_rate=learning_rate)
 
         model_logit.compile(optimizer=optimizer)
-
-        if cfg.restore_checkpoint is not None:
-            model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
-            logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(cfg.restore_checkpoint)}')
 
     return model_logit
 
@@ -280,7 +276,7 @@ def main(cfg: DictConfig) -> None:
             else:
                 # TODO?: Only load questions if the batches are not cached.
                 questions_file = os.path.join(hydra.utils.to_absolute_path('cache'),
-                                              f'symbol_type_{cfg.symbol_type}',
+                                              f'symbol_type_{cfg.symbol_types[0]}',
                                               f'max_questions_per_problem_{cfg.questions.max_per_problem}',
                                               'questions.pkl')
 
@@ -429,7 +425,18 @@ def main(cfg: DictConfig) -> None:
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
                 'problems')
 
-        model_logit = get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier)
+        logit_models = {}
+        for symbol_type in cfg.symbol_types:
+            model_logit = get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier, symbol_type)
+            logit_models[symbol_type] = model_logit
+            if symbol_type in cfg.restore_checkpoint:
+                filename = cfg.restore_checkpoint[symbol_type]
+                if filename is None:
+                    continue
+                model_logit.load_weights(hydra.utils.to_absolute_path(filename))
+                logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(filename)}')
+
+        model_logit = next(iter(logit_models.values()))
         model_symbol_cost = model_logit.symbol_cost_model
 
         # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
@@ -451,7 +458,6 @@ def main(cfg: DictConfig) -> None:
                 'epochs_solver_eval.csv',
                 solver=solver,
                 problems=solver_eval_problems,
-                symbol_type=cfg.symbol_type,
                 splits={k: list(map(py_str, v)) for k, v in problems.items()},
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,
@@ -466,7 +472,8 @@ def main(cfg: DictConfig) -> None:
 
             if symbol_cost_evaluation_callback.start <= -1:
                 print(f'Initial evaluation of the symbol cost model...')
-                symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
+                models = {k: v.symbol_cost_model for k, v in logit_models.items()}
+                symbol_cost_evaluation_callback.evaluate(models, epoch=-1)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
             if cfg.initial_eval:

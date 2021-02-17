@@ -14,7 +14,6 @@ import yaml
 from proving import vampire
 from proving.utils import dataframe_from_records
 from proving.utils import flatten_dict
-from proving.utils import py_str
 from proving.utils import timer
 from vampire_ml.results import save_df
 
@@ -23,13 +22,12 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     name = 'solver_eval'
     columns = ['returncode', 'time_elapsed', 'time_elapsed_vampire', 'saturation_iterations', 'memory_used']
 
-    def __init__(self, cfg, csv_filename, solver, problems, symbol_type, splits, tensorboard=None,
+    def __init__(self, cfg, csv_filename, solver, problems, splits, tensorboard=None,
                  problem_categories=None, parallel=None, baseline=False, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.solver = solver
         self.problems = problems
         self.problems_dataset = tf.data.Dataset.from_tensor_slices(problems).batch(cfg.batch_size)
-        self.symbol_type = symbol_type
         start = cfg.start
         step = cfg.step
         if start is None and step is not None:
@@ -63,7 +61,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     def flatten_logs(logs):
         return flatten_dict(logs, sep='/')
 
-    def evaluate(self, symbol_cost_model, epoch=None):
+    def evaluate(self, models, epoch=None):
         if self.cache and self.iterations > 1:
             warnings.warn(
                 f'Evaluating with caching and {self.iterations} iterations. Evaluating more than once only makes sense without caching.')
@@ -75,29 +73,41 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         time_begin = tf.timestamp()
 
         print(
-            f'Evaluating symbol cost model \'{symbol_cost_model.name}\' with solver on {len(self.problems)} problems after epoch {epoch}...',
+            f'Evaluating symbol cost model with solver on {len(self.problems)} problems after epoch {epoch}...',
             file=sys.stderr)
 
-        df_data = {}
+        df_data = {'problem': self.problems}
 
-        if self.isolated or self.baseline:
-            problems_filtered = self.problems
-            precedences = itertools.repeat(None)
-        else:
-            print(f'Predicting symbol costs on {len(self.problems)} problems...')
-            res = symbol_cost_model.predict(self.problems_dataset, verbose=1)
-            symbol_costs = res['costs']
-            valid = res['valid']
-            # Ignore the invalid symbol costs. Only measure performance on the valid symbol costs.
-            precedences, df_data['precedence_cost'] = self.precedences(tf.ragged.boolean_mask(symbol_costs, valid))
-            problems_filtered = list(map(py_str, tf.boolean_mask(self.problems, valid)))
-            df_data['symbols'] = symbol_costs.row_lengths()
-        df_data['problem'] = problems_filtered
-        cases = more_itertools.ncycles(zip(problems_filtered, precedences), self.iterations)
+        get_precedences = None
+        if not self.isolated and not self.baseline:
+            data = {}
+            for name, model in models.items():
+                print(f'Predicting {name} symbol costs on {len(self.problems)} problems...')
+                res = model.predict(self.problems_dataset, verbose=1)
+                precedences, precedence_costs = self.precedences(res['costs'])
+                data[name] = {
+                    'valid': res['valid'],
+                    'precedences': precedences
+                }
+                df_data[name, 'symbols'] = res['costs'].row_lengths()
+                df_data[name, 'symbol_cost_valid'] = res['valid']
+                df_data[name, 'precedence_cost'] = precedence_costs
+
+            def get_precedences(problem_i):
+                res = {}
+                for name, vals in data.items():
+                    if not vals['valid'][problem_i]:
+                        return None
+                    res[name] = vals['precedences'][problem_i]
+                return res
+
+        cases = more_itertools.ncycles(range(len(self.problems)), self.iterations)
         print(
-            f'Evaluating on {len(problems_filtered) * self.iterations} cases ({len(problems_filtered)} problems, {self.iterations} iterations)...',
+            f'Evaluating on {len(self.problems) * self.iterations} cases ({len(self.problems)} problems, {self.iterations} iterations)...',
             file=sys.stderr)
-        records = self.parallel(joblib.delayed(self.solve_one)(symbol_cost_model, *case) for case in cases)
+        records = self.parallel(joblib.delayed(self.solve_one)(models, problem_i, get_precedences) for problem_i in cases)
+
+        problems_filtered = self.problems
 
         if self.isolated:
             assert 'precedence_cost' not in df_data
@@ -132,7 +142,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         main_df = pd.concat([header_df, main_iter_df], axis='columns')
         main_df.index.name = 'problem'
 
-        logs = self.evaluate_dataframe(main_df, symbol_cost_model.name, self.iterations, epoch)
+        logs = self.evaluate_dataframe(main_df, 'symbol_cost', self.iterations, models.keys(), epoch)
 
         with self.tensorboard.train_writer.as_default():
             tf.summary.scalar('time/epoch/solver_eval', tf.timestamp() - time_begin, step=epoch)
@@ -141,7 +151,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
 
         return logs
 
-    def evaluate_dataframe(self, main_df, df_name, iterations, epoch=None):
+    def evaluate_dataframe(self, main_df, df_name, iterations, symbol_types, epoch=None):
         # If epoch is not specified, then TensorBoard logging is omitted.
         output_dir = os.path.join(self.name, df_name, f'epoch_{epoch}')
 
@@ -188,9 +198,9 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         for k, v in self.flatten_logs(res).items():
                             tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
                         if not self.baseline:
-                            for column_name in ['symbols', 'precedence_cost']:
-                                values = records_df[column_name]
-                                tf.summary.histogram(f'{summary_name}/{column_name}', values, step=epoch)
+                            for symbol_type, column_name in itertools.product(symbol_types, ['symbols', 'precedence_cost']):
+                                values = records_df[symbol_type, column_name]
+                                tf.summary.histogram(f'{summary_name}/{symbol_type}/{column_name}', values, step=epoch)
                         for column_name in ['time_elapsed', 'saturation_iterations']:
                             values = records_df[[(i, column_name) for i in range(self.iterations)]].astype(float)
                             tf.summary.histogram(f'{summary_name}/{column_name}/all', values, step=epoch)
@@ -217,35 +227,42 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     def solver_result_to_dict(cls, result):
         return {k: getattr(result, k) for k in cls.columns}
 
-    def solve_one(self, symbol_cost_model, problem, precedence):
+    def solve_one(self, models, problem_i, get_precedences=None):
+        problem = self.problems[problem_i]
         record = {}
         with timer() as t_total:
             precedences = None
             if not self.baseline:
-                if precedence is None:
-                    # Attempt to predict a precedence
+                if get_precedences is None:
+                    precedences = {}
                     with timer() as t_preprocess:
-                        with timer() as t_predict:
-                            assert self.isolated
-                            res = symbol_cost_model(tf.convert_to_tensor([problem]), training=False, cache=False)
-                        record['time_predict'] = t_predict.elapsed
-                        assert tf.shape(res['valid']) == (1,)
-                        valid = res['valid'][0]
-                        record['symbol_cost_valid'] = valid.numpy()
-                        if valid:
-                            # Prediction of the precedence was successful
-                            assert res['costs'].nrows() == 1
-                            symbol_cost = res['costs'][0]
-                            record['symbols'] = tf.shape(symbol_cost)[0].numpy()
-                            with timer() as t_sort:
-                                precedence, record['precedence_cost'] = self.precedence(symbol_cost)
-                                record['precedence_cost'] = record['precedence_cost'].numpy()
-                            record['time_sort'] = t_sort.elapsed
+                        for name, model in models.items():
+                            # Attempt to predict a precedence
+                            with timer() as t_predict:
+                                assert self.isolated
+                                res = model(tf.convert_to_tensor([problem]), training=False, cache=False)
+                            record[name, 'time_predict'] = t_predict.elapsed
+                            assert tf.shape(res['valid']) == (1,)
+                            valid = res['valid'][0]
+                            record[name, 'symbol_cost_valid'] = valid.numpy()
+                            precedence = None
+                            if valid:
+                                # Prediction of the precedence was successful
+                                assert res['costs'].nrows() == 1
+                                symbol_cost = res['costs'][0]
+                                record[name, 'symbols'] = tf.shape(symbol_cost)[0].numpy()
+                                with timer() as t_sort:
+                                    precedence, precedence_cost = self.precedence(symbol_cost)
+                                    record[name, 'precedence_cost'] = precedence_cost.numpy()
+                                record[name, 'time_sort'] = t_sort.elapsed
+                            precedences[name] = precedence
+                        if any(p is None for p in precedences.values()):
+                            precedences = None
                     record['time_preprocess'] = t_preprocess.elapsed
-                if precedence is not None:
-                    precedences = {self.symbol_type: precedence.numpy()}
+                else:
+                    precedences = get_precedences(problem_i)
             if self.baseline or precedences is not None:
-                solver_res = self.solver.solve(py_str(problem), precedences=precedences, cache=self.cache)
+                solver_res = self.solver.solve(problem, precedences=precedences, cache=self.cache)
                 record.update(self.solver_result_to_dict(solver_res))
         record['time_total'] = t_total.elapsed
         return record

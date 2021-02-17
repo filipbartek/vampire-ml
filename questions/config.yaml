@@ -1,6 +1,7 @@
 jobs: 1
 
-symbol_type: predicate
+symbol_types:
+  - predicate
 
 
 # Dataset
@@ -73,7 +74,9 @@ embedding_to_cost:
 simple_model_kernel: null
 
 # Path to a checkpoint to restore
-restore_checkpoint: null
+restore_checkpoint:
+  predicate: null
+  function: null
 
 
 # Training
