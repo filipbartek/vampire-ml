@@ -465,6 +465,7 @@ def main(cfg: DictConfig) -> None:
                 print(f'Baseline \'{name}\':\n{yaml.dump(logs)}')
 
             if symbol_cost_evaluation_callback.start <= -1:
+                print(f'Initial evaluation of the symbol cost model...')
                 symbol_cost_evaluation_callback.evaluate(symbol_cost_model=model_symbol_cost, epoch=-1)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
