@@ -38,13 +38,10 @@ questions:
 # Model
 
 symbol_cost:
-  # Choices: composite, direct, baseline
-  model: composite
+  # Choices: gcn, simple, direct, baseline
+  model: gcn
   # Factor of L2 regularization penalty on symbol cost values
   l2: 0.0
-
-# Choices: gcn, simple
-symbol_embedding_model: gcn
 
 # GCN
 gcn:

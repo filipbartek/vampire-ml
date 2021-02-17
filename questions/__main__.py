@@ -249,7 +249,7 @@ def main(cfg: DictConfig) -> None:
         problem_records_types.update({'num_questions': pd.UInt32Dtype(), 'num_symbols': pd.UInt32Dtype()})
 
         # Graphify problems
-        if cfg.symbol_cost.model == 'composite' and cfg.symbol_embedding_model == 'gcn':
+        if cfg.symbol_cost.model == 'gcn':
             max_num_nodes = None
             for k in problems:
                 if cfg.gcn.max_problem_nodes[k] is not None:
@@ -352,10 +352,9 @@ def main(cfg: DictConfig) -> None:
         else:
             if cfg.symbol_cost.model == 'direct':
                 model_symbol_cost = models.symbol_cost.Direct(questions_all)
-            elif cfg.symbol_cost.model == 'composite':
+            elif cfg.symbol_cost.model in ['gcn', 'simple']:
                 embedding_to_cost = None
-                logging.info(f'Symbol embedding model: {cfg.symbol_embedding_model}')
-                if cfg.symbol_embedding_model == 'simple':
+                if cfg.symbol_cost.model == 'simple':
                     model_symbol_embedding = models.symbol_features.Simple(clausifier, cfg.symbol_type)
                     if cfg.embedding_to_cost.hidden.units > 0:
                         cbs.append(callbacks.Weights(tensorboard))
@@ -365,12 +364,12 @@ def main(cfg: DictConfig) -> None:
                         embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
                                                                   kernel_initializer=tf.constant_initializer(kernel))
 
-                elif cfg.symbol_embedding_model == 'gcn':
+                elif cfg.symbol_cost.model == 'gcn':
                     gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                                      graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
                     model_symbol_embedding = models.symbol_features.Graph(graphifier, cfg.symbol_type, gcn)
                 else:
-                    raise ValueError(f'Unsupported symbol embedding model: {cfg.symbol_embedding_model}')
+                    raise ValueError(f'Unsupported symbol cost model: {cfg.symbol_cost.model}')
                 if embedding_to_cost is None:
                     if cfg.embedding_to_cost.hidden.units <= 0:
                         embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
