@@ -472,8 +472,8 @@ def main(cfg: DictConfig) -> None:
 
             if symbol_cost_evaluation_callback.start <= -1:
                 print(f'Initial evaluation of the symbol cost model...')
-                models = {k: v.symbol_cost_model for k, v in logit_models.items()}
-                symbol_cost_evaluation_callback.evaluate(models, epoch=-1)
+                sc_models = {k: v.symbol_cost_model for k, v in logit_models.items()}
+                symbol_cost_evaluation_callback.evaluate(sc_models, epoch=-1)
 
         if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
             if cfg.initial_eval:
