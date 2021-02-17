@@ -50,6 +50,86 @@ def flatten_config(cfg):
     return flatten_dict(OmegaConf.to_container(cfg))
 
 
+def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, graphifier):
+    from questions import models
+
+    logging.info(f'Symbol cost model: {cfg.symbol_cost.model}')
+    if cfg.symbol_cost.model == 'baseline':
+        model_symbol_cost = models.symbol_cost.Baseline()
+    else:
+        if cfg.symbol_cost.model == 'direct':
+            model_symbol_cost = models.symbol_cost.Direct(questions_all)
+        elif cfg.symbol_cost.model in ['gcn', 'simple']:
+            embedding_to_cost = None
+            if cfg.symbol_cost.model == 'simple':
+                model_symbol_embedding = models.symbol_features.Simple(clausifier, cfg.symbol_type)
+                if cfg.embedding_to_cost.hidden.units > 0:
+                    cbs.append(callbacks.Weights(tensorboard))
+                if cfg.simple_model_kernel is not None:
+                    kernel = np.fromstring(cfg.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
+                    logging.info(f'Simple model kernel: {kernel}')
+                    embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
+                                                              kernel_initializer=tf.constant_initializer(kernel))
+
+            elif cfg.symbol_cost.model == 'gcn':
+                gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
+                                                 graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
+                model_symbol_embedding = models.symbol_features.Graph(graphifier, cfg.symbol_type, gcn)
+            else:
+                raise ValueError(f'Unsupported symbol cost model: {cfg.symbol_cost.model}')
+            if embedding_to_cost is None:
+                if cfg.embedding_to_cost.hidden.units <= 0:
+                    embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
+                                                              kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                                  l1=cfg.embedding_to_cost.l1,
+                                                                  l2=cfg.embedding_to_cost.l2))
+                else:
+                    embedding_to_cost = tf.keras.Sequential([
+                        tf.keras.layers.Dense(cfg.embedding_to_cost.hidden.units,
+                                              activation=cfg.embedding_to_cost.hidden.activation,
+                                              kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                  l1=cfg.embedding_to_cost.l1,
+                                                  l2=cfg.embedding_to_cost.l2)),
+                        tf.keras.layers.Dense(1,
+                                              kernel_regularizer=tf.keras.regularizers.L1L2(
+                                                  l1=cfg.embedding_to_cost.l1,
+                                                  l2=cfg.embedding_to_cost.l2))
+                    ], name='embedding_to_cost')
+            model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
+                                                             l2=cfg.symbol_cost.l2)
+        else:
+            raise ValueError(f'Unsupported symbol cost model: {cfg.symbol_cost.model}')
+
+    return model_symbol_cost
+
+
+def get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier):
+    from questions import models
+
+    model_symbol_cost = get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, graphifier)
+    model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+
+    if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
+        Optimizer = {
+            'sgd': tf.keras.optimizers.SGD,
+            'adam': tf.keras.optimizers.Adam,
+            'rmsprop': tf.keras.optimizers.RMSprop
+        }[cfg.optimizer]
+        # https://arxiv.org/pdf/1706.02677.pdf
+        # https://arxiv.org/abs/1711.00489
+        learning_rate = cfg.learning_rate * cfg.batch_size.train
+        neptune.set_property('learning_rate_scaled', learning_rate)
+        optimizer = Optimizer(learning_rate=learning_rate)
+
+        model_logit.compile(optimizer=optimizer)
+
+        if cfg.restore_checkpoint is not None:
+            model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
+            logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(cfg.restore_checkpoint)}')
+
+    return model_logit
+
+
 @hydra.main(config_name='config')
 def main(cfg: DictConfig) -> None:
     tf.config.threading.set_inter_op_parallelism_threads(cfg.tf.threads.inter)
@@ -346,78 +426,14 @@ def main(cfg: DictConfig) -> None:
                 solver_eval_problems = solver_eval_problems.concatenate(solver_eval_problems_train)
             solver_eval_problems = list(OrderedSet(map(py_str, solver_eval_problems)))
 
-        logging.info(f'Symbol cost model: {cfg.symbol_cost.model}')
-        if cfg.symbol_cost.model == 'baseline':
-            model_symbol_cost = models.symbol_cost.Baseline()
-        else:
-            if cfg.symbol_cost.model == 'direct':
-                model_symbol_cost = models.symbol_cost.Direct(questions_all)
-            elif cfg.symbol_cost.model in ['gcn', 'simple']:
-                embedding_to_cost = None
-                if cfg.symbol_cost.model == 'simple':
-                    model_symbol_embedding = models.symbol_features.Simple(clausifier, cfg.symbol_type)
-                    if cfg.embedding_to_cost.hidden.units > 0:
-                        cbs.append(callbacks.Weights(tensorboard))
-                    if cfg.simple_model_kernel is not None:
-                        kernel = np.fromstring(cfg.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
-                        logging.info(f'Simple model kernel: {kernel}')
-                        embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
-                                                                  kernel_initializer=tf.constant_initializer(kernel))
-
-                elif cfg.symbol_cost.model == 'gcn':
-                    gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
-                                                     graphifier.ntype_feat_sizes, output_ntypes=[cfg.symbol_type])
-                    model_symbol_embedding = models.symbol_features.Graph(graphifier, cfg.symbol_type, gcn)
-                else:
-                    raise ValueError(f'Unsupported symbol cost model: {cfg.symbol_cost.model}')
-                if embedding_to_cost is None:
-                    if cfg.embedding_to_cost.hidden.units <= 0:
-                        embedding_to_cost = tf.keras.layers.Dense(1, name='embedding_to_cost',
-                                                                  kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                                      l1=cfg.embedding_to_cost.l1,
-                                                                      l2=cfg.embedding_to_cost.l2))
-                    else:
-                        embedding_to_cost = tf.keras.Sequential([
-                            tf.keras.layers.Dense(cfg.embedding_to_cost.hidden.units,
-                                                  activation=cfg.embedding_to_cost.hidden.activation,
-                                                  kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                      l1=cfg.embedding_to_cost.l1,
-                                                      l2=cfg.embedding_to_cost.l2)),
-                            tf.keras.layers.Dense(1,
-                                                  kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                      l1=cfg.embedding_to_cost.l1,
-                                                      l2=cfg.embedding_to_cost.l2))
-                        ], name='embedding_to_cost')
-                model_symbol_cost = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_cost,
-                                                                 l2=cfg.symbol_cost.l2)
-            else:
-                raise ValueError(f'Unsupported symbol cost model: {cfg.symbol_cost.model}')
-
         save_df(dataframe_from_records(list(problem_records.values()), index_keys='name', dtypes=problem_records_types),
                 'problems')
 
-        model_logit = models.question_logit.QuestionLogitModel(model_symbol_cost)
+        model_logit = get_model_logit(cfg, questions_all, clausifier, cbs, tensorboard, graphifier)
+        model_symbol_cost = model_logit.symbol_cost_model
 
         # We need to set_model before we begin using tensorboard. Tensorboard is used in other callbacks in symbol cost evaluation.
         tensorboard.set_model(model_logit)
-
-        if not isinstance(model_symbol_cost, models.symbol_cost.Baseline):
-            Optimizer = {
-                'sgd': tf.keras.optimizers.SGD,
-                'adam': tf.keras.optimizers.Adam,
-                'rmsprop': tf.keras.optimizers.RMSprop
-            }[cfg.optimizer]
-            # https://arxiv.org/pdf/1706.02677.pdf
-            # https://arxiv.org/abs/1711.00489
-            learning_rate = cfg.learning_rate * cfg.batch_size.train
-            neptune.set_property('learning_rate_scaled', learning_rate)
-            optimizer = Optimizer(learning_rate=learning_rate)
-
-            model_logit.compile(optimizer=optimizer)
-
-            if cfg.restore_checkpoint is not None:
-                model_logit.load_weights(hydra.utils.to_absolute_path(cfg.restore_checkpoint))
-                logging.info(f'Checkpoint restored: {hydra.utils.to_absolute_path(cfg.restore_checkpoint)}')
 
         if solver_eval_problems is not None:
             problem_categories = {
