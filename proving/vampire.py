@@ -8,6 +8,7 @@ import tempfile
 
 import numpy as np
 import pandas as pd
+import tensorflow as tf
 
 from proving import config
 from proving import process
@@ -140,6 +141,8 @@ class OptionManager:
         if self.enabled():
             self.temp_dir = tempfile.TemporaryDirectory(prefix=f'{config.program_name()}_', dir=config.scratch_dir())
             for name, precedence in self.precedences.items():
+                if isinstance(precedence, tf.Tensor):
+                    precedence = precedence.numpy()
                 precedence.tofile(self.precedence_path(name), sep=',')
         return self
 
