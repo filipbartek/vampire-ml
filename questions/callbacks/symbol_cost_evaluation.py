@@ -22,7 +22,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
     name = 'solver_eval'
     columns = ['returncode', 'time_elapsed', 'time_elapsed_vampire', 'saturation_iterations', 'memory_used']
 
-    def __init__(self, cfg, csv_filename, solver, problems, splits, tensorboard=None,
+    def __init__(self, cfg, csv_filename, solver, problems, splits, symbol_type, tensorboard=None,
                  problem_categories=None, parallel=None, baseline=False, **kwargs):
         super().__init__(csv_filename, **kwargs)
         self.solver = solver
@@ -37,6 +37,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         self.start = start
         self.step = step
         self.iterations = cfg.iterations
+        self.symbol_type = symbol_type
         self.tensorboard = tensorboard
         self.splits = splits  # validation, train
         if problem_categories is None:
@@ -54,7 +55,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         logs = logs or {}
         if self.start is not None and self.step is not None and epoch >= self.start and (
                 epoch - self.start) % self.step == 0:
-            logs.update(self.flatten_logs(self.evaluate(self.model.symbol_cost_model, epoch)))
+            logs.update(self.flatten_logs(self.evaluate({self.symbol_type: self.model.symbol_cost_model}, epoch)))
             super().on_epoch_end(epoch, logs=logs)
 
     @staticmethod

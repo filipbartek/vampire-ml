@@ -459,6 +459,7 @@ def main(cfg: DictConfig) -> None:
                 solver=solver,
                 problems=solver_eval_problems,
                 splits={k: list(map(py_str, v)) for k, v in problems.items()},
+                symbol_type=cfg.symbol_types[0],
                 tensorboard=tensorboard,
                 problem_categories=problem_categories,
                 baseline=cfg.symbol_cost.model == 'baseline',
