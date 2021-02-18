@@ -110,10 +110,13 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         problems_filtered = self.problems
 
         if self.isolated:
-            assert 'precedence_cost' not in df_data
-            df_data['precedence_cost'] = [r['precedence_cost'] for r in records[:len(problems_filtered)]]
-            assert 'symbols' not in df_data
-            df_data['symbols'] = [r['symbols'] for r in records[:len(problems_filtered)]]
+            for name in models:
+                # We get the values only from the first iteration, assuming they don't differ across iterations.
+                assert 'precedence_cost' not in df_data
+                df_data[name, 'precedence_cost'] = [r.get((name, 'precedence_cost'), None) for r in
+                                                    records[:len(problems_filtered)]]
+                assert 'symbols' not in df_data
+                df_data[name, 'symbols'] = [r.get((name, 'symbols'), None) for r in records[:len(problems_filtered)]]
 
         iter_dfs = []
         field_series = {k: [] for k in self.columns}
