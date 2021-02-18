@@ -35,7 +35,7 @@ class Simple(SymbolFeatures):
         else:
             return len(self.columns)
 
-    def call(self, problems):
+    def call(self, problems, cache=True):
         # The output shape of 'valid' is fully specified so that it can be later used as a boolean mask with `tf.ragged.boolean_mask`.
         fn_output_signature = [tf.RaggedTensorSpec(shape=[None, self.n], dtype=self.dtype, ragged_rank=0),
                                tf.TensorSpec(tf.TensorShape([]), dtype=tf.bool)]
