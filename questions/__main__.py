@@ -335,6 +335,18 @@ def main(cfg: DictConfig) -> None:
                         max_num_nodes = max(max_num_nodes, cfg.gcn.max_problem_nodes[k])
             graphifier = Graphifier(clausifier, max_number_of_nodes=max_num_nodes)
             graphs, graphs_df = graphifier.get_graphs_dict(OrderedSet(map(py_str, problems_all)))
+            clause_types = {name: tf.reduce_sum(tf.cast(graph.ndata['feat']['clause'], tf.uint32), axis=0).numpy() for name, graph in graphs.items()}
+            columns = ['AXIOM', 'ASSUMPTION', 'CONJECTURE', 'NEGATED_CONJECTURE', 'CLAIM', 'EXTENSIONALITY_AXIOM', 'MODEL_DEFINITION']
+            columns = [('clause_type', c) for c in columns]
+            dtypes = {c: pd.UInt32Dtype() for c in columns}
+            df_clause_types = dataframe_from_records(clause_types, columns=columns, dtypes=dtypes)
+            graphs_df = graphs_df.join(df_clause_types, rsuffix='_clause_type')
+            for symbol_type in ('predicate', 'function'):
+                features = {name: tf.reduce_sum(tf.cast(graph.ndata['feat'][symbol_type], tf.uint32), axis=0).numpy() for name, graph in graphs.items()}
+                columns = graphifier.symbol_feature_columns
+                columns = [(symbol_type, c) for c in columns]
+                df_features = dataframe_from_records(features, columns=columns, dtypes={c: pd.UInt32Dtype() for c in columns})
+                graphs_df = graphs_df.join(df_features)
             for problem_name, rec in graphs_df.iterrows():
                 problem_records[problem_name].update(rec.to_dict())
             logging.info(f'Number of problems graphified: {len(graphs)}')

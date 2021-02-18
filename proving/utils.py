@@ -22,13 +22,13 @@ def instance_str(instance):
     return f'{instance.__class__.__name__}({params})'
 
 
-def dataframe_from_records(records, index_keys=None, dtypes=None, index=None):
+def dataframe_from_records(records, index_keys=None, dtypes=None, index=None, **kwargs):
     if isinstance(records, dict):
         assert index is None
         index, records = zip(*records.items())
     if dtypes is None:
         dtypes = {}
-    df = pd.DataFrame.from_records(records, index=index)
+    df = pd.DataFrame.from_records(records, index=index, **kwargs)
     if len(df) == 0:
         return None
     dtypes = {k: v for k, v in dtypes.items() if k in df}
