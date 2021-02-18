@@ -66,7 +66,8 @@ def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, grap
                 if cfg.embedding_to_cost.hidden.units > 0:
                     cbs.append(callbacks.Weights(tensorboard))
                 if cfg.simple_model_kernel is not None:
-                    kernel = np.fromstring(cfg.simple_model_kernel, count=model_symbol_embedding.n, sep=',')
+                    kernel = np.asarray(cfg.simple_model_kernel)
+                    assert len(kernel) == model_symbol_embedding.n
                     logging.info(f'Simple model kernel: {kernel}')
                     embedding_to_cost = tf.keras.layers.Dense(1, use_bias=False, trainable=False,
                                                               kernel_initializer=tf.constant_initializer(kernel))
