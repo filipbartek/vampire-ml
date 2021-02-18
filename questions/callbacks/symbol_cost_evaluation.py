@@ -105,7 +105,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
         print(
             f'Evaluating on {len(self.problems) * self.iterations} cases ({len(self.problems)} problems, {self.iterations} iterations)...',
             file=sys.stderr)
-        records = self.parallel(joblib.delayed(self.solve_one)(models, problem_i, get_precedences) for problem_i in cases)
+        records = self.parallel(
+            joblib.delayed(self.solve_one)(models, problem_i, get_precedences) for problem_i in cases)
 
         problems_filtered = self.problems
 
@@ -201,7 +202,8 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
                         for k, v in self.flatten_logs(res).items():
                             tf.summary.scalar(f'{summary_name}/{k}', v, step=epoch)
                         if not self.baseline:
-                            for symbol_type, column_name in itertools.product(symbol_types, ['symbols', 'precedence_cost']):
+                            for symbol_type, column_name in itertools.product(symbol_types,
+                                                                              ['symbols', 'precedence_cost']):
                                 values = records_df[symbol_type, column_name]
                                 tf.summary.histogram(f'{summary_name}/{symbol_type}/{column_name}', values, step=epoch)
                         for column_name in ['time_elapsed', 'saturation_iterations']:
