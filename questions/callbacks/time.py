@@ -1,5 +1,6 @@
-import neptune
 import tensorflow as tf
+
+from vampire_ml import neptune_optional as neptune
 
 
 class Timer:

@@ -12,7 +12,6 @@ import warnings
 import hydra
 import joblib
 import matplotlib.pyplot as plt
-import neptune
 import neptune_tensorboard
 import numpy as np
 import pandas as pd
@@ -36,6 +35,7 @@ from questions import datasets
 from questions import plot
 from questions.datasets.questions import Generator
 from vampire_ml.results import save_df
+from vampire_ml import neptune_optional as neptune
 
 
 def save_problems(problems, filename):
@@ -145,13 +145,14 @@ def main(cfg: DictConfig) -> None:
         sys.setrecursionlimit(cfg.recursion_limit)
 
     # Neptune
-    neptune.init(project_qualified_name=cfg.neptune.project_qualified_name)
-    neptune.create_experiment(params=flatten_config(cfg), logger=logging.getLogger(),
-                              upload_source_files=map(hydra.utils.to_absolute_path,
-                                                      cfg.neptune.experiment.upload_source_files),
-                              **{k: v for k, v in OmegaConf.to_container(cfg.neptune.experiment).items() if
-                                 k != 'upload_source_files'})
-    neptune_tensorboard.integrate_with_tensorflow(prefix=True)
+    if cfg.neptune.enabled:
+        neptune.init(project_qualified_name=cfg.neptune.project_qualified_name)
+        neptune.create_experiment(params=flatten_config(cfg), logger=logging.getLogger(),
+                                  upload_source_files=map(hydra.utils.to_absolute_path,
+                                                          cfg.neptune.experiment.upload_source_files),
+                                  **{k: v for k, v in OmegaConf.to_container(cfg.neptune.experiment).items() if
+                                     k != 'upload_source_files'})
+        neptune_tensorboard.integrate_with_tensorflow(prefix=True)
 
     logging.info(f'Working directory: {os.getcwd()}')
     neptune.set_property('cwd', os.getcwd())
