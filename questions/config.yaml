@@ -148,7 +148,7 @@ clausifier:
   timeout: null
 
 neptune:
-  enabled: true
+  enabled: false
   project_qualified_name: filipbartek/vampire-ml
   experiment:
     name: null
