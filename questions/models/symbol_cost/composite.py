@@ -29,6 +29,8 @@ class Composite(SymbolCostModel):
         self.add_loss(self.l2_loss(valid_costs))
         return {'costs': costs, 'valid': embeddings['valid']}
 
+    # TODO: Add function call_one that returns some logs about the processing, namely clausification time.
+
     @tf.function(experimental_relax_shapes=True)
     def l2_loss(self, symbol_costs):
         if symbol_costs.nrows() >= 1:
