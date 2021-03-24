@@ -9,7 +9,7 @@ import pandas as pd
 import scipy.stats
 import sklearn.preprocessing
 
-from vampire_ml import neptune_optional as neptune
+from questions import neptune_optional as neptune
 
 
 def save_all(df_solve, df_clausify, output, df_custom=None):

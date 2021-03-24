@@ -23,19 +23,19 @@ from omegaconf import DictConfig, OmegaConf
 from ordered_set import OrderedSet
 from tqdm import tqdm
 
-from proving import tptp
-from proving.utils import flatten_dict
-from proving.utils import py_str
-from proving.memory import memory
-from proving.solver import Solver
-from proving.utils import cardinality_finite, dataset_is_empty
-from proving.utils import dataframe_from_records
 from questions import callbacks
 from questions import datasets
+from questions import neptune_optional as neptune
 from questions import plot
+from questions import tptp
 from questions.datasets.questions import Generator
-from vampire_ml.results import save_df
-from vampire_ml import neptune_optional as neptune
+from questions.memory import memory
+from questions.results import save_df
+from questions.solver import Solver
+from questions.utils import cardinality_finite, dataset_is_empty
+from questions.utils import dataframe_from_records
+from questions.utils import flatten_dict
+from questions.utils import py_str
 
 
 def save_problems(problems, filename):
@@ -133,7 +133,7 @@ def main(cfg: DictConfig) -> None:
     tf.config.threading.set_intra_op_parallelism_threads(cfg.tf.threads.intra)
 
     # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
-    from proving.graphifier import Graphifier
+    from questions.graphifier import Graphifier
     from questions import models
 
     logging.basicConfig(level=cfg.log_level)

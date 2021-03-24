@@ -1,7 +1,7 @@
 import dgl.nn.tensorflow as dglnn
 import tensorflow as tf
 
-from proving.formula_visitor import FormulaVisitor
+from questions.formula_visitor import FormulaVisitor
 
 
 class GCN(tf.keras.layers.Layer):

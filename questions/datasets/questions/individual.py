@@ -4,7 +4,7 @@ import os
 
 import tensorflow as tf
 
-from proving.utils import py_str
+from questions.utils import py_str
 
 
 def dict_to_dataset(questions, problems, normalize=True, dtype=tf.float32):

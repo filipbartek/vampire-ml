@@ -13,12 +13,12 @@ import tensorflow as tf
 from joblib import delayed, Parallel
 from tqdm import tqdm
 
-from proving import utils
-from proving import vampire
-from proving.memory import memory
-from proving.utils import dataframe_from_records
 from questions import plot
-from vampire_ml.results import save_df
+from questions import utils
+from questions import vampire
+from questions.memory import memory
+from questions.results import save_df
+from questions.utils import dataframe_from_records
 
 symbol_types = ('predicate', 'function')
 

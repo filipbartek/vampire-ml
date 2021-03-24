@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from .symbol_features import SymbolFeatures
-from proving.utils import py_str
+from questions.utils import py_str
 
 
 class Simple(SymbolFeatures):

@@ -5,8 +5,8 @@ import warnings
 
 from joblib import Parallel, delayed
 
-from proving import vampire
-from proving.memory import memory
+from questions import vampire
+from questions.memory import memory
 
 log = logging.getLogger(__name__)
 

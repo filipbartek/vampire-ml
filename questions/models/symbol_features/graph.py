@@ -1,7 +1,7 @@
 import dgl
 import tensorflow as tf
 
-from proving.utils import py_str
+from questions.utils import py_str
 from .symbol_features import SymbolFeatures
 
 

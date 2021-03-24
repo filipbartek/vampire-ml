@@ -1,5 +1,5 @@
 import joblib
 
-from proving import config
+from questions import config
 
 memory = joblib.Memory(location=config.cache_dir(), verbose=0)

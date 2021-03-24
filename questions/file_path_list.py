@@ -8,7 +8,7 @@ from functools import partial
 
 from ordered_set import OrderedSet
 
-from proving import config
+from questions import config
 
 
 def normalize_path(path, base_path=None):

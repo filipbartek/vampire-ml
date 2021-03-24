@@ -2,7 +2,7 @@ import numpy as np
 import sklearn
 import tensorflow as tf
 
-from proving.utils import py_str
+from questions.utils import py_str
 from .symbol_cost import SymbolCostModel
 
 

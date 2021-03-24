@@ -5,8 +5,8 @@ import warnings
 
 import pandas as pd
 
-from proving import config
-from proving import utils
+from questions import config
+from questions import utils
 
 property_types = {
     'domain': 'category',  # Domain name abbreviation. 3 letters

@@ -2,9 +2,9 @@ import logging
 
 import tensorflow as tf
 
-from proving import config
-from proving import file_path_list
-from proving.utils import py_str
+from questions import config
+from questions import file_path_list
+from questions.utils import py_str
 
 
 def get_datasets_split(patterns, validation_split, max_problems=None):

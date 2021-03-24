@@ -10,9 +10,9 @@ import numpy as np
 import pandas as pd
 import tensorflow as tf
 
-from proving import config
-from proving import process
-from proving import symbols
+from questions import config
+from questions import process
+from questions import symbols
 
 log = logging.getLogger(__name__)
 supported_precedence_names = ['predicate', 'function']

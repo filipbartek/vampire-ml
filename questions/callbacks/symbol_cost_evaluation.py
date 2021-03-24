@@ -11,11 +11,11 @@ import scipy
 import tensorflow as tf
 import yaml
 
-from proving import vampire
-from proving.utils import dataframe_from_records
-from proving.utils import flatten_dict
-from proving.utils import timer
-from vampire_ml.results import save_df
+from questions import vampire
+from questions.results import save_df
+from questions.utils import dataframe_from_records
+from questions.utils import flatten_dict
+from questions.utils import timer
 
 
 class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):

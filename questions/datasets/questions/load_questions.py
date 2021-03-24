@@ -11,8 +11,8 @@ import numpy as np
 from joblib import Parallel, delayed
 from tqdm import tqdm
 
-from proving import utils
-from proving.memory import memory
+from questions import utils
+from questions.memory import memory
 
 
 def load(file, questions_dir, max_questions_per_problem=None):

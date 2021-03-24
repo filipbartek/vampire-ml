@@ -10,13 +10,13 @@ import joblib
 import pandas as pd
 from joblib import Parallel, delayed
 
-from proving import config
-from proving import tptp
-from proving.formula_visitor import FormulaVisitor
-from proving.memory import memory
-from proving.utils import dataframe_from_records
-from proving.utils import py_str
-from proving.utils import timer
+from questions import config
+from questions import tptp
+from questions.formula_visitor import FormulaVisitor
+from questions.memory import memory
+from questions.utils import dataframe_from_records
+from questions.utils import py_str
+from questions.utils import timer
 
 
 @memory.cache(verbose=1)
