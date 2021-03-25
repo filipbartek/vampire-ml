@@ -187,15 +187,15 @@ def main(cfg: DictConfig) -> None:
         if re.match(
                 r'^(?P<name>(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*))$',
                 pattern):
-            # Pattern is a problem name without file extension.
-            # Prepend the file extension '.p'.
+            # The pattern is a problem name without a file extension.
+            # Append the file extension '.p'.
             pattern = f'{pattern}.p'
         m = re.match(
             r'^(?P<name>(?P<domain>[A-Z]{3})(?P<number>[0-9]{3})(?P<form>[-+^=_])(?P<version>[1-9])(?P<size_parameters>[0-9]*(\.[0-9]{3})*))(?:\.[pg])$',
             pattern)
         if m:
-            # Pattern is a problem base name without domain directory name.
-            # Prepend domain directory name.
+            # The pattern is a problem base name without domain directory name.
+            # Prepend the domain directory name.
             pattern = os.path.join(m['domain'], pattern)
         return pattern
 

@@ -12,7 +12,7 @@ problems:
   patterns:
     - "**/*-*.p" # CNF
     - "**/*+*.p" # FOF
-  # List of problem names. Overrides the option `problem`.
+  # List of problem names. Overrides the option `patterns`.
   names: null
   train: null
   val: null
