@@ -11,8 +11,8 @@ import pandas as pd
 import tensorflow as tf
 
 from questions import config
-from questions import process
-from questions import symbols
+from . import process
+from . import symbols
 
 log = logging.getLogger(__name__)
 supported_precedence_names = ['predicate', 'function']

@@ -15,9 +15,9 @@ from tqdm import tqdm
 
 from questions import plot
 from questions import utils
-from questions import vampire
 from questions.memory import memory
 from questions.results import save_df
+from questions.solver import vampire
 from questions.utils import dataframe_from_records
 
 symbol_types = ('predicate', 'function')
@@ -287,7 +287,7 @@ class Generator:
 @memory.cache(verbose=1)
 def get_signature_sizes(problems, clausifier):
     def get_signature_size(problem_name):
-        clausify_result = clausifier.clausify(problem_name, get_symbols=True, get_clauses=False)
+        clausify_result = clausifier.clausify(problem_name, get_symbols=True, get_clauses=False, get_stdout=True)
         try:
             return {symbol_type: len(clausify_result.symbols_of_type(symbol_type)) for symbol_type in symbol_types}
         except AttributeError:

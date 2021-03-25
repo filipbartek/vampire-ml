@@ -11,8 +11,8 @@ import scipy
 import tensorflow as tf
 import yaml
 
-from questions import vampire
 from questions.results import save_df
+from questions.solver import vampire
 from questions.utils import dataframe_from_records
 from questions.utils import flatten_dict
 from questions.utils import timer
