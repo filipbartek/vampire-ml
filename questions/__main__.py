@@ -182,6 +182,9 @@ def main(cfg: DictConfig) -> None:
         logging.info(f'Hostname: {socket.gethostname()}')
 
     patterns = cfg.problems.patterns
+    if cfg.problems.pattern_list is not None:
+        with open(hydra.utils.to_absolute_path(cfg.problems.pattern_list)) as f:
+            patterns += list(l.rstrip() for l in f)
 
     def normalize_pattern(pattern):
         if re.match(
