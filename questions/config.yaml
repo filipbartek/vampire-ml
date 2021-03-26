@@ -9,9 +9,7 @@ symbol_types:
 problems:
   # List of problem path glob patterns
   # TPTP problem naming: http://www.tptp.org/TPTP/TR/TPTPTR.shtml
-  patterns:
-    - "**/*-*.p" # CNF
-    - "**/*+*.p" # FOF
+  patterns: []
   pattern_list: null
   # List of problem names. Overrides the option `patterns`.
   names: null
@@ -39,7 +37,7 @@ questions:
   # For example, if the questions compare predicate precedences, what function precedences should be used along?
   # random: A random function precedence is sampled for each question.
   # null: The default function precedence heuristic is used.
-  background: random
+  background: null
   normalize: true
 
 
