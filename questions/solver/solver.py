@@ -96,6 +96,14 @@ class Solver:
                     raise RuntimeError(
                         f'Problem {problem}: Attempt {i}: Failed to get memoized result. Try to increase the recursion limit.') from e
                 if result is not None:
+                    if get_symbols and result.returncode == 0 and result.symbols is None:
+                        warnings.warn(f'Problem {problem}: Attempt {i}: Failed to fetch symbols.')
+                        memo_result.clear()
+                        continue
+                    if get_clauses and result.returncode == 0 and result.clauses is None:
+                        warnings.warn(f'Problem {problem}: Attempt {i}: Failed to fetch clauses.')
+                        memo_result.clear()
+                        continue
                     if result.returncode in (0, 1):
                         break
                     # Known return codes:
