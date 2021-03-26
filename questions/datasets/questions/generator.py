@@ -304,12 +304,19 @@ def get_signature_sizes(problems, clausifier):
 
 def is_better(r0, r1):
     # Returns true if r0 is a better result than t1.
-    # Sometimes a failed attempt (`returncode==1`) does not output saturation iteration count.
-    assert r0.returncode != 0 or r0.saturation_iterations is not None
-    assert r1.returncode != 0 or r1.saturation_iterations is not None
-    if r0.saturation_iterations is not None and r1.saturation_iterations is not None:
-        if r0.returncode == 0 and r1.returncode != 0 and r0.saturation_iterations <= r1.saturation_iterations:
+    try:
+        # Sometimes a failed attempt (`returncode==1`) does not output saturation iteration count.
+        assert r0.returncode != 0 or r0.saturation_iterations is not None
+        assert r1.returncode != 0 or r1.saturation_iterations is not None
+        if r0.saturation_iterations is not None and r1.saturation_iterations is not None:
+            if r0.returncode == 0 and r1.returncode != 0 and r0.saturation_iterations <= r1.saturation_iterations:
+                return True
+            if r0.returncode == 0 and r1.returncode == 0 and r0.saturation_iterations < r1.saturation_iterations:
+                return True
+    except AttributeError:
+        # Twee does not output saturation iteration count.
+        if r0.returncode == 0 and r1.returncode != 0 and r0.time_elapsed <= r1.time_elapsed:
             return True
-        if r0.returncode == 0 and r1.returncode == 0 and r0.saturation_iterations < r1.saturation_iterations:
+        if r0.returncode == 0 and r1.returncode == 0 and r0.time_elapsed < r1.time_elapsed:
             return True
     return False

@@ -32,6 +32,7 @@ from questions.datasets.questions import Generator
 from questions.memory import memory
 from questions.results import save_df
 from questions.solver import Solver
+from questions.solver import Twee
 from questions.utils import cardinality_finite, dataset_is_empty
 from questions.utils import dataframe_from_records
 from questions.utils import flatten_dict
@@ -205,7 +206,7 @@ def main(cfg: DictConfig) -> None:
     patterns = list(map(normalize_pattern, patterns))
 
     clausifier = Solver(**OmegaConf.to_container(cfg.clausifier))
-    solver = Solver(**OmegaConf.to_container(cfg.solver))
+    solver = Twee(clausifier=clausifier, **OmegaConf.to_container(cfg.solver))
 
     with joblib.parallel_backend('threading', n_jobs=cfg.jobs), joblib.Parallel(verbose=10) as parallel:
         # Collect problem datasets

@@ -1,7 +1,7 @@
 jobs: 1
 
 symbol_types:
-  - predicate
+  - function
 
 
 # Dataset
@@ -35,7 +35,7 @@ questions:
   # Each question consists of two runs that differ exactly by the precedences specified under `randomize`.
   # The randomized precedences are sampled uniformly.
   randomize:
-    - predicate
+    - function
   # For example, if the questions compare predicate precedences, what function precedences should be used along?
   # random: A random function precedence is sampled for each question.
   # null: The default function precedence heuristic is used.
@@ -135,18 +135,11 @@ solver:
   # Run `vampire --show_options on --show_experimental_options on` to print the available options.
   # Example: {time_limit: 10}
   options:
-    encode: "on"
-    statistics: full
-    time_statistics: "on"
-    proof: "off"
-    avatar: "off"
-    saturation_algorithm: discount
-    age_weight_ratio: 10
-    literal_comparison_mode: predicate
-    symbol_precedence: frequency
-    time_limit: 10
+    - --quiet
+    - --no-proof
+    - --no-flatten-goal
   # Time in seconds after which each call to Vampire is terminated.
-  timeout: 20
+  timeout: 10
 
 clausifier:
   options:

@@ -231,7 +231,7 @@ class SymbolCostEvaluation(tf.keras.callbacks.CSVLogger):
 
     @classmethod
     def solver_result_to_dict(cls, result):
-        return {k: getattr(result, k) for k in cls.columns}
+        return {k: getattr(result, k, None) for k in cls.columns}
 
     def solve_one(self, models, problem_i, get_precedences=None):
         problem = self.problems[problem_i]
