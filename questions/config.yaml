@@ -32,8 +32,14 @@ questions:
   max_per_problem: null
   hoeffding_exponent: 4.0
   batch_size: 1000
+  # Each question consists of two runs that differ exactly by the precedences specified under `randomize`.
+  # The randomized precedences are sampled uniformly.
   randomize:
     - predicate
+  # For example, if the questions compare predicate precedences, what function precedences should be used along?
+  # random: A random function precedence is sampled for each question.
+  # null: The default function precedence heuristic is used.
+  background: random
   normalize: true
 
 

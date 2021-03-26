@@ -24,7 +24,7 @@ symbol_types = ('predicate', 'function')
 
 
 class Generator:
-    def __init__(self, df, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4, step=0):
+    def __init__(self, df, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4, step=0, background='random'):
         # The higher the exponent, the more exploration. The value of 4 corresponds to UCB1.
         self.df = df
         if randomize is None:
@@ -33,11 +33,13 @@ class Generator:
         self.ucb_method = ucb_method
         self.hoeffding_exponent = hoeffding_exponent
         self.step = step
+        self.background = background
 
     name = 'generator'
 
     @classmethod
-    def fresh(cls, problems, clausifier, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4):
+    def fresh(cls, problems, clausifier, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4,
+              background='random'):
         signature_sizes = get_signature_sizes(problems, clausifier)
         assert len(signature_sizes) == len(problems)
         records = [{
@@ -55,7 +57,7 @@ class Generator:
             'hits': pd.UInt32Dtype()
         }
         df = dataframe_from_records(records, index_keys='problem', dtypes=dtypes)
-        return cls(df, randomize, ucb_method=ucb_method, hoeffding_exponent=hoeffding_exponent)
+        return cls(df, randomize, ucb_method=ucb_method, hoeffding_exponent=hoeffding_exponent, background=background)
 
     def save(self, dir):
         os.makedirs(dir, exist_ok=True)
@@ -266,6 +268,8 @@ class Generator:
         try:
             precedences = [{}, {}]
             for symbol_type in symbol_types:
+                if symbol_type not in self.randomize and self.background != 'random':
+                    continue
                 for i in range(2):
                     if symbol_type in self.randomize:
                         seed = (problem_i, case, i)

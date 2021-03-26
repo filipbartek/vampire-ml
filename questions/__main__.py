@@ -267,10 +267,14 @@ def main(cfg: DictConfig) -> None:
                     if set(generator.randomize) != set(cfg.questions.randomize):
                         raise RuntimeError(
                             f'Loaded generator randomizes different symbol type. Expected: {cfg.questions.randomize}. Actual: {generator.randomize}.')
+                    if generator.background != cfg.questions.background:
+                        raise RuntimeError(
+                            f'Loaded generator uses a different background. Expected: {cfg.questions.background}. Actual: {generator.background}.')
                 except FileNotFoundError:
                     generator = Generator.fresh(list(map(py_str, problems_all)), clausifier,
                                                 randomize=cfg.questions.randomize,
-                                                hoeffding_exponent=cfg.questions.hoeffding_exponent)
+                                                hoeffding_exponent=cfg.questions.hoeffding_exponent,
+                                                background=cfg.questions.background)
                     logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
                     questions_all = generator.generate(solver,
