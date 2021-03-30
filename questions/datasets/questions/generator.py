@@ -44,13 +44,14 @@ class Generator:
               background='random', metric='saturation_iterations'):
         signature_sizes = get_signature_sizes(problems, clausifier)
         assert len(signature_sizes) == len(problems)
+        # Filter out problems where signature size fetching fails.
         records = [{
             'problem': problems[i],
             'predicates': signature_sizes[i]['predicate'],
             'functions': signature_sizes[i]['function'],
             'attempts': 0,
             'hits': 0
-        } for i in range(len(problems))]
+        } for i in range(len(problems)) if signature_sizes[i] is not None]
         dtypes = {
             'problem': 'object',
             'predicates': pd.UInt32Dtype(),
