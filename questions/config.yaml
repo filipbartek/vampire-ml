@@ -38,6 +38,8 @@ questions:
   # random: A random function precedence is sampled for each question.
   # null: The default function precedence heuristic is used.
   background: null
+  # Options: saturation_iterations, time_elapsed
+  metric: time_elapsed
   normalize: true
 
 
