@@ -24,7 +24,8 @@ symbol_types = ('predicate', 'function')
 
 
 class Generator:
-    def __init__(self, df, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4, step=0, background='random'):
+    def __init__(self, df, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4, step=0, background='random',
+                 metric='saturation_iterations'):
         # The higher the exponent, the more exploration. The value of 4 corresponds to UCB1.
         self.df = df
         if randomize is None:
@@ -34,12 +35,13 @@ class Generator:
         self.hoeffding_exponent = hoeffding_exponent
         self.step = step
         self.background = background
+        self.metric = metric
 
     name = 'generator'
 
     @classmethod
     def fresh(cls, problems, clausifier, randomize=None, ucb_method='hoeffding', hoeffding_exponent=4,
-              background='random'):
+              background='random', metric='saturation_iterations'):
         signature_sizes = get_signature_sizes(problems, clausifier)
         assert len(signature_sizes) == len(problems)
         records = [{
@@ -57,7 +59,8 @@ class Generator:
             'hits': pd.UInt32Dtype()
         }
         df = dataframe_from_records(records, index_keys='problem', dtypes=dtypes)
-        return cls(df, randomize, ucb_method=ucb_method, hoeffding_exponent=hoeffding_exponent, background=background)
+        return cls(df, randomize, ucb_method=ucb_method, hoeffding_exponent=hoeffding_exponent, background=background,
+                   metric=metric)
 
     def save(self, dir):
         os.makedirs(dir, exist_ok=True)
@@ -158,20 +161,34 @@ class Generator:
             logging.info(f'Questions saved to a cache file: {cache_filename}')
         return results
 
-    @staticmethod
-    def get_question(attempt):
+    def get_question(self, attempt):
         if isinstance(attempt, dict):
             # Legacy fallback for the case of loading old datasets
             assert isinstance(attempt, dict) and 'precedences' in attempt and 'results' in attempt
             return attempt
         precedences, results = attempt
         # Ensure that the output precedence 0 is better than the output precedence 1.
-        if is_better(results[0], results[1]):
+        scores = [getattr(r, self.metric) for r in results]
+        order = None
+        reason = None
+        if results[0].returncode != results[1].returncode:
+            reason = 'returncode'
+            if results[0].returncode == 0 and scores[0] <= scores[1]:
+                order = '0<1'
+            if results[1].returncode == 0 and scores[1] <= scores[0]:
+                order = '1<0'
+        elif 0 == results[0].returncode == results[1].returncode:
+            reason = 'score'
+            if scores[0] < scores[1]:
+                order = '0<1'
+            if scores[1] < scores[0]:
+                order = '1<0'
+        if order == '0<1':
             return {
                 'precedences': precedences,
                 'results': results
             }
-        elif is_better(results[1], results[0]):
+        elif order == '1<0':
             return {
                 'precedences': [precedences[1], precedences[0]],
                 'results': [results[1], results[0]]
@@ -300,16 +317,3 @@ def get_signature_sizes(problems, clausifier):
 
     logging.info(f'Collecting signature sizes of {len(problems)} problems...')
     return Parallel(verbose=10)(delayed(get_signature_size)(problem_name) for problem_name in problems)
-
-
-def is_better(r0, r1):
-    # Returns true if r0 is a better result than t1.
-    # Sometimes a failed attempt (`returncode==1`) does not output saturation iteration count.
-    assert r0.returncode != 0 or r0.saturation_iterations is not None
-    assert r1.returncode != 0 or r1.saturation_iterations is not None
-    if r0.saturation_iterations is not None and r1.saturation_iterations is not None:
-        if r0.returncode == 0 and r1.returncode != 0 and r0.saturation_iterations <= r1.saturation_iterations:
-            return True
-        if r0.returncode == 0 and r1.returncode == 0 and r0.saturation_iterations < r1.saturation_iterations:
-            return True
-    return False

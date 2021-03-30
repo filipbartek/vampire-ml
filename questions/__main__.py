@@ -270,11 +270,15 @@ def main(cfg: DictConfig) -> None:
                     if generator.background != cfg.questions.background:
                         raise RuntimeError(
                             f'Loaded generator uses a different background. Expected: {cfg.questions.background}. Actual: {generator.background}.')
+                    if generator.metric != cfg.questions.metric:
+                        raise RuntimeError(
+                            f'Loaded generator uses a different metric. Expected: {cfg.questions.metric}. Actual: {generator.metric}.')
                 except FileNotFoundError:
                     generator = Generator.fresh(list(map(py_str, problems_all)), clausifier,
                                                 randomize=cfg.questions.randomize,
                                                 hoeffding_exponent=cfg.questions.hoeffding_exponent,
-                                                background=cfg.questions.background)
+                                                background=cfg.questions.background,
+                                                metric=cfg.questions.metric)
                     logging.info('Starting generating questions from scratch.')
                 with writer_train.as_default():
                     questions_all = generator.generate(solver,
