@@ -131,6 +131,8 @@ class Generator:
             logging.info(f'Questions loaded from a cache file: {cache_filename}')
         except FileNotFoundError:
             results = collections.defaultdict(list)
+            problem_stats = pd.DataFrame(0, index=self.problems,
+                                         columns=['misses', ('hits', 'returncode'), ('hits', 'score')])
             num_loaded = 0
             for step in tqdm(range(self.step), desc='Loading question batches', unit='batch'):
                 if num_questions is not None and num_loaded >= num_questions:
@@ -145,7 +147,9 @@ class Generator:
                         continue
                     question = self.get_question(attempt)
                     if question is None:
+                        problem_stats.loc[problem_name, 'misses'] += 1
                         continue
+                    problem_stats.loc[problem_name]['hits', question['reason']] += 1
                     assert len(self.randomize) == 1
                     symbol_type = self.randomize[0]
                     precedences = (question['precedences'][i][symbol_type] for i in range(2))
@@ -156,9 +160,11 @@ class Generator:
                     results[problem_name].append(res)
                     num_loaded += 1
             results = {k: np.asarray(v) for k, v in results.items()}
-            os.makedirs(os.path.dirname(cache_filename), exist_ok=True)
+            cache_dir = os.path.dirname(cache_filename)
+            os.makedirs(cache_dir, exist_ok=True)
             joblib.dump(results, cache_filename)
             logging.info(f'Questions saved to a cache file: {cache_filename}')
+            save_df(self.df.join(problem_stats), os.path.join(cache_dir, 'problems_questions'))
         return results
 
     def get_question(self, attempt):
@@ -186,12 +192,14 @@ class Generator:
         if order == '0<1':
             return {
                 'precedences': precedences,
-                'results': results
+                'results': results,
+                'reason': reason
             }
         elif order == '1<0':
             return {
                 'precedences': [precedences[1], precedences[0]],
-                'results': [results[1], results[0]]
+                'results': [results[1], results[0]],
+                'reason': reason
             }
         return None
 
