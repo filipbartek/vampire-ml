@@ -218,6 +218,7 @@ class Generator:
             if bootstrap_batch:
                 if num_questions is not None:
                     # Bootstrap with multiple trials per problem. Use a lower bound on the final number of runs per problem. This gives better initial estimates of rewards.
+                    # Plot for `hoeffding_exponent == 4`, `num_questions =: q` and `num_problems =: p`:
                     # https://www.wolframalpha.com/input/?i=plot+%284+log%28q%29%29+%2F+%282+sqrt%281+%2B+%284+log%28q%29+p%29+%2F+%282+q%29%29%29%2C+q%3D1..1000000%2C+p%3D1..20000
                     c = self.hoeffding_exponent * np.log(num_questions)
                     bootstrap_copies = int(
