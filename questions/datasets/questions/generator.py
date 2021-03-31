@@ -44,13 +44,14 @@ class Generator:
               background='random', metric='saturation_iterations'):
         signature_sizes = get_signature_sizes(problems, clausifier)
         assert len(signature_sizes) == len(problems)
+        # Filter out problems where signature size fetching fails.
         records = [{
             'problem': problems[i],
             'predicates': signature_sizes[i]['predicate'],
             'functions': signature_sizes[i]['function'],
             'attempts': 0,
             'hits': 0
-        } for i in range(len(problems))]
+        } for i in range(len(problems)) if signature_sizes[i] is not None]
         dtypes = {
             'problem': 'object',
             'predicates': pd.UInt32Dtype(),
@@ -132,7 +133,8 @@ class Generator:
         except FileNotFoundError:
             results = collections.defaultdict(list)
             problem_stats = pd.DataFrame(0, index=self.problems,
-                                         columns=['misses', ('hits', 'returncode'), ('hits', 'score')])
+                                         columns=['misses', ('hits', 'returncode'), ('hits', 'score'),
+                                                  ('runs', 'success'), ('runs', 'fail')])
             num_loaded = 0
             for step in tqdm(range(self.step), desc='Loading question batches', unit='batch'):
                 if num_questions is not None and num_loaded >= num_questions:
@@ -145,6 +147,11 @@ class Generator:
                     if num_questions_per_problem is not None and len(
                             results[problem_name]) >= num_questions_per_problem:
                         continue
+                    for result in attempt[1]:
+                        if result.returncode == 0:
+                            problem_stats.loc[problem_name]['runs', 'success'] += 1
+                        else:
+                            problem_stats.loc[problem_name]['runs', 'fail'] += 1
                     question = self.get_question(attempt)
                     if question is None:
                         problem_stats.loc[problem_name, 'misses'] += 1
