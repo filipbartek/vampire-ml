@@ -60,6 +60,9 @@ def get_model_symbol_cost(cfg, questions_all, clausifier, cbs, tensorboard, grap
     else:
         if cfg.symbol_cost.model == 'direct':
             model_symbol_cost = models.symbol_cost.Direct(questions_all)
+        elif cfg.symbol_cost.model == 'random':
+            model_symbol_cost = models.symbol_cost.Random(clausifier, symbol_type,
+                                                          np.random.default_rng(cfg.symbol_cost.random.seed))
         elif cfg.symbol_cost.model in ['gcn', 'simple']:
             embedding_to_cost = None
             if cfg.symbol_cost.model == 'simple':

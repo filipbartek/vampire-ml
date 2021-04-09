@@ -46,10 +46,12 @@ questions:
 # Model
 
 symbol_cost:
-  # Choices: gcn, simple, direct, baseline
+  # Choices: gcn, simple, direct, baseline, random
   model: gcn
   # Factor of L2 regularization penalty on symbol cost values
   l2: 0.0
+  random:
+    seed: 0
 
 # GCN
 gcn:
