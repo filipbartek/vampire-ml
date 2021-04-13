@@ -30,7 +30,10 @@ class Random(SymbolCostModel):
         problem = py_str(problem)
         try:
             n = len(self.clausifier.symbols_of_type(problem, self.symbol_type))
-            cost = self.rng.permutation(n) / (n - 1) - 0.5
+            if n <= 1:
+                cost = np.zeros(n)
+            else:
+                cost = self.rng.permutation(n) / (n - 1) - 0.5
             assert np.isclose(0, cost.mean(), rtol=0)
             # The normalization ensures a n-uniform variance of the precedence cost. (?)
             assert np.isclose(0, np.outer(cost, cost).sum(), rtol=0)
