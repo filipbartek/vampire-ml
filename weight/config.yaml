@@ -1,0 +1,35 @@
+out_dir: null
+vampire: null
+problems: null
+tptp_path: null
+
+options:
+  common:
+    include: ${tptp_path}
+    avatar: "off"
+  probe:
+    proof: "off"
+    instruction_limit: 50000
+  verbose:
+    show_everything: "on"
+    proof_extra: free
+
+probe_run_args:
+  # Choices: subprocess, benchexec
+  backend: subprocess
+
+  # subprocess: The parameters are passed to `subprocess.run`.
+  timeout: 60
+
+  # BenchExec: The arguments are passed to `benchexec.runexecutor.RunExecutor.execute_run`.
+  # Notable parameters: softtimelimit, hardtimelimit, walltimelimit
+  # Documentation: https://github.com/sosy-lab/benchexec/blob/main/doc/runexec.md
+
+batch:
+  size: null
+  count: 1
+
+parallel:
+  backend: loky
+  n_jobs: 1
+  verbose: 1
