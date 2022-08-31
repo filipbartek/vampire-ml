@@ -52,7 +52,7 @@ def main(cfg):
             problem = meta['problem']
             with open(os.path.join(verbose_path, 'stdout.txt')) as f:
                 stdout = f.read()
-            sample = None
+            samples = []
             try:
                 df = vampire.formulas.extract_df(stdout)
                 for index, row in df[df.role_active].iterrows():
@@ -67,24 +67,26 @@ def main(cfg):
                         'proof': proof,
                         'goal': row.extra_goal
                     }
+                    samples.append(sample)
             except ValueError as e:
                 log.debug(str(e))
-            return problem, sample
+            return problem, samples
 
         verbose_paths = glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose'))
         print(f'Loading {len(verbose_paths)} proofs', file=sys.stderr)
         proof_traces = parallel(joblib.delayed(load_proof)(verbose_path) for verbose_path in verbose_paths)
 
         problem_samples = defaultdict(list)
-        for problem, sample in proof_traces:
-            if sample is None:
+        for problem, samples in proof_traces:
+            if len(samples) == 0:
                 continue
-            problem_samples[problem].append(sample)
+            problem_samples[problem].extend(samples)
 
         log.info(f'Number of problems: {len(problem_samples)}')
 
         problems = {}
         for problem, samples in tqdm(problem_samples.items(), unit='problem', desc='Collecting problem signatures'):
+            assert len(samples) > 0
             predicates = clausifier.symbols_of_type(problem, 'predicate')
             functions = clausifier.symbols_of_type(problem, 'function')
             assert all(
