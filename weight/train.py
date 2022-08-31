@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import tempfile
+from collections import defaultdict
 
 import joblib
 import hydra
@@ -41,29 +42,17 @@ def main(cfg):
         clausifier = Solver()
 
         # problems = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
-        problems = {}
         if cfg.workspace_dir is None:
             raise RuntimeError('Input workspace directory path is required.')
-        for verbose_path in tqdm(glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose')), unit='proof',
-                                 desc='Loading proofs'):
+
+        def load_proof(verbose_path):
             log.debug(f'Loading proof: {verbose_path}')
             with open(os.path.join(verbose_path, 'meta.json')) as f:
                 meta = json.load(f)
+            problem = meta['problem']
             with open(os.path.join(verbose_path, 'stdout.txt')) as f:
                 stdout = f.read()
-            problem = meta['problem']
-            if problem not in problems:
-                predicates = clausifier.symbols_of_type(problem, 'predicate')
-                functions = clausifier.symbols_of_type(problem, 'function')
-                problems[problem] = {
-                    'predicates': predicates,
-                    'functions': functions,
-                    'samples': []
-                }
-            else:
-                predicates = problems[problem]['predicates']
-                functions = problems[problem]['functions']
-            symbol_names = list(predicates.name) + list(functions.name)
+            sample = None
             try:
                 df = vampire.formulas.extract_df(stdout)
                 for index, row in df[df.role_active].iterrows():
@@ -71,7 +60,6 @@ def main(cfg):
                     proof = row.role_proof
                     proof_symbol = '-+'[proof]
                     token_counts = vampire.clause.token_counts(formula)
-                    assert set(token_counts['symbol']) <= set(symbol_names)
                     log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
                     sample = {
                         'formula': formula,
@@ -79,15 +67,37 @@ def main(cfg):
                         'proof': proof,
                         'goal': row.extra_goal
                     }
-                    problems[problem]['samples'].append(sample)
             except ValueError as e:
                 log.debug(str(e))
+            return problem, sample
 
-        log.info(f'Number of problems: {len(problems)}')
+        verbose_paths = glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose'))
+        print(f'Loading {len(verbose_paths)} proofs', file=sys.stderr)
+        proof_traces = parallel(joblib.delayed(load_proof)(verbose_path) for verbose_path in verbose_paths)
+
+        problem_samples = defaultdict(list)
+        for problem, sample in proof_traces:
+            if sample is None:
+                continue
+            problem_samples[problem].append(sample)
+
+        log.info(f'Number of problems: {len(problem_samples)}')
+
+        problems = {}
+        for problem, samples in tqdm(problem_samples.items(), unit='problem', desc='Collecting problem signatures'):
+            predicates = clausifier.symbols_of_type(problem, 'predicate')
+            functions = clausifier.symbols_of_type(problem, 'function')
+            assert all(
+                set(sample['token_counts']['symbol']) <= set(list(predicates.name) + list(functions.name)) for sample in
+                samples)
+            problems[problem] = {
+                'predicates': predicates,
+                'functions': functions,
+                'samples': samples
+            }
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=10000)
-        with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs):
-            graphs, graphs_df = graphifier.get_graphs_dict(problems)
+        graphs, graphs_df = graphifier.get_graphs_dict(problems)
         log.info(f'Number of graphs: {len(graphs)}')
 
         output_ntypes = ['predicate', 'function']
@@ -142,7 +152,7 @@ def main(cfg):
             for dataset_name, dataset in datasets_batched.items():
                 res = model_logit.evaluate(dataset, return_dict=True)
                 log.info(f'{dataset_name}: {res}')
-            df = evaluate(model_symbol_weight, problems, cfg, parallel, model_logit)
+            df = evaluate(model_symbol_weight, problems, cfg, parallel)
             for dataset_name, problem_names in problem_name_datasets.items():
                 cur_df = df[df.problem.isin(problem_names)]
                 n_success = cur_df.szs_status.isin(['THM', 'CAX', 'UNS', 'SAT', 'CSA']).sum()
@@ -159,7 +169,7 @@ def main(cfg):
             evaluate_all(era_dir)
 
 
-def evaluate(model, problems, cfg, parallel, model_logit):
+def evaluate(model, problems, cfg, parallel):
     problem_names = list(problems.keys())
     res = model.predict(problem_names)
     options = {**cfg.options.common, **cfg.options.probe}
