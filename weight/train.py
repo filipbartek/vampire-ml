@@ -11,6 +11,7 @@ import more_itertools
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from tqdm import tqdm
 
 import classifier
 from questions import models
@@ -43,7 +44,8 @@ def main(cfg):
         problems = {}
         if cfg.workspace_dir is None:
             raise RuntimeError('Input workspace directory path is required.')
-        for verbose_path in glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose')):
+        for verbose_path in tqdm(glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose')), unit='proof',
+                                 desc='Loading proofs'):
             log.debug(f'Loading proof: {verbose_path}')
             with open(os.path.join(verbose_path, 'meta.json')) as f:
                 meta = json.load(f)
