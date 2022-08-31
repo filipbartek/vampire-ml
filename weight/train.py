@@ -41,6 +41,8 @@ def main(cfg):
 
         # problems = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
         problems = {}
+        if cfg.workspace_dir is None:
+            raise RuntimeError('Input workspace directory path is required.')
         for verbose_path in glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose')):
             log.debug(f'Loading proof: {verbose_path}')
             with open(os.path.join(verbose_path, 'meta.json')) as f:
