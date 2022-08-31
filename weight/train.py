@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 import tempfile
+import warnings
 from collections import defaultdict
 
 import joblib
@@ -63,7 +64,7 @@ def main(cfg):
                     try:
                         token_counts = vampire.clause.token_counts(formula)
                     except pyparsing.ParseException as e:
-                        log.warning(f'{proof_symbol} {index}: {formula}. Failed to parse: {str(e)}')
+                        warnings.warn(f'{proof_symbol} {index}: {formula}. Failed to parse: {str(e)}')
                         continue
                     log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
                     sample = {
