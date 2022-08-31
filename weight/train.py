@@ -11,6 +11,7 @@ import hydra
 import more_itertools
 import numpy as np
 import pandas as pd
+import pyparsing
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -59,7 +60,11 @@ def main(cfg):
                     formula = row.formula
                     proof = row.role_proof
                     proof_symbol = '-+'[proof]
-                    token_counts = vampire.clause.token_counts(formula)
+                    try:
+                        token_counts = vampire.clause.token_counts(formula)
+                    except pyparsing.ParseException as e:
+                        log.warning(f'{proof_symbol} {index}: {formula}. Failed to parse: {str(e)}')
+                        continue
                     log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
                     sample = {
                         'formula': formula,
