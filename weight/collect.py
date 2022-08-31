@@ -64,19 +64,22 @@ def main(cfg):
                     batch_problems = rng.choice(problems, cfg.batch.size)
                 batch_seeds = range(case_i, case_i + len(batch_problems))
                 print(f'Running {len(batch_problems)} cases', file=sys.stderr)
-                results = parallel(joblib.delayed(run)(problem, seed) for problem, seed in zip(batch_problems, batch_seeds))
+                results = parallel(
+                    joblib.delayed(run)(problem, seed) for problem, seed in zip(batch_problems, batch_seeds))
                 for problem, seed, result in zip(batch_problems, batch_seeds, results):
                     n_total += 1
                     if result['probe']['szs_status'] in ['THM', 'CAX', 'UNS', 'SAT', 'CSA']:
                         n_successes += 1
-                    selected_properties = ['szs_status', 'terminationreason', 'returncode', 'elapsed', 'out_dir', 'stdout_len', 'stderr_len']
+                    selected_properties = ['szs_status', 'terminationreason', 'returncode', 'elapsed', 'out_dir',
+                                           'stdout_len', 'stderr_len']
                     record = {
                         'problem': problem,
                         'seed': seed,
                         'probe': {k: result['probe'][k] for k in selected_properties if k in result['probe']}
                     }
                     if result['verbose'] is not None:
-                        record['verbose'] = {k: result['verbose'][k] for k in selected_properties if k in result['verbose']}
+                        record['verbose'] = {k: result['verbose'][k] for k in selected_properties if
+                                             k in result['verbose']}
                     records.append(record)
                 df = pd.json_normalize(records, sep='_')
                 save_df(df, os.path.join(cfg.workspace_dir, 'runs'))
