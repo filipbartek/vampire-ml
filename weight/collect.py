@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 
+from utils import save_df
 from weight import tptp
 from weight import vampire
 
@@ -24,8 +25,8 @@ def main(cfg):
     def run(problem, seed):
         log.debug(f'Attempting problem {problem} with seed {seed}')
         problem_path = tptp.problem_path(problem, cfg.tptp_path)
-        out_path = os.path.join(cfg.out_dir, 'runs', problem, str(seed))
-        vampire_run = functools.partial(vampire.run, vampire=cfg.vampire)
+        out_path = os.path.join(cfg.workspace_dir, 'runs', problem, str(seed))
+        vampire_run = functools.partial(vampire.run, vampire=cfg.vampire_cmd)
         # First run: probe, proof off
         result_probe = vampire_run(problem_path,
                                    {**cfg.options.common, 'random_seed': seed, **cfg.options.probe},
@@ -40,7 +41,7 @@ def main(cfg):
         return {'probe': result_probe, 'verbose': result_verbose}
 
     problems = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
-    rng = np.random.default_rng(0)
+    rng = np.random.default_rng(cfg.seed)
 
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs):
         parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
@@ -78,7 +79,7 @@ def main(cfg):
                         record['verbose'] = {k: result['verbose'][k] for k in selected_properties if k in result['verbose']}
                     records.append(record)
                 df = pd.json_normalize(records, sep='_')
-                df.to_csv(os.path.join(cfg.out_dir, 'runs.csv'))
+                save_df(df, os.path.join(cfg.workspace_dir, 'runs'))
                 case_i += len(batch_problems)
                 t.set_postfix({'total': n_total, 'successes': n_successes})
 

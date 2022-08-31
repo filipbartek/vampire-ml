@@ -1,5 +1,15 @@
-out_dir: null
-vampire: null
+defaults:
+  - _self_
+  - override hydra/job_logging: colorlog
+  - override hydra/hydra_logging: colorlog
+
+seed: 0
+eras: 10
+epochs_per_era: 10
+validation_split: 0.5
+
+workspace_dir: null
+vampire_cmd: vampire
 problems: null
 tptp_path: null
 
