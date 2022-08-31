@@ -77,10 +77,12 @@ def extract(output):
 
 def extract_proof(output):
     parts = re.split(r'^% SZS output start Proof for (?P<problem>.+)$', output, maxsplit=1, flags=re.MULTILINE)
-    assert len(parts) == 3
+    if len(parts) != 3:
+        raise ValueError('The output string does not contain a proof start line.')
     suffix = parts[2].lstrip()
     parts_2 = re.split(r'^% SZS output end Proof for (?P<problem>.+)$', suffix, maxsplit=1, flags=re.MULTILINE)
-    assert len(parts_2) == 3
+    if len(parts_2) != 3:
+        raise ValueError('The output string does not contain a proof end line.')
     proof = parts_2[0].rstrip()
     return proof
 

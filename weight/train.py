@@ -62,21 +62,24 @@ def main(cfg):
                 predicates = problems[problem]['predicates']
                 functions = problems[problem]['functions']
             symbol_names = list(predicates.name) + list(functions.name)
-            df = vampire.formulas.extract_df(stdout)
-            for index, row in df[df.role_active].iterrows():
-                formula = row.formula
-                proof = row.role_proof
-                proof_symbol = '-+'[proof]
-                token_counts = vampire.clause.token_counts(formula)
-                assert set(token_counts['symbol']) <= set(symbol_names)
-                log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
-                sample = {
-                    'formula': formula,
-                    'token_counts': token_counts,
-                    'proof': proof,
-                    'goal': row.extra_goal
-                }
-                problems[problem]['samples'].append(sample)
+            try:
+                df = vampire.formulas.extract_df(stdout)
+                for index, row in df[df.role_active].iterrows():
+                    formula = row.formula
+                    proof = row.role_proof
+                    proof_symbol = '-+'[proof]
+                    token_counts = vampire.clause.token_counts(formula)
+                    assert set(token_counts['symbol']) <= set(symbol_names)
+                    log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
+                    sample = {
+                        'formula': formula,
+                        'token_counts': token_counts,
+                        'proof': proof,
+                        'goal': row.extra_goal
+                    }
+                    problems[problem]['samples'].append(sample)
+            except ValueError as e:
+                log.debug(str(e))
 
         log.info(f'Number of problems: {len(problems)}')
 
