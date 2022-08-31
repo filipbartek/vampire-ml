@@ -1,13 +1,16 @@
 import itertools
 import json
+import logging
 import os
 import re
 from contextlib import suppress
 
 from weight import runner
 
+log = logging.getLogger(__name__)
 
-def run(problem_path, options, out_dir, **kwargs):
+
+def run(problem_path, options, out_dir=None, **kwargs):
     result = run_bare(problem_path, options, **kwargs)
     status_short = None
     with suppress(KeyError):
@@ -91,15 +94,20 @@ def szs_status(stdout):
 
 
 def save_result(out_dir, result):
+    if out_dir is None:
+        return
     os.makedirs(out_dir, exist_ok=True)
     with open(os.path.join(out_dir, 'meta.json'), 'w') as f:
         json.dump({k: v for k, v in result.items() if k not in ['stdout', 'stderr']}, f, indent=4, default=str)
+        log.debug(f'{f.name} saved.')
     if 'stdout' in result:
         with open(os.path.join(out_dir, 'stdout.txt'), 'w') as f:
             f.write(result['stdout'])
+            log.debug(f'{f.name} saved.')
     if 'stderr' in result:
         with open(os.path.join(out_dir, 'stderr.txt'), 'w') as f:
             f.write(result['stderr'])
+            log.debug(f'{f.name} saved.')
 
 
 def termination_reason(stdout):
