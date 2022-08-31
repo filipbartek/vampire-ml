@@ -49,9 +49,12 @@ def main(cfg):
         records = []
         if cfg.batch.count is None:
             batch_indices = itertools.count()
+            disable = False
         else:
             batch_indices = range(cfg.batch.count)
-        with tqdm(batch_indices, unit='batch', desc='Collecting data', postfix={'total': 0, 'successes': 0}) as t:
+            disable = cfg.batch.count <= 1
+        with tqdm(batch_indices, unit='batch', desc='Collecting data', postfix={'total': 0, 'successes': 0},
+                  disable=disable) as t:
             case_i = 0
             for batch_i in t:
                 if cfg.batch.size is None:
