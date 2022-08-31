@@ -1,5 +1,6 @@
 import functools
 import itertools
+import logging
 import os
 import sys
 
@@ -12,13 +13,16 @@ from tqdm import tqdm
 from weight import tptp
 from weight import vampire
 
+log = logging.getLogger(__name__)
+
 
 @hydra.main(config_path='.', config_name='config')
 def main(cfg):
-    print('cwd:', os.getcwd())
-    print('Output directory:', cfg.out_dir)
+    log.info(f'cwd: {os.getcwd()}')
+    log.info(f'Workspace directory: {cfg.workspace_dir}')
 
     def run(problem, seed):
+        log.debug(f'Attempting problem {problem} with seed {seed}')
         problem_path = tptp.problem_path(problem, cfg.tptp_path)
         out_path = os.path.join(cfg.out_dir, 'runs', problem, str(seed))
         vampire_run = functools.partial(vampire.run, vampire=cfg.vampire)
