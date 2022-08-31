@@ -11,6 +11,7 @@ class Graph(SymbolFeatures):
         self.gcn = gcn
         self.graphifier = graphifier
         self.symbol_type = symbol_type
+        self.special_token_model = self.add_weight(name='special_token_weight', shape=(1, 4, 16), initializer='random_normal', trainable=True)
 
     def call(self, problems, training=False, cache=True):
         batch_graph, valid = self.problems_to_batch_graph(problems, cache=cache)
@@ -33,7 +34,10 @@ class Graph(SymbolFeatures):
         return batch_graph, valid
 
     def resolve_batch_graph(self, batch_graph, training=False):
-        values = self.gcn(batch_graph, training=training)[self.symbol_type]
-        row_lengths = batch_graph.batch_num_nodes(self.symbol_type)
-        ragged_tensor = tf.RaggedTensor.from_row_lengths(values, row_lengths)
-        return ragged_tensor
+        values = self.gcn(batch_graph, training=training)
+        row_lengths = {k: batch_graph.batch_num_nodes(k) for k in values}
+        ragged_tensors = {k: tf.RaggedTensor.from_row_lengths(v, row_lengths[k]) for k, v in values.items()}
+        # TODO: Replace the dummy embeddings with some output of the GCN.
+        special_token_embeddings = tf.tile(self.special_token_model, [batch_graph.batch_size, 1, 1])
+        res = tf.concat([special_token_embeddings, ragged_tensors['predicate'], ragged_tensors['function']], 1)
+        return res
