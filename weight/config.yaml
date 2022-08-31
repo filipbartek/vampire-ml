@@ -38,10 +38,60 @@ probe_run_args:
   # Documentation: https://github.com/sosy-lab/benchexec/blob/main/doc/runexec.md
 
 batch:
-  size: null
+  size: 128
   count: 1
 
 parallel:
   backend: loky
   n_jobs: 1
   verbose: 1
+
+gcn:
+  depth: 4
+  message_size: 16
+  activation: relu
+  aggregate: sum
+  dropout:
+    input: null
+    hidden: null
+  max_norm: null
+  residual: true
+  layer_norm: true
+  # If 'custom', use a recommended normalization for each edge type.
+  # Choices: both, right, none, custom
+  conv_norm: both
+  max_problem_nodes:
+    train: 100000
+    val: 100000
+
+embedding_to_cost:
+  hidden:
+    units: 0
+    activation: relu
+  l1: 0.0
+  l2: 0.0
+
+symbol_cost:
+  # Factor of L2 regularization penalty on symbol cost values
+  l2: 0.0
+
+# Choices: adam, sgd, rmsprop
+optimizer: adam
+# Before training the learning rate is multiplied by `batch_size.train`.
+learning_rate: 0.00001
+
+tf:
+  run_eagerly: false
+
+reduce_lr_on_plateau:
+  # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ReduceLROnPlateau
+  monitor: loss
+  factor: 0.5
+  patience: 10
+  verbose: 1
+
+early_stopping:
+  # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/EarlyStopping
+  monitor: val_binary_accuracy
+  patience: 100
+  baseline: 0.5
