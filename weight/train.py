@@ -63,7 +63,7 @@ def main(cfg):
                     proof_symbol = '-+'[proof]
                     try:
                         token_counts = vampire.clause.token_counts(formula)
-                    except pyparsing.ParseException as e:
+                    except (pyparsing.ParseException, RecursionError) as e:
                         log.debug(f'{proof_symbol} {index}: {formula}. Failed to parse: {str(e)}')
                         continue
                     log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
