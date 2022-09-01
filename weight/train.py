@@ -106,7 +106,8 @@ def main(cfg):
 
         verbose_paths = glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose'))
         print(f'Loading {len(verbose_paths)} proofs', file=sys.stderr)
-        proof_traces = parallel(joblib.delayed(load_proof)(verbose_path, cfg.max_proof_stdout_size) for verbose_path in verbose_paths)
+        proof_traces = parallel(
+            joblib.delayed(load_proof)(verbose_path, cfg.max_proof_stdout_size) for verbose_path in verbose_paths)
 
         problem_samples = defaultdict(list)
         for problem, samples in proof_traces:
