@@ -1,4 +1,5 @@
 import glob
+import itertools
 import json
 import logging
 import os
@@ -100,11 +101,29 @@ def main(cfg):
 
         clausifier = Solver()
 
-        # problems = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
+        def generate_verbose_paths(problem='*'):
+            return glob.glob(os.path.join(cfg.workspace_dir, 'runs', problem, '*', 'verbose'))
+
+        verbose_paths_all = generate_verbose_paths()
+
+        def path_to_problem(path):
+            # Path format: runs/{problem}/{seed}/verbose
+            path_seed = os.path.dirname(path)
+            path_problem = os.path.dirname(path_seed)
+            return os.path.basename(path_problem)
+
+        problem_names = sorted(set(path_to_problem(path) for path in verbose_paths_all))
+        problem_names = rng.permutation(problem_names)
+        if cfg.max_problem_count is not None:
+            problem_names = problem_names[:cfg.max_problem_count]
+
+        log.info(f'Number of problems: {len(problem_names)}')
+
+        verbose_paths = list(
+            itertools.chain.from_iterable(generate_verbose_paths(problem) for problem in problem_names))
+
         if cfg.workspace_dir is None:
             raise RuntimeError('Input workspace directory path is required.')
-
-        verbose_paths = glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose'))
         print(f'Loading {len(verbose_paths)} proofs', file=sys.stderr)
         proof_traces = parallel(
             joblib.delayed(load_proof)(verbose_path, cfg.max_proof_stdout_size) for verbose_path in verbose_paths)

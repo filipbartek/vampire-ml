@@ -7,6 +7,7 @@ seed: 0
 eras: 10
 epochs_per_era: 10
 validation_split: 0.5
+max_problem_count: null
 
 # Maximum proof output file size in bytes
 max_proof_stdout_size: 100000000
