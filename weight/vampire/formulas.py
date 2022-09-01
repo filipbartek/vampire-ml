@@ -21,6 +21,7 @@ roles = ['proof'] + list(role_to_operations)
 
 
 def extract_df(output):
+    # Raises `ValueError` if no proof is found.
     formulas = extract(output)
     records = [formula_to_record(k, v) for k, v in formulas.items()]
     df = pd.json_normalize(records, sep='_')
@@ -51,6 +52,7 @@ def formula_to_record(formula_id, properties):
 
 
 def extract(output):
+    # Raises `ValueError` if no proof is found.
     proof_str = extract_proof(output)
     formula_operations = itertools.chain(extract_operations(fr'^{formula_pattern}$', proof_str, 'proof'),
                                          extract_operations(fr'^{operation_pattern}$', output))
@@ -76,6 +78,7 @@ def extract(output):
 
 
 def extract_proof(output):
+    # Raises `ValueError` if no proof is found.
     parts = re.split(r'^% SZS output start Proof for (?P<problem>.+)$', output, maxsplit=1, flags=re.MULTILINE)
     if len(parts) != 3:
         raise ValueError('The output string does not contain a proof start line.')
