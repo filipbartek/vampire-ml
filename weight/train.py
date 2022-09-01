@@ -116,19 +116,17 @@ def main(cfg):
 
         log.info(f'Number of problems: {len(problem_samples)}')
 
-        problems = {}
-        for problem, samples in tqdm(problem_samples.items(), unit='problem', desc='Collecting problem signatures'):
-            assert len(samples) > 0
-            predicates = clausifier.symbols_of_type(problem, 'predicate')
-            functions = clausifier.symbols_of_type(problem, 'function')
-            assert all(
-                set(sample['token_counts']['symbol']) <= set(list(predicates.name) + list(functions.name)) for sample in
-                samples)
-            problems[problem] = {
-                'predicates': predicates,
-                'functions': functions,
-                'samples': samples
+        def get_signature(problem):
+            return {
+                'predicates': clausifier.symbols_of_type(problem, 'predicate'),
+                'functions': clausifier.symbols_of_type(problem, 'function')
             }
+
+        print(f'Collecting signatures of {len(problem_samples)} problems', file=sys.stderr)
+        signatures = parallel(joblib.delayed(get_signature)(problem) for problem in problem_samples)
+
+        problems = {problem: {**signature, 'samples': samples} for (problem, samples), signature in
+                    zip(problem_samples.items(), signatures)}
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=10000)
         graphs, graphs_df = graphifier.get_graphs_dict(problems)
