@@ -8,6 +8,9 @@ eras: 10
 epochs_per_era: 10
 validation_split: 0.5
 
+# Maximum proof output file size in bytes
+max_proof_stdout_size: 100000000
+
 workspace_dir: null
 vampire_cmd: vampire
 problems: null

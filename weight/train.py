@@ -27,6 +27,63 @@ from weight import vampire
 log = logging.getLogger(__name__)
 
 
+def row_to_sample(index, row):
+    # Raises `RuntimeError` if parsing of the formula fails.
+    formula = row.formula
+    proof = row.role_proof
+    proof_symbol = '-+'[proof]
+    formula_description = f'{proof_symbol} {index}: {formula}'
+    try:
+        # Raises `pyparsing.ParseException` if parsing of the formula fails.
+        # Raises `RecursionError` if the formula is too deep.
+        token_counts = vampire.clause.token_counts(formula)
+    except (pyparsing.ParseException, RecursionError) as e:
+        raise RuntimeError(f'{formula_description}. Failed to parse.') from e
+    log.debug(f'{formula_description}. {token_counts}')
+    return {
+        'formula': formula,
+        'token_counts': token_counts,
+        'proof': proof,
+        'goal': row.extra_goal
+    }
+
+
+def df_to_samples(df):
+    for index, row in df.iterrows():
+        try:
+            yield row_to_sample(index, row)
+        except RuntimeError as e:
+            log.debug(str(e))
+            continue
+
+
+def load_proof_samples(stdout_path, max_size=None):
+    if max_size is not None:
+        cur_size = os.path.getsize(stdout_path)
+        if cur_size > max_size:
+            raise RuntimeError(f'{stdout_path}: The stdout file is too large: {cur_size} > {max_size}')
+    with open(stdout_path) as f:
+        stdout = f.read()
+    # Raises `ValueError` if no proof is found.
+    df = vampire.formulas.extract_df(stdout)
+    return list(df_to_samples(df[df.role_active]))
+
+
+def load_proof(path, max_size=None):
+    log.debug(f'Loading proof: {path}')
+    with open(os.path.join(path, 'meta.json')) as f:
+        meta = json.load(f)
+    stdout_path = os.path.join(path, 'stdout.txt')
+    try:
+        # Raises `RuntimeError` if the output file is too large.
+        # Raises `ValueError` if no proof is found in the output file.
+        samples = load_proof_samples(stdout_path, max_size)
+    except (RuntimeError, ValueError) as e:
+        log.warning(f'{stdout_path}: Failed to load proof samples: {str(e)}')
+        samples = []
+    return meta['problem'], samples
+
+
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
     tf.random.set_seed(0)
@@ -47,40 +104,9 @@ def main(cfg):
         if cfg.workspace_dir is None:
             raise RuntimeError('Input workspace directory path is required.')
 
-        def load_proof(verbose_path):
-            log.debug(f'Loading proof: {verbose_path}')
-            with open(os.path.join(verbose_path, 'meta.json')) as f:
-                meta = json.load(f)
-            problem = meta['problem']
-            with open(os.path.join(verbose_path, 'stdout.txt')) as f:
-                stdout = f.read()
-            samples = []
-            try:
-                df = vampire.formulas.extract_df(stdout)
-                for index, row in df[df.role_active].iterrows():
-                    formula = row.formula
-                    proof = row.role_proof
-                    proof_symbol = '-+'[proof]
-                    try:
-                        token_counts = vampire.clause.token_counts(formula)
-                    except (pyparsing.ParseException, RecursionError) as e:
-                        log.debug(f'{proof_symbol} {index}: {formula}. Failed to parse: {str(e)}')
-                        continue
-                    log.debug(f'{proof_symbol} {index}: {formula}. {token_counts}')
-                    sample = {
-                        'formula': formula,
-                        'token_counts': token_counts,
-                        'proof': proof,
-                        'goal': row.extra_goal
-                    }
-                    samples.append(sample)
-            except ValueError as e:
-                log.debug(str(e))
-            return problem, samples
-
         verbose_paths = glob.glob(os.path.join(cfg.workspace_dir, 'runs', '*', '*', 'verbose'))
         print(f'Loading {len(verbose_paths)} proofs', file=sys.stderr)
-        proof_traces = parallel(joblib.delayed(load_proof)(verbose_path) for verbose_path in verbose_paths)
+        proof_traces = parallel(joblib.delayed(load_proof)(verbose_path, cfg.max_proof_stdout_size) for verbose_path in verbose_paths)
 
         problem_samples = defaultdict(list)
         for problem, samples in proof_traces:
