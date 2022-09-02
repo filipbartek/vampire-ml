@@ -47,7 +47,7 @@ def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint8):
     indices += [4 + symbol_name_to_index[s] for s in token_counts['symbol'].keys()]
     assert len(data) == len(indices)
     indptr = [0, len(data)]
-    result = scipy.sparse.csr_array((data, indices, indptr), shape=(1, 4 + len(symbol_name_to_index)), dtype=dtype)
+    result = scipy.sparse.csr_matrix((data, indices, indptr), shape=(1, 4 + len(symbol_name_to_index)), dtype=dtype)
     return result
 
 
@@ -92,8 +92,8 @@ def load_proof_samples(stdout_path, signature, max_size=None):
     samples_list = list(df_to_samples(df[df.role_active], signature))
     samples_aggregated = {
         'token_counts': scipy.sparse.vstack(s['token_counts'] for s in samples_list),
-        'proof': scipy.sparse.csc_array([[s['proof']] for s in samples_list], dtype=bool),
-        'goal': scipy.sparse.csc_array([[s['goal']] for s in samples_list], dtype=bool)
+        'proof': scipy.sparse.csc_matrix([[s['proof']] for s in samples_list], dtype=bool),
+        'goal': scipy.sparse.csc_matrix([[s['goal']] for s in samples_list], dtype=bool)
     }
     return samples_aggregated
 
