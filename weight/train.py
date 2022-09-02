@@ -212,9 +212,11 @@ def main(cfg):
             save_df(df, os.path.join(era_dir, 'problems'))
 
         era_dir = os.path.join('era', str(0))
+        os.makedirs(era_dir, exist_ok=True)
         evaluate_all(era_dir)
         for era in range(cfg.eras):
             era_dir = os.path.join('era', str(era))
+            os.makedirs(era_dir, exist_ok=True)
             model_logit.fit(datasets_batched['train'], validation_data=datasets_batched['val'],
                             initial_epoch=cfg.epochs_per_era * era, epochs=cfg.epochs_per_era * (era + 1),
                             callbacks=cbs + [tf.keras.callbacks.CSVLogger(os.path.join(era_dir, 'epochs.csv'))])
