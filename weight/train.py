@@ -5,7 +5,6 @@ import logging
 import os
 import sys
 import tempfile
-import warnings
 from collections import defaultdict
 
 import joblib
@@ -14,12 +13,14 @@ import more_itertools
 import numpy as np
 import pandas as pd
 import pyparsing
+import scipy
 import tensorflow as tf
-from tqdm import tqdm
 
 import classifier
+import questions
 from questions import models
 from questions.graphifier import Graphifier
+from questions.memory import memory
 from questions.solver import Solver
 from utils import save_df
 from utils import to_tensor
@@ -28,7 +29,29 @@ from weight import vampire
 log = logging.getLogger(__name__)
 
 
-def row_to_sample(index, row):
+def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint8):
+    """
+    0. variable
+    1. negation
+    2. equality
+    3. inequality
+    4:. symbols
+    """
+    data = [sum(token_counts['variable']), *(token_counts[k] for k in ['negation', 'equality', 'inequality'])]
+    if any(d > 0 for d in data):
+        data, indices = map(list, zip(*((d, i) for i, d in enumerate(data) if d != 0)))
+    else:
+        data, indices = [], []
+    data += token_counts['symbol'].values()
+    assert all(r <= np.iinfo(dtype).max for r in data)
+    indices += [4 + symbol_name_to_index[s] for s in token_counts['symbol'].keys()]
+    assert len(data) == len(indices)
+    indptr = [0, len(data)]
+    result = scipy.sparse.csr_array((data, indices, indptr), shape=(1, 4 + len(symbol_name_to_index)), dtype=dtype)
+    return result
+
+
+def row_to_sample(index, row, signature):
     # Raises `RuntimeError` if parsing of the formula fails.
     formula = row.formula
     proof = row.role_proof
@@ -40,25 +63,24 @@ def row_to_sample(index, row):
         token_counts = vampire.clause.token_counts(formula)
     except (pyparsing.ParseException, RecursionError) as e:
         raise RuntimeError(f'{formula_description}. Failed to parse.') from e
-    log.debug(f'{formula_description}. {token_counts}')
+    #log.debug(f'{formula_description}. {token_counts}')
     return {
-        'formula': formula,
-        'token_counts': token_counts,
+        'token_counts': occurrence_count_vector(token_counts, signature),
         'proof': proof,
         'goal': row.extra_goal
     }
 
 
-def df_to_samples(df):
+def df_to_samples(df, signature):
     for index, row in df.iterrows():
         try:
-            yield row_to_sample(index, row)
+            yield row_to_sample(index, row, signature)
         except RuntimeError as e:
             log.debug(str(e))
             continue
 
 
-def load_proof_samples(stdout_path, max_size=None):
+def load_proof_samples(stdout_path, signature, max_size=None):
     if max_size is not None:
         cur_size = os.path.getsize(stdout_path)
         if cur_size > max_size:
@@ -66,22 +88,30 @@ def load_proof_samples(stdout_path, max_size=None):
     with open(stdout_path) as f:
         stdout = f.read()
     # Raises `ValueError` if no proof is found.
-    df = vampire.formulas.extract_df(stdout)
-    return list(df_to_samples(df[df.role_active]))
+    df = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
+    samples_list = list(df_to_samples(df[df.role_active], signature))
+    samples_aggregated = {
+        'token_counts': scipy.sparse.vstack(s['token_counts'] for s in samples_list),
+        'proof': scipy.sparse.csc_array([[s['proof']] for s in samples_list], dtype=bool),
+        'goal': scipy.sparse.csc_array([[s['goal']] for s in samples_list], dtype=bool)
+    }
+    return samples_aggregated
 
 
-def load_proof(path, max_size=None):
+@memory.cache
+def load_proof(path, signature, max_size=None):
     log.debug(f'Loading proof: {path}')
     with open(os.path.join(path, 'meta.json')) as f:
         meta = json.load(f)
     stdout_path = os.path.join(path, 'stdout.txt')
+    symbol_name_to_index = {s: i for i, s in enumerate(signature)}
     try:
         # Raises `RuntimeError` if the output file is too large.
         # Raises `ValueError` if no proof is found in the output file.
-        samples = load_proof_samples(stdout_path, max_size)
+        samples = load_proof_samples(stdout_path, symbol_name_to_index, max_size)
     except (RuntimeError, ValueError) as e:
         log.warning(f'{stdout_path}: Failed to load proof samples: {str(e)}')
-        samples = []
+        samples = None
     return meta['problem'], samples
 
 
@@ -116,40 +146,42 @@ def main(cfg):
         problem_names = rng.permutation(problem_names)
         if cfg.max_problem_count is not None:
             problem_names = problem_names[:cfg.max_problem_count]
+        problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
 
         log.info(f'Number of problems: {len(problem_names)}')
 
-        verbose_paths = list(
-            itertools.chain.from_iterable(generate_verbose_paths(problem) for problem in problem_names))
+        def get_signature(problem):
+            try:
+                # Raises `RuntimeError` when clausification fails
+                return clausifier.signature(problem)
+            except RuntimeError:
+                return None
+
+        print(f'Collecting signatures of {len(problem_names)} problems', file=sys.stderr)
+        signatures = parallel(joblib.delayed(get_signature)(problem) for problem in problem_names)
+        problem_to_signature = dict(zip(problem_names, signatures))
+
+        def generate_paths(problem_to_signature):
+            for problem_name, signature in problem_to_signature.items():
+                for path in generate_verbose_paths(problem_name):
+                    yield path, signature
 
         if cfg.workspace_dir is None:
             raise RuntimeError('Input workspace directory path is required.')
-        print(f'Loading {len(verbose_paths)} proofs', file=sys.stderr)
+        print(f'Loading proofs of {len(problem_to_signature)} problems', file=sys.stderr)
         proof_traces = parallel(
-            joblib.delayed(load_proof)(verbose_path, cfg.max_proof_stdout_size) for verbose_path in verbose_paths)
+            joblib.delayed(load_proof)(path, signature, cfg.max_proof_stdout_size) for path, signature in generate_paths(problem_to_signature))
 
         problem_samples = defaultdict(list)
-        for problem, samples in proof_traces:
-            if len(samples) == 0:
+        for path, samples in proof_traces:
+            if samples is None:
                 continue
-            problem_samples[problem].extend(samples)
+            problem_samples[path].append(samples)
 
-        log.info(f'Number of problems: {len(problem_samples)}')
-
-        def get_signature(problem):
-            return {
-                'predicates': clausifier.symbols_of_type(problem, 'predicate'),
-                'functions': clausifier.symbols_of_type(problem, 'function')
-            }
-
-        print(f'Collecting signatures of {len(problem_samples)} problems', file=sys.stderr)
-        signatures = parallel(joblib.delayed(get_signature)(problem) for problem in problem_samples)
-
-        problems = {problem: {**signature, 'samples': samples} for (problem, samples), signature in
-                    zip(problem_samples.items(), signatures)}
+        log.info(f'Number of problems with some samples: {len(problem_samples)}')
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=10000)
-        graphs, graphs_df = graphifier.get_graphs_dict(problems)
+        graphs, graphs_df = graphifier.get_graphs_dict(problem_samples)
         log.info(f'Number of graphs: {len(graphs)}')
 
         output_ntypes = ['predicate', 'function']
@@ -176,14 +208,14 @@ def main(cfg):
 
         model_logit.compile(optimizer=optimizer)
 
-        problem_names = rng.permutation(list(problems.keys()))
+        problem_names = rng.permutation(list(problem_samples.keys()))
         train_count = int(len(problem_names) * cfg.validation_split)
         problem_name_datasets = {
             'train': problem_names[:train_count],
             'val': problem_names[train_count:]
         }
         datasets_batched = {
-            dataset_name: dict_to_batches({problem_name: problems[problem_name] for problem_name in problem_names},
+            dataset_name: dict_to_batches({problem_name: problem_samples[problem_name] for problem_name in problem_names},
                                           cfg.batch.size).cache() for dataset_name, problem_names in
             problem_name_datasets.items()}
 
@@ -202,9 +234,12 @@ def main(cfg):
 
         def evaluate_all(era_dir):
             for dataset_name, dataset in datasets_batched.items():
+                log.info(f'{dataset_name}: Evaluating...')
                 res = model_logit.evaluate(dataset, return_dict=True)
                 log.info(f'{dataset_name}: {res}')
-            df = evaluate(model_symbol_weight, problems, cfg, parallel)
+            all_problem_names = itertools.chain.from_iterable(problem_name_datasets.values())
+            problem_signatures = {path: problem_to_signature[problem_path_to_name[path]] for path in all_problem_names}
+            df = evaluate(model_symbol_weight, problem_signatures, cfg, parallel)
             for dataset_name, problem_names in problem_name_datasets.items():
                 cur_df = df[df.problem.isin(problem_names)]
                 n_success = cur_df.szs_status.isin(['THM', 'CAX', 'UNS', 'SAT', 'CSA']).sum()
@@ -223,8 +258,8 @@ def main(cfg):
             evaluate_all(era_dir)
 
 
-def evaluate(model, problems, cfg, parallel):
-    problem_names = list(problems.keys())
+def evaluate(model, problem_signatures, cfg, parallel):
+    problem_names = list(map(str, problem_signatures.keys()))
     res = model.predict(problem_names)
     options = {**cfg.options.common, **cfg.options.probe}
 
@@ -234,13 +269,14 @@ def evaluate(model, problems, cfg, parallel):
         if not valid:
             return result
         weight = cost.numpy()
-        symbol_names = list(problems[problem]['predicates'].name) + list(problems[problem]['functions'].name)
+        signature = problem_signatures[problem]
+        assert len(weight) == 4 + len(signature)
         weights = {
             'variable': weight[0],
             'negation': weight[1],
             'equality': weight[2],
             'inequality': weight[3],
-            'symbol': dict(zip(symbol_names, weight[4:]))
+            'symbol': dict(zip(signature, weight[4:]))
         }
         log.debug(f'{problem} {weights}')
         # result['weights'] = weights
@@ -273,44 +309,25 @@ def vampire_run(problem_path, options, weights, *args, **kwargs):
         return vampire.run(problem_path, options, *args, **kwargs)
 
 
-def dict_to_batches(problems, batch_size, row_splits_dtype=tf.dtypes.int64):
+def dict_to_batches(problems, batch_size):
     # `tf.data.Dataset.batch` cannot batch structured input with variably-shaped entries.
 
     def gen_samples():
         for problem, data in problems.items():
-            if len(data['samples']) == 0:
-                continue
-
-            symbols = list(data['predicates'].name) + list(data['functions'].name)
-
-            def occurrence_count_vector(token_counts):
-                """
-                0. variable
-                1. negation
-                2. equality
-                3. inequality
-                4:. symbols
-                """
-                result = [sum(token_counts['variable'])] + [token_counts[k] for k in
-                                                            ['negation', 'equality', 'inequality']] + [
-                             token_counts['symbol'][s] for s in symbols]
-                return result
-
-            occurrence_count_vector_length = 4 + len(symbols)
-
-            occurrence_counts = [occurrence_count_vector(sample['token_counts']) for sample in data['samples']]
-            assert all(len(oc) == occurrence_count_vector_length for oc in occurrence_counts)
-            nonproof = [not sample['proof'] for sample in data['samples']]
-            yield {'problem': problem, 'occurrence_count': occurrence_counts, 'nonproof': nonproof}
+            token_counts = scipy.sparse.vstack(d['token_counts'] for d in data)
+            proof = scipy.sparse.vstack(d['proof'] for d in data)
+            yield {'problem': problem, 'occurrence_count': token_counts, 'proof': proof}
 
     dtypes = {'problem': tf.string, 'occurrence_count': tf.float32, 'nonproof': tf.bool, 'sample_weight': tf.float32}
 
     def gen():
         for b in more_itertools.chunked(gen_samples(), batch_size):
-            data = {k: to_tensor((row[k] for row in b), dtype=dtypes[k], name=k, row_splits_dtype=row_splits_dtype,
-                                 flatten_ragged=False) for k in b[0].keys()}
-            x = {k: data[k] for k in ['problem', 'occurrence_count']}
-            y = data['nonproof']
+            x = {
+                'problem': to_tensor((row['problem'] for row in b), dtype=dtypes['problem'], name='problem'),
+                'occurrence_count': to_tensor((row['occurrence_count'] for row in b), dtype=dtypes['occurrence_count'], name='occurrence_count')
+            }
+            y = to_tensor((np.logical_not(np.squeeze(row['proof'].toarray(), axis=1)) for row in b), dtype=dtypes['nonproof'], name='nonproof')
+
             flat_values = tf.constant(1, dtype=dtypes['sample_weight']) / tf.cast(
                 tf.repeat(y.row_lengths(), y.row_lengths()), dtypes['sample_weight'])
             sample_weight = tf.RaggedTensor.from_nested_row_splits(flat_values, y.nested_row_splits,

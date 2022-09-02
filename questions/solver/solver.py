@@ -56,6 +56,12 @@ class Solver:
     def random_precedence(length, symbol_type, seed):
         return vampire.random_precedence(symbol_type=symbol_type, length=length, seed=seed)
 
+    def signature(self, problem):
+        result = self.clausify(problem, get_clauses=False)
+        if result.returncode != 0:
+            raise RuntimeError('Clausification failed.')
+        return result.symbols.name
+
     def symbols_of_type(self, problem, symbol_type):
         result = self.clausify(problem, get_clauses=False)
         if result.returncode != 0:

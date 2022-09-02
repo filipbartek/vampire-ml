@@ -4,6 +4,7 @@ import os
 import sys
 
 import numpy as np
+import scipy
 import tensorflow as tf
 
 log = logging.getLogger(__name__)
@@ -55,17 +56,21 @@ assert list(flatten([[0, [1]], [2, 3]])) == [0, [1], 2, 3]
 
 
 def is_compatible(data, dtype):
+    if isinstance(data, list):
+        return all(is_compatible(d, dtype) for d in data)
     if dtype.is_floating or dtype.is_integer:
-        return all(dtype.min <= v <= dtype.max for v in flatten(data))
+        return dtype.min <= data.min() and data.max() <= dtype.max
     if dtype.is_bool:
-        return all(v in [False, True] for v in flatten(data))
+        return data.dtype == np.bool
     return True
 
 
-def to_tensor(rows, dtype, flatten_ragged=True, **kwargs):
+def to_tensor(rows, dtype, flatten_ragged=False, **kwargs):
     # `tf.ragged.constant` expects a list.
     rows = list(rows)
     assert is_compatible(rows, dtype)
+    if isinstance(rows[0], scipy.sparse.spmatrix):
+        rows = [row.toarray() for row in rows]
     res = tf.ragged.constant(rows, dtype=dtype, **kwargs)
     if flatten_ragged and isinstance(res, tf.RaggedTensor):
         res = {k: getattr(res, k) for k in ['flat_values', 'nested_row_splits']}
