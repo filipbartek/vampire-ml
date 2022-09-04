@@ -30,7 +30,7 @@ from weight import vampire
 log = logging.getLogger(__name__)
 
 
-def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint8):
+def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint16):
     """
     0. variable
     1. negation
