@@ -30,7 +30,8 @@ options:
     proof: "off"
     instruction_limit: 50000
   verbose:
-    show_everything: "on"
+    #show_everything: "on"
+    show_active: "on"
     proof_extra: free
   evaluation:
     default: {}
