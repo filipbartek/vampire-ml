@@ -6,11 +6,10 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, symbol_type, gcn):
+    def __init__(self, graphifier, gcn):
         SymbolFeatures.__init__(self, dynamic=True)
         self.gcn = gcn
         self.graphifier = graphifier
-        self.symbol_type = symbol_type
         self.special_token_model = self.add_weight(name='special_token_weight', shape=(1, 4, 16), initializer='random_normal', trainable=True)
 
     def call(self, problems, training=False, cache=True):

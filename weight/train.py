@@ -187,7 +187,8 @@ def main(cfg):
         output_ntypes = ['predicate', 'function']
         gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                          graphifier.ntype_feat_sizes, output_ntypes=output_ntypes)
-        model_symbol_embedding = models.symbol_features.Graph(graphifier, 'predicate', gcn)
+        # Outputs an embedding for each token.
+        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
         embedding_to_weight = tf.keras.layers.Dense(1, name='embedding_to_weight',
                                                     kernel_regularizer=tf.keras.regularizers.L1L2(
                                                         l1=cfg.embedding_to_cost.l1,
