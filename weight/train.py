@@ -63,7 +63,6 @@ def row_to_sample(index, row, signature):
         token_counts = vampire.clause.token_counts(formula)
     except (pyparsing.ParseException, RecursionError) as e:
         raise RuntimeError(f'{formula_description}. Failed to parse.') from e
-    #log.debug(f'{formula_description}. {token_counts}')
     return {
         'token_counts': occurrence_count_vector(token_counts, signature),
         'proof': proof,
