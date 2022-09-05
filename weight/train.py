@@ -237,7 +237,8 @@ def main(cfg):
 
         datasets_batched = {
             dataset_name: dict_to_batches(
-                {problem_name: problem_samples[problem_name] for problem_name in problem_names},
+                {problem_name: problem_samples[problem_name] for problem_name in problem_names if
+                 len(problem_samples[problem_name]) >= 1},
                 cfg.batch.size).cache() for dataset_name, problem_names in
             problem_with_proof_name_datasets.items()}
 
@@ -368,6 +369,8 @@ def dict_to_batches(problems, batch_size):
 
     def gen_samples():
         for problem, data in problems.items():
+            if len(data) == 0:
+                continue
             token_counts = scipy.sparse.vstack(d['token_counts'] for d in data)
             proof = scipy.sparse.vstack(d['proof'] for d in data)
             yield {'problem': problem, 'occurrence_count': token_counts, 'proof': proof}
