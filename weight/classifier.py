@@ -73,7 +73,7 @@ class Classifier(tf.keras.Model):
 
         n_problems = tf.shape(y.row_splits)[0] - 1
         n_problems = tf.cast(n_problems, sample_weight.dtype)
-        tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems, rtol=tf.keras.backend.epsilon() * len(y.flat_values))
+        # tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems, rtol=tf.keras.backend.epsilon() * len(y.flat_values))
 
         # TODO: Make sure that the loss does not depend on the batch size.
         y_pred = self(x, training=True)
