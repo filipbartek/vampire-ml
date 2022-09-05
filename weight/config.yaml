@@ -11,6 +11,7 @@ max_problem_count: null
 evaluate:
   baseline: true
   initial: true
+proof_sample_weight: 0.5
 
 # Maximum proof output file size in bytes
 max_proof_stdout_size: 100000000

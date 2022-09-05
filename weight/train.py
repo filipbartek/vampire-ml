@@ -247,7 +247,7 @@ def main(cfg):
             dataset_name: dict_to_batches(
                 {problem_name: problem_samples[problem_name] for problem_name in problem_names if
                  len(problem_samples[problem_name]) >= 1},
-                cfg.batch.size).cache() for dataset_name, problem_names in
+                cfg.batch.size, cfg.proof_sample_weight).cache() for dataset_name, problem_names in
             problem_with_proof_name_datasets.items()}
 
         ckpt_dir = 'ckpt'
@@ -400,7 +400,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
     return result
 
 
-def dict_to_batches(problems, batch_size):
+def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
     # `tf.data.Dataset.batch` cannot batch structured input with variably-shaped entries.
 
     def gen_samples():
@@ -423,8 +423,16 @@ def dict_to_batches(problems, batch_size):
             y = to_tensor((np.logical_not(np.squeeze(row['proof'].toarray(), axis=1)) for row in b),
                           dtype=dtypes['nonproof'], name='nonproof')
 
-            flat_values = tf.constant(1, dtype=dtypes['sample_weight']) / tf.cast(
-                tf.repeat(y.row_lengths(), y.row_lengths()), dtypes['sample_weight'])
+            clause_counts = np.asarray([row['proof'].shape[0] for row in b])
+            proof_clause_counts = np.asarray([row['proof'].sum() for row in b])
+            nonproof_clause_counts = clause_counts - proof_clause_counts
+            assert 0 < proof_clause_weight < 1
+            proof_clause_weights = proof_clause_weight / proof_clause_counts
+            nonproof_clause_weights = (1 - proof_clause_weight) / nonproof_clause_counts
+
+            flat_values = tf.where(y.flat_values,
+                                   x=tf.cast(tf.repeat(nonproof_clause_weights, y.row_lengths()), dtypes['sample_weight']),
+                                   y=tf.cast(tf.repeat(proof_clause_weights, y.row_lengths()), dtypes['sample_weight']))
             sample_weight = tf.RaggedTensor.from_nested_row_splits(flat_values, y.nested_row_splits,
                                                                    name='sample_weight')
             yield x, y, sample_weight
