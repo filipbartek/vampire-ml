@@ -92,6 +92,8 @@ def load_proof_samples(stdout_path, signature, max_size=None):
     # Raises `ValueError` if no proof is found.
     df = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
     samples_list = list(df_to_samples(df[df.role_active], signature))
+    if len(samples_list) == 0:
+        raise RuntimeError(f'{stdout_path}: No proof samples were extracted.')
     samples_aggregated = {
         'token_counts': scipy.sparse.vstack(s['token_counts'] for s in samples_list),
         'proof': scipy.sparse.csc_matrix([[s['proof']] for s in samples_list], dtype=bool),
