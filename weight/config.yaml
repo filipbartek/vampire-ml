@@ -96,6 +96,9 @@ learning_rate: 0.00001
 
 tf:
   run_eagerly: false
+  threads:
+    inter: 0
+    intra: 0
 
 reduce_lr_on_plateau:
   # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ReduceLROnPlateau

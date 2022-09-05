@@ -19,8 +19,6 @@ import tensorflow as tf
 
 import classifier
 import questions
-from questions import models
-from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
 from utils import json_dump_default
@@ -128,8 +126,15 @@ def path_to_problem(path):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
-    tf.random.set_seed(0)
+    tf.config.threading.set_inter_op_parallelism_threads(cfg.tf.threads.inter)
+    tf.config.threading.set_intra_op_parallelism_threads(cfg.tf.threads.intra)
+
+    # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
+    from questions.graphifier import Graphifier
+    from questions import models
+    
     tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
+    tf.random.set_seed(0)
     tf.summary.experimental.set_step(0)
 
     log.info(f'cwd: {os.getcwd()}')
