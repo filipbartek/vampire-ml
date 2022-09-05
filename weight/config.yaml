@@ -12,6 +12,7 @@ evaluate:
   baseline: true
   initial: true
 proof_sample_weight: 0.5
+max_nonproof_ratio: 2
 
 # Maximum proof output file size in bytes
 max_proof_stdout_size: 100000000

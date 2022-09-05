@@ -246,7 +246,8 @@ def main(cfg):
             dataset_name: dict_to_batches(
                 {problem_name: problem_samples[problem_name] for problem_name in problem_names if
                  len(problem_samples[problem_name]) >= 1},
-                cfg.batch.size, cfg.proof_sample_weight).cache() for dataset_name, problem_names in
+                cfg.batch.size, cfg.proof_sample_weight, max_nonproof_ratio=cfg.max_nonproof_ratio, rng=rng).cache() for
+            dataset_name, problem_names in
             problem_with_proof_name_datasets.items()}
 
         ckpt_dir = 'ckpt'
@@ -399,7 +400,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
     return result
 
 
-def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
+def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_nonproof_ratio=None, rng=None):
     # `tf.data.Dataset.batch` cannot batch structured input with variably-shaped entries.
 
     def gen_samples():
@@ -408,7 +409,23 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
                 continue
             token_counts = scipy.sparse.vstack(d['token_counts'] for d in data)
             proof = scipy.sparse.vstack(d['proof'] for d in data)
-            yield {'problem': problem, 'occurrence_count': token_counts, 'proof': proof}
+            proof_array = proof.toarray()
+            assert np.any(proof_array)
+            proof_indices = np.nonzero(proof_array)[0]
+            nonproof_indices = np.nonzero(np.logical_not(proof_array))[0]
+            if max_nonproof_ratio is not None:
+                max_nonproof_indices = len(proof_indices) * max_nonproof_ratio
+            else:
+                max_nonproof_indices = sys.maxsize
+            if len(nonproof_indices) > max_nonproof_indices:
+                selected_nonproof_indices = rng.choice(nonproof_indices, max_nonproof_indices)
+            else:
+                selected_nonproof_indices = nonproof_indices
+            selected_indices = np.concatenate((proof_indices, selected_nonproof_indices))
+
+            yield {'problem': problem,
+                   'occurrence_count': token_counts[selected_indices],
+                   'proof': proof[selected_indices]}
 
     dtypes = {'problem': tf.string, 'occurrence_count': tf.float32, 'nonproof': tf.bool, 'sample_weight': tf.float32}
 
