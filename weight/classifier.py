@@ -78,7 +78,8 @@ class Classifier(tf.keras.Model):
         # TODO: Make sure that the loss does not depend on the batch size.
         y_pred = self(x, training=True)
         flat_y_pred = tf.expand_dims(y_pred.flat_values, 1)
-        return y_pred, self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight / n_problems, regularization_losses=self.losses)
+        return y_pred, self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight / n_problems,
+                                          regularization_losses=self.losses)
 
     def optimizer_minimize(self, loss, var_list, tape):
         # Inspiration:
@@ -131,9 +132,9 @@ class Classifier(tf.keras.Model):
         tf.debugging.assert_equal(occurrence_count.nested_row_splits[0], sc_like_questions.nested_row_splits[0])
         # This assertion fails if there is a mismatch in signature sizes, namely if there is a mismatch of symbol type.
         tf.debugging.assert_equal(occurrence_count.nested_row_splits[1], sc_like_questions.nested_row_splits[1])
-        #tf.debugging.assert_greater_equal(2 / (tf.cast(token_weight.row_lengths(), occurrence_count.dtype) + 1),
+        # tf.debugging.assert_greater_equal(2 / (tf.cast(token_weight.row_lengths(), occurrence_count.dtype) + 1),
         #                                  tf.reduce_max(occurrence_count, axis=(1, 2)))
-        #tf.debugging.assert_less_equal(-2 / (tf.cast(token_weight.row_lengths(), occurrence_count.dtype) + 1),
+        # tf.debugging.assert_less_equal(-2 / (tf.cast(token_weight.row_lengths(), occurrence_count.dtype) + 1),
         #                               tf.reduce_min(occurrence_count, axis=(1, 2)))
         potentials = tf.ragged.map_flat_values(tf.multiply, occurrence_count, sc_like_questions)
         logits = tf.reduce_sum(potentials, axis=2)
