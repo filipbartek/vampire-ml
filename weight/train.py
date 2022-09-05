@@ -447,7 +447,8 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_nonproof_
             nonproof_clause_weights = (1 - proof_clause_weight) / nonproof_clause_counts
 
             flat_values = tf.where(y.flat_values,
-                                   x=tf.cast(tf.repeat(nonproof_clause_weights, y.row_lengths()), dtypes['sample_weight']),
+                                   x=tf.cast(tf.repeat(nonproof_clause_weights, y.row_lengths()),
+                                             dtypes['sample_weight']),
                                    y=tf.cast(tf.repeat(proof_clause_weights, y.row_lengths()), dtypes['sample_weight']))
             sample_weight = tf.RaggedTensor.from_nested_row_splits(flat_values, y.nested_row_splits,
                                                                    name='sample_weight')
