@@ -264,7 +264,7 @@ def main(cfg):
                 res = model_logit.evaluate(dataset, return_dict=True)
                 log.info(f'{dataset_name}: {res}')
             evaluate(model_symbol_weight, problem_signatures, cfg, parallel, problem_name_datasets,
-                     os.path.join(era_dir, 'problems'))
+                     os.path.join(era_dir, 'eval'))
 
         if cfg.evaluate.initial:
             era_dir = os.path.join('era', str(0))
