@@ -2,12 +2,24 @@ import itertools
 import logging
 import os
 import sys
+from decimal import Decimal
+from enum import Enum
 
 import numpy as np
 import scipy
 import tensorflow as tf
 
 log = logging.getLogger(__name__)
+
+
+def json_dump_default(obj, default=str):
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, Enum):
+        return obj.name
+    if isinstance(obj, Decimal):
+        return str(obj)
+    return default(obj)
 
 
 def astype(df, dtype, **kwargs):
@@ -91,3 +103,31 @@ def output_shapes(rank):
         'flat_values': tf.TensorShape([None]),
         'nested_row_splits': (tf.TensorShape([None]),) * rank
     }
+
+
+def train_test_split(array, test_size=None, train_size=None, random_state=None):
+    """
+    Mimics `sklearn.model_selection.train_test_split`.
+    Properties:
+    - Supports `test_size=0` and `train_size=0`
+    - Stable: Increasing the size of a dataset adds more elements into it but does not remove any. The size of test dataset has not impact on the elements in the train dataset.
+    """
+    if test_size is None and train_size is None:
+        test_size = 0.25
+    rng = np.random.default_rng(random_state)
+    n = len(array)
+    if isinstance(test_size, float):
+        test_size = int(n * test_size)
+    if isinstance(train_size, float):
+        train_size = int(n * train_size)
+    if test_size is None:
+        test_size = n - train_size
+    if train_size is None:
+        train_size = n - test_size
+    if test_size + train_size > n:
+        raise RuntimeError(f'The requested datasets are too large: {test_size} + {train_size} > {n}')
+    perm = rng.permutation(n)
+    train_set = array[perm[:train_size]]
+    test_set = array[perm[-1:-test_size - 1:-1]]
+    assert len(test_set) == test_size
+    return train_set, test_set

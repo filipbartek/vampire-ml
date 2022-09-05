@@ -23,6 +23,7 @@ from questions import models
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
+from utils import json_dump_default
 from utils import save_df
 from utils import to_tensor
 from weight import vampire
@@ -290,16 +291,33 @@ def evaluate(model, problem_signatures, cfg, parallel, problem_name_datasets, ou
 
     for eval_name, eval_options in cfg.options.evaluation.items():
         log.info(f'Evaluating configuration {eval_name}')
-        df = evaluate_options(model_result, problem_signatures, cfg, eval_options, parallel)
+        eval_dir = os.path.join(out_dir, eval_name)
+        os.makedirs(eval_dir, exist_ok=True)
+        df = evaluate_options(model_result, problem_signatures, cfg, eval_options, parallel, out_dir=eval_dir)
+        df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
+        df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
+        df['success'] = df.success_uns | df.success_sat
+        stats = {
+            'total': {
+                'problems': len(df),
+                'successes': df.success.sum()
+            }
+        }
+        assert df.index.name == 'problem'
         for dataset_name, problem_names in problem_name_datasets.items():
-            df[f'dataset_{dataset_name}'] = df.problem.isin(problem_names)
-            cur_df = df[df.problem.isin(problem_names)]
-            n_success = cur_df.szs_status.isin(['THM', 'CAX', 'UNS', 'SAT', 'CSA']).sum()
-            log.info(f'{eval_name} {dataset_name} empirical success count: {n_success}/{len(cur_df)}')
-        save_df(df, os.path.join(out_dir, 'problems'))
+            df[f'dataset_{dataset_name}'] = df.index.isin(problem_names)
+            cur_df = df[df.index.isin(problem_names)]
+            log.info(f'{eval_name} {dataset_name} empirical success count: {cur_df.success.sum()}/{len(cur_df)}')
+            stats[dataset_name] = {
+                'problems': len(cur_df),
+                'successes': cur_df.success.sum()
+            }
+        with open(os.path.join(eval_dir, 'stats.json'), 'w') as f:
+            json.dump(stats, f, indent=4, default=json_dump_default)
+        save_df(df, os.path.join(eval_dir, 'problems'))
 
 
-def evaluate_options(model_result, problem_signatures, cfg, eval_options, parallel):
+def evaluate_options(model_result, problem_signatures, cfg, eval_options, parallel, out_dir=None):
     problem_names = list(map(str, problem_signatures.keys()))
     options = {**cfg.options.common, **cfg.options.probe, **eval_options}
 
@@ -324,8 +342,11 @@ def evaluate_options(model_result, problem_signatures, cfg, eval_options, parall
             weights = None
         # result['weights'] = weights
         problem_path = questions.config.full_problem_path(problem)
+        vampire_out_dir = os.path.join(out_dir, 'problems', problem)
         try:
-            run_result = vampire_run(problem_path, options, weights, vampire=cfg.vampire_cmd, **cfg.probe_run_args)
+            run_result = vampire_run(problem_path, options, weights, vampire=cfg.vampire_cmd,
+                                     weights_filename=os.path.join(vampire_out_dir, 'functor_weight.properties'),
+                                     out_dir=vampire_out_dir, **cfg.probe_run_args)
         except RuntimeError as e:
             warnings.warn(str(e))
             return None
@@ -341,27 +362,35 @@ def evaluate_options(model_result, problem_signatures, cfg, eval_options, parall
     print(f'Running {len(problem_names)} cases', file=sys.stderr)
     results = parallel(joblib.delayed(run)(problem, valid, cost) for problem, valid, cost in cases)
 
-    return pd.json_normalize(results, sep='_')
+    df = pd.json_normalize(results, sep='_')
+    df.set_index('problem', inplace=True)
+    return df
 
 
-def vampire_run(problem_path, options, weights, *args, **kwargs):
+def vampire_run(problem_path, options, weights, *args, weights_filename=None, **kwargs):
     options = options.copy()
     if 'include' in options and options['include'] is None:
         del options['include']
+    weights_file = None
     if weights is not None:
         options['variable_weight'] = weights['variable']
         # TODO: Set weights for negation, equality, inequality.
-        with tempfile.NamedTemporaryFile('w+', suffix='.properties',
-                                         prefix=os.path.join('vampire_functor_weights_')) as f:
-            for functor, weight in weights['symbol'].items():
-                if functor == '=':
-                    continue
-                f.write(f'{functor}={weight}\n')
-            f.seek(0)
-            options['functor_weight'] = f.name
-            return vampire.run(problem_path, options, *args, **kwargs)
-    else:
-        return vampire.run(problem_path, options, *args, **kwargs)
+        if weights_filename is None:
+            weights_file = tempfile.NamedTemporaryFile('w+', suffix='.properties',
+                                                       prefix=os.path.join('vampire_functor_weights_'))
+        else:
+            os.makedirs(os.path.dirname(weights_filename), exist_ok=True)
+            weights_file = open(weights_filename, 'w+')
+        for functor, weight in weights['symbol'].items():
+            if functor == '=':
+                continue
+            weights_file.write(f'{functor}={weight}\n')
+        weights_file.seek(0)
+        options['functor_weight'] = weights_file.name
+    result = vampire.run(problem_path, options, *args, **kwargs)
+    if weights_file is not None:
+        weights_file.close()
+    return result
 
 
 def dict_to_batches(problems, batch_size):
