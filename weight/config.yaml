@@ -36,10 +36,10 @@ options:
     proof_extra: free
   evaluation:
     default: {}
-    awr_0_1:
-      age_weight_ratio: "0:1"
-    awr_1_9:
-      age_weight_ratio: "1:9"
+    #awr_0_1:
+    #  age_weight_ratio: "0:1"
+    #awr_1_9:
+    #  age_weight_ratio: "1:9"
 
 probe_run_args:
   # Choices: subprocess, benchexec
