@@ -23,6 +23,7 @@ def run(problem_path, options, out_dir=None, **kwargs):
     if status_short is None:
         status_short = extract_status(output)
     result['szs_status'] = status_short
+    result['cmd'] = ' '.join(result['args'])
     save_result(out_dir, result)
     result['out_dir'] = out_dir
     m = re.search('^User error: Cannot open problem file: (?P<problem>.*)$', output, re.MULTILINE)
