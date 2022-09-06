@@ -223,6 +223,7 @@ def main(cfg):
         # Outputs an embedding for each token.
         model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
         embedding_to_weight = tf.keras.layers.Dense(1, name='embedding_to_weight',
+                                                    activation='exponential',
                                                     kernel_regularizer=tf.keras.regularizers.L1L2(
                                                         l1=cfg.embedding_to_cost.l1,
                                                         l2=cfg.embedding_to_cost.l2))

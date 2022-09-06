@@ -140,6 +140,10 @@ class Classifier(tf.keras.Model):
         logits = tf.reduce_sum(potentials, axis=2)
         # assert (logits.shape + (None,)).as_list() == questions.shape.as_list()
         # assert tf.reduce_all(logits.row_splits == questions.row_splits)
+        # Since all symbol weights are forced to be positive by exponentiation,
+        # clause weight is necessarily positive.
+        # Undo the exponentiation so that the logits span all real numbers.
+        logits = tf.math.log(logits)
         return logits
 
     @staticmethod
