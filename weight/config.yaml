@@ -25,6 +25,7 @@ tptp_path: null
 options:
   common:
     include: ${tptp_path}
+    input_syntax: tptp
     avatar: "off"
     # The default saturation algorithm LRS does not currently support custom functor weights.
     saturation_algorithm: discount
