@@ -123,11 +123,14 @@ class Classifier(tf.keras.Model):
         return {m.name: m.result() for m in self.metrics}
 
     def call(self, x, training=False):
-        problem = x['problem']
-        occurrence_count = self.raggify(x['occurrence_count'])
-        token_weight_decorated = self.symbol_weight_model(problem, training=training)
-        logits = self.costs_decorated_to_logits(token_weight_decorated, occurrence_count)
-        return logits
+        """
+        :param x: problem names and clause feature values
+        :return: clause weights
+        """
+        clause_feature_weight_decorated = self.symbol_weight_model(x['problem'], training=training)
+        clause_features = x['occurrence_count']
+        clause_weights = self.costs_decorated_to_logits(clause_feature_weight_decorated, clause_features)
+        return clause_weights
 
     @classmethod
     @tf.function
