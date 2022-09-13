@@ -118,8 +118,8 @@ class Classifier(tf.keras.Model):
     def update_metrics(self, y, y_pred, sample_weight):
         flat_y = tf.expand_dims(y.flat_values, 1)
         flat_y_pred = tf.expand_dims(y_pred.flat_values, 1)
-        flat_y_sample_weight = tf.expand_dims(sample_weight.flat_values, 1)
-        self.compiled_metrics.update_state(flat_y, flat_y_pred, flat_y_sample_weight)
+        flat_sample_weight = tf.expand_dims(sample_weight.flat_values, 1)
+        self.compiled_metrics.update_state(flat_y, flat_y_pred, flat_sample_weight)
         return {m.name: m.result() for m in self.metrics}
 
     def call(self, x, training=False):
