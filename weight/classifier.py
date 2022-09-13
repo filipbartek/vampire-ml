@@ -55,31 +55,58 @@ class Classifier(tf.keras.Model):
 
         # Updates stateful loss metrics.
         # TODO: Collect per-sample loss values across an epoch and then log their histogram.
-        y_pred, loss = self.compute_loss(x, y, sample_weight)
+        loss, y, y_pred, sample_weight = self.compute_loss(x, y)
 
         return self.update_metrics(y, y_pred, sample_weight)
 
     def train_step(self, x):
         x, y, sample_weight = x
         with tf.GradientTape() as tape:
-            y_pred, loss = self.compute_loss(x, y, sample_weight)
+            loss, y, y_pred, sample_weight = self.compute_loss(x, y)
         self.optimizer_minimize(loss, self.trainable_variables, tape)
         return self.update_metrics(y, y_pred, sample_weight)
 
-    def compute_loss(self, x, y, sample_weight):
+    def compute_loss(self, x, clause_nonproof):
+        y_pred, y, sample_weight = self.compute_pairs(x, clause_nonproof)
+
         # Sample weights are only supported with flat (non-ragged) tensors.
-        flat_y = tf.expand_dims(y.flat_values, 1)
-        flat_sample_weight = tf.expand_dims(sample_weight.flat_values, 1)
-
-        n_problems = tf.shape(y.row_splits)[0] - 1
-        n_problems = tf.cast(n_problems, sample_weight.dtype)
-        # tf.debugging.assert_near(tf.reduce_sum(sample_weight), n_problems, rtol=tf.keras.backend.epsilon() * len(y.flat_values))
-
-        # TODO: Make sure that the loss does not depend on the batch size.
-        y_pred = self(x, training=True)
         flat_y_pred = tf.expand_dims(y_pred.flat_values, 1)
-        return y_pred, self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight / n_problems,
-                                          regularization_losses=self.losses)
+        flat_y = tf.ones_like(flat_y_pred)
+        flat_sample_weight = 1 / tf.repeat(y_pred.row_lengths(), y_pred.row_lengths())
+
+        loss = self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight, regularization_losses=self.losses)
+
+        return loss, y, y_pred, sample_weight
+
+    def compute_pairs(self, x, clause_nonproof):
+        y_pred = self.predict_pairs(x, clause_nonproof)
+        y = tf.ones_like(y_pred)
+        sample_weight = tf.RaggedTensor.from_nested_row_splits(
+            1 / tf.repeat(y_pred.row_lengths(), y_pred.row_lengths()), y_pred.nested_row_splits)
+        return y_pred, y, sample_weight
+
+    def predict_pairs(self, x, clause_nonproof):
+        clause_weights = self(x, training=True)
+
+        problem_pairs = []
+        for nonproof in clause_nonproof:
+            clause_indices = {
+                'proof': tf.where(tf.math.logical_not(nonproof)),
+                'nonproof': tf.where(nonproof)
+            }
+            pair_clause_indices = tf.meshgrid(clause_indices['proof'], clause_indices['nonproof'])
+            pair_clause_indices = tf.reshape(pair_clause_indices, (2, -1))
+            problem_pairs.append(pair_clause_indices)
+
+        problem_pairs_ragged = tf.RaggedTensor.from_row_lengths(tf.transpose(tf.concat(problem_pairs, 1)),
+                                                                [p.shape[1] for p in problem_pairs])
+        # Dimensions: [problem, clause_pair, clause_role (proof, nonproof)]
+
+        pair_clause_weights = tf.gather(clause_weights, problem_pairs_ragged, batch_dims=1)
+
+        # proof - nonproof
+        clause_pair_weight_difference = pair_clause_weights[:, :, 0] - pair_clause_weights[:, :, 1]
+        return clause_pair_weight_difference
 
     def optimizer_minimize(self, loss, var_list, tape):
         # Inspiration:
