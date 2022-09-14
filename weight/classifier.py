@@ -110,8 +110,15 @@ class Classifier(tf.keras.Model):
 
         pair_clause_weights = tf.gather(clause_weights, problem_pairs_ragged, batch_dims=1)
 
-        # proof - nonproof
-        clause_pair_weight_difference = pair_clause_weights[:, :, 0] - pair_clause_weights[:, :, 1]
+        # nonproof - proof
+        # The classification target label is always 1.
+        # Thus, we want the difference to be the logit of the predicted probability that the nonproof clause
+        # is worse than the proof clause.
+        # The larger the clause weight is, the worse the clause is predicted to be.
+        # When the logit is defined as the difference "nonproof - proof", it is increased (increasing the classification
+        # accuracy and decreasing the loss) by increasing the nonproof weight and decreasing the proof weight.
+        # In other words, a pair is classified correctly iff "w(nonproof) > w(proof)".
+        clause_pair_weight_difference = pair_clause_weights[:, :, 1] - pair_clause_weights[:, :, 0]
         return clause_pair_weight_difference
 
     def optimizer_minimize(self, loss, var_list, tape):
