@@ -3,6 +3,7 @@ import itertools
 import json
 import logging
 import os
+import random
 import sys
 import tempfile
 import warnings
@@ -131,9 +132,14 @@ def main(cfg):
     # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
     from questions.graphifier import Graphifier
     from questions import models
-    
-    tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
+
+    # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
+    random.seed(0)
+    # Seeding `np.random` is just a precaution.
+    np.random.seed(0)
     tf.random.set_seed(0)
+
+    tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
     tf.summary.experimental.set_step(0)
 
     log.info(f'cwd: {os.getcwd()}')
