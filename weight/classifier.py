@@ -99,7 +99,8 @@ class Classifier(tf.keras.Model):
                 'proof': tf.where(tf.math.logical_not(nonproof)),
                 'nonproof': tf.where(nonproof)
             }
-            pair_clause_indices = tf.meshgrid(clause_indices['proof'], clause_indices['nonproof'])
+            # Using `indexing='ij'` ensures that we first pair all the nonproof clauses with the first proof clause and so on.
+            pair_clause_indices = tf.meshgrid(clause_indices['proof'], clause_indices['nonproof'], indexing='ij')
             pair_clause_indices = tf.reshape(pair_clause_indices, (2, -1))
             problem_pairs.append(pair_clause_indices)
 
