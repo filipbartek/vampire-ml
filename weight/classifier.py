@@ -19,12 +19,8 @@ class Classifier(tf.keras.Model):
         if weighted_metrics is None:
             weighted_metrics = []
         threshold = 0
-        weighted_metrics = [
-                               tf.keras.metrics.BinaryCrossentropy(from_logits=True),
-                               tf.keras.metrics.BinaryAccuracy(threshold=threshold),
-                               tf.keras.metrics.FalseNegatives(thresholds=threshold),
-                               tf.keras.metrics.TruePositives(thresholds=threshold)
-                           ] + weighted_metrics
+        weighted_metrics = [tf.keras.metrics.BinaryCrossentropy(from_logits=True),
+                            tf.keras.metrics.BinaryAccuracy(threshold=threshold)] + weighted_metrics
         loss = tf.keras.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.SUM)
         super().compile(loss=loss, weighted_metrics=weighted_metrics, **kwargs)
 
