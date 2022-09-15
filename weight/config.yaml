@@ -29,6 +29,7 @@ options:
     avatar: "off"
     # The default saturation algorithm LRS does not currently support custom functor weights.
     saturation_algorithm: discount
+    age_weight_ratio: "1:5"
   probe:
     proof: "off"
     instruction_limit: 50000
