@@ -17,6 +17,7 @@ import pandas as pd
 import pyparsing
 import scipy
 import tensorflow as tf
+import yaml
 
 import classifier
 import questions
@@ -367,6 +368,7 @@ def evaluate_options(model_result, problem_signatures, cfg, eval_options, parall
         selected_properties = ['szs_status', 'terminationreason', 'returncode', 'elapsed', 'out_dir',
                                'stdout_len', 'stderr_len']
         result.update({k: run_result[k] for k in selected_properties if k in run_result})
+        log.debug(f'Attempt result:\n{yaml.dump(result)}')
         return result
 
     if model_result is None:
