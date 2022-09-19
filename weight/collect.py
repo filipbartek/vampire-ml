@@ -82,7 +82,7 @@ def main(cfg):
                                              k in result['verbose']}
                     records.append(record)
                 df = pd.json_normalize(records, sep='_')
-                save_df(df, os.path.join(cfg.workspace_dir, 'runs'))
+                save_df(df, os.path.join(cfg.workspace_dir, 'runs'), index=False)
                 case_i += len(batch_problems)
                 t.set_postfix({'total': n_total, 'successes': n_successes})
 
