@@ -23,6 +23,12 @@ def run(problem_path, options, out_dir=None, **kwargs):
     if status_short is None:
         status_short = extract_status(output)
     result['szs_status'] = status_short
+    # 523837 Aborted by signal SIGHUP on /home/bartefil/TPTP-v7.5.0/Problems/SYN/SYN764-1.p
+    # Aborted by signal SIGTERM on /home/filip/TPTP-v7.5.0/Problems/SET/SET713+4.p
+    m = re.search(r'^(?:(?P<pid>\d+) )?Aborted by signal (?P<signal>\w+) on (?P<problem>.+)$', output, re.MULTILINE)
+    if m is not None:
+        result['signal'] = m['signal']
+        result['pid'] = m['pid']
     result['cmd'] = ' '.join(result['args'])
     save_result(out_dir, result)
     result['out_dir'] = out_dir
