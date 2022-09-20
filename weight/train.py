@@ -101,7 +101,7 @@ def load_proof_samples(stdout_path, signature, max_size=None):
     return samples_aggregated
 
 
-@memory.cache
+@memory.cache(ignore=['signature'])
 def load_proof(path, signature, max_size=None):
     log.debug(f'Loading proof: {path}')
     with open(os.path.join(path, 'meta.json')) as f:
