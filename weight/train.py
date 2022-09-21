@@ -60,6 +60,8 @@ def main(cfg):
     log.info(f'Workspace directory: {cfg.workspace_dir}')
     log.info(f'Cache directory: {memory.location}')
 
+    log.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
+
     rng = np.random.default_rng(cfg.seed)
 
     problem_names = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
