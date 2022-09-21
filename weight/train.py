@@ -252,7 +252,7 @@ def evaluate_options(model_result, problem_signatures, cfg, eval_options, parall
 
     def run(problem, valid, cost):
         log.debug(f'Attempting problem {problem}')
-        result = {'problem': problem, 'valid': valid}
+        result = {'problem': problem, 'valid': bool(valid)}
         if not valid:
             return result
         if cost is not None:
