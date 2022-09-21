@@ -58,7 +58,7 @@ def main(cfg):
 
     log.info(f'Working directory: {os.getcwd()}')
     log.info(f'Workspace directory: {cfg.workspace_dir}')
-    log.info(f'Cache directory: {memory.cachedir}')
+    log.info(f'Cache directory: {memory.location}')
 
     rng = np.random.default_rng(cfg.seed)
 
