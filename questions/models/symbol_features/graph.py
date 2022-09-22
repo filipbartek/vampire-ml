@@ -18,18 +18,21 @@ class Graph(SymbolFeatures):
         return {'embeddings': res, 'valid': valid}
 
     def problems_to_batch_graph(self, problems, cache):
-        problems = list(map(py_str, problems))
-        graphs = self.graphifier.get_graphs(problems, cache=cache, get_df=False)
-
-        def convert(g):
-            if g is None:
-                return self.graphifier.empty_graph(), False
-            else:
-                return g, True
-
-        graphs, valid = zip(*map(convert, graphs))
-        batch_graph = dgl.batch(graphs)
-        valid = tf.convert_to_tensor(valid, dtype=tf.bool)
+        with tf.device('/cpu'):
+            problems = list(map(py_str, problems))
+            graphs = self.graphifier.get_graphs(problems, cache=cache, get_df=False)
+    
+            def convert(g):
+                if g is None:
+                    return self.graphifier.empty_graph(), False
+                else:
+                    return g, True
+    
+            graphs, valid = zip(*map(convert, graphs))
+            batch_graph = dgl.batch(graphs)
+            valid = tf.convert_to_tensor(valid, dtype=tf.bool)
+        valid = tf.identity(valid)
+        batch_graph = batch_graph.to(valid.device)
         return batch_graph, valid
 
     def resolve_batch_graph(self, batch_graph, training=False):
