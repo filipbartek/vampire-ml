@@ -198,13 +198,13 @@ class Graphifier:
         output_ntypes = {ntype: 0 for ntype in self.output_ntypes}
         return self.formula_visitor().graph(output_ntypes)
 
-    def clausify_result_to_graph(self, clausify_result):
+    def clausify_result_to_graph(self, clausify_result, **kwargs):
         visitor = self.formula_visitor()
         visitor.visit_formula(clausify_result.clauses)
         symbol_features = {symbol_type: clausify_result.symbols_of_type(symbol_type)[self.symbol_feature_columns] for
                            symbol_type in self.symbol_types}
         output_ntypes = {ntype: len(symbol_features[ntype]) for ntype in self.output_ntypes}
-        return visitor.graph(output_ntypes, node_features=symbol_features)
+        return visitor.graph(output_ntypes, node_features=symbol_features, **kwargs)
 
     def formula_visitor(self):
         return FormulaVisitor(arg_order=self.arg_order, arg_backedge=self.arg_backedge, equality=self.equality,

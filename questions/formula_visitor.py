@@ -280,32 +280,38 @@ class FormulaVisitor:
             etype = f'{etype}_{cls.inverse_token}'
         return etype
 
-    def graph(self, output_ntypes, node_features=None, dtype_id=tf.int32, dtype_feat=tf.float32):
-        data_dict = {}
-        for (src_type, dst_type, edge_subtype), nodes in self.edges.items():
-            nodes = tuple(map(functools.partial(self.convert_to_tensor, dtype=dtype_id), nodes))
-            for orientation in (1, -1):
-                etype = self.etype(src_type, dst_type, orientation, edge_subtype)
-                if orientation == 1:
-                    data_dict[src_type, etype, dst_type] = nodes
-                else:
-                    assert orientation == -1
-                    data_dict[dst_type, etype, src_type] = tuple(reversed(nodes))
-        # Add loops on output nodes
-        for ntype, num in output_ntypes.items():
-            if num is not None:
-                assert self.node_counts[ntype] <= num
-                self.node_counts[ntype] = max(self.node_counts[ntype], num)
-            r = tf.range(self.node_counts[ntype], dtype=dtype_id)
-            data_dict[ntype, f'{ntype}_self', ntype] = (r, r)
-        g = dgl.heterograph(data_dict, self.node_counts)
-        if node_features is not None:
-            for ntype, v in node_features.items():
-                assert g.num_nodes(ntype) == len(v)
-                g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v, dtype_feat)
-        assert g.num_nodes('clause') == len(self.clause_roles)
-        g.nodes['clause'].data['feat'] = tf.one_hot(self.clause_roles, self.num_clause_roles)
-        return g
+    def graph(self, output_ntypes, node_features=None, dtype_id=tf.int32, dtype_feat=tf.float32, device='/cpu'):
+        """
+        :param device: TensorFlow device to store the graph on.
+        The default device is '/cpu' because the graphs are disk-cached and when a graph is deserialized from disk,
+        it is always stored on '/cpu'.
+        """
+        with tf.device(device):
+            data_dict = {}
+            for (src_type, dst_type, edge_subtype), nodes in self.edges.items():
+                nodes = tuple(map(functools.partial(self.convert_to_tensor, dtype=dtype_id), nodes))
+                for orientation in (1, -1):
+                    etype = self.etype(src_type, dst_type, orientation, edge_subtype)
+                    if orientation == 1:
+                        data_dict[src_type, etype, dst_type] = nodes
+                    else:
+                        assert orientation == -1
+                        data_dict[dst_type, etype, src_type] = tuple(reversed(nodes))
+            # Add loops on output nodes
+            for ntype, num in output_ntypes.items():
+                if num is not None:
+                    assert self.node_counts[ntype] <= num
+                    self.node_counts[ntype] = max(self.node_counts[ntype], num)
+                r = tf.range(self.node_counts[ntype], dtype=dtype_id)
+                data_dict[ntype, f'{ntype}_self', ntype] = (r, r)
+            g = dgl.heterograph(data_dict, self.node_counts)
+            if node_features is not None:
+                for ntype, v in node_features.items():
+                    assert g.num_nodes(ntype) == len(v)
+                    g.nodes[ntype].data['feat'] = self.convert_to_feature_matrix(v, dtype_feat)
+            assert g.num_nodes('clause') == len(self.clause_roles)
+            g.nodes['clause'].data['feat'] = tf.one_hot(self.clause_roles, self.num_clause_roles)
+            return g
 
     @classmethod
     def convert_to_feature_matrix(cls, v, dtype):
