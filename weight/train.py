@@ -332,8 +332,8 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_nonproof_
         for problem, data in problems.items():
             if len(data) == 0:
                 continue
-            token_counts = scipy.sparse.vstack(d['token_counts'] for d in data)
-            proof = scipy.sparse.vstack(d['proof'] for d in data)
+            token_counts = scipy.sparse.vstack((d['token_counts'] for d in data), format='csr')
+            proof = scipy.sparse.vstack((d['proof'] for d in data), format='csc')
             proof_array = proof.toarray()
             assert np.any(proof_array)
             proof_indices = np.nonzero(proof_array)[0]
