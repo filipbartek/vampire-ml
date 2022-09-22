@@ -47,6 +47,9 @@ def main(cfg):
     from questions.graphifier import Graphifier
     from questions import models
 
+    if cfg.recursion_limit is not None:
+        sys.setrecursionlimit(cfg.recursion_limit)
+
     # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
     random.seed(0)
     # Seeding `np.random` is just a precaution.

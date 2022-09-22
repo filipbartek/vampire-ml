@@ -117,3 +117,5 @@ early_stopping:
   monitor: val_binary_accuracy
   patience: 100
   baseline: 0.5
+
+recursion_limit: 10000
