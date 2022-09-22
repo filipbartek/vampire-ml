@@ -322,4 +322,7 @@ class FormulaVisitor:
     @staticmethod
     def convert_to_tensor(v, dtype):
         # Always places the tensor in host memory.
-        return tf.convert_to_tensor(v, dtype=dtype)
+        result = tf.convert_to_tensor(v, dtype=dtype)
+        # Moves the data to an appropriate device. See https://github.com/tensorflow/tensorflow/issues/42242
+        result = tf.identity(result)
+        return result
