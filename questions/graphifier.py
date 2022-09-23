@@ -110,7 +110,7 @@ class Graphifier:
                 else:
                     assert 'graph_nodes' not in record or self.max_number_of_nodes is None or record[
                         'graph_nodes'] <= self.max_number_of_nodes
-                    # Raises ValueError if reading reaches an unexpected EOF.
+                    # Raises EOFError or ValueError if reading reaches an unexpected EOF.
                     graph = joblib.load(filename_graph)
                     logging.debug(f'Graph of {problem_name} loaded.')
                     assert graph.num_nodes() == record['graph_nodes']
