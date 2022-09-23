@@ -132,12 +132,38 @@ def main(cfg):
             generate_paths(problem_to_signature))
 
         problem_samples = defaultdict(list)
+        max_counts = {
+            'clause': 0,
+            'token': 0,
+            'clause_token': 0,
+            'clause_token_unfiltered_nz': 0,
+            'proof': 0,
+            'nonproof': 0,
+            'proof_nonproof': 0
+        }
         for path, samples in proof_traces:
             if samples is None:
                 continue
             problem_samples[problem_path_to_name[path]].append(samples)
+            proof_count = samples['proof'].nnz
+            nonproof_count = samples['proof'].shape[0] - proof_count
+            if cfg.max_nonproof_ratio is not None:
+                nonproof_count = min(nonproof_count, proof_count * cfg.max_nonproof_ratio)
+            clause_count = proof_count + nonproof_count
+            token_count = samples['token_counts'].shape[1]
+            cur_counts = {
+                'clause': clause_count,
+                'token': token_count,
+                'clause_token': clause_count * token_count,
+                'clause_token_unfiltered_nz': samples['token_counts'].nnz,
+                'proof': proof_count,
+                'nonproof': nonproof_count,
+                'proof_nonproof': proof_count * nonproof_count
+            }
+            max_counts = {k: max(v, cur_counts[k]) for k, v in max_counts.items()}
 
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
+        log.info(f'Max counts: {max_counts}')
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=10000)
         graphs, graphs_df = graphifier.get_graphs_dict(problem_names)
