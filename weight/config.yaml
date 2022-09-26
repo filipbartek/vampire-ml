@@ -59,7 +59,7 @@ probe_run_args:
   # Documentation: https://github.com/sosy-lab/benchexec/blob/main/doc/runexec.md
 
 batch:
-  size: 128
+  size: 64
   count: 1
 
 parallel:
@@ -103,7 +103,9 @@ optimizer: adam
 learning_rate: 0.00001
 
 tf:
+  device: null
   run_eagerly: false
+  log_device_placement: false
   threads:
     inter: 0
     intra: 0

@@ -40,63 +40,66 @@ def path_to_problem(path):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
+    # Parallelism cannot be modified after initialization.
     tf.config.threading.set_inter_op_parallelism_threads(cfg.tf.threads.inter)
     tf.config.threading.set_intra_op_parallelism_threads(cfg.tf.threads.intra)
 
-    # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
-    from questions.graphifier import Graphifier
-    from questions import models
+    with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs), tf.device(cfg.tf.device):
+        # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
+        from questions.graphifier import Graphifier
+        from questions import models
 
-    if cfg.recursion_limit is not None:
-        sys.setrecursionlimit(cfg.recursion_limit)
+        if cfg.recursion_limit is not None:
+            sys.setrecursionlimit(cfg.recursion_limit)
 
-    # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
-    random.seed(0)
-    # Seeding `np.random` is just a precaution.
-    np.random.seed(0)
-    tf.random.set_seed(0)
+        # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
+        random.seed(0)
+        # Seeding `np.random` is just a precaution.
+        np.random.seed(0)
+        tf.random.set_seed(0)
 
-    tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
-    tf.summary.experimental.set_step(0)
+        tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
+        tf.debugging.set_log_device_placement(cfg.tf.log_device_placement)
+        tf.summary.experimental.set_step(0)
 
-    log.info(f'Working directory: {os.getcwd()}')
-    log.info(f'Workspace directory: {cfg.workspace_dir}')
-    log.info(f'Cache directory: {memory.location}')
+        log.info(f'Working directory: {os.getcwd()}')
+        log.info(f'Workspace directory: {cfg.workspace_dir}')
+        log.info(f'Cache directory: {memory.location}')
 
-    log.info('TensorFlow physical devices: %s', tf.config.experimental.list_physical_devices())
+        log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
 
-    rng = np.random.default_rng(cfg.seed)
+        rng = np.random.default_rng(cfg.seed)
 
-    problem_names = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
-    problem_names = rng.permutation(problem_names)
-    if cfg.max_problem_count is not None:
-        problem_names = problem_names[:cfg.max_problem_count]
+        problem_names = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
+        problem_names = rng.permutation(problem_names)
+        if cfg.max_problem_count is not None:
+            problem_names = problem_names[:cfg.max_problem_count]
 
-    log.info(f'Number of problems: {len(problem_names)}')
+        log.info(f'Number of problems: {len(problem_names)}')
 
-    problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
+        problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
 
-    def generate_verbose_paths(problem='*'):
-        return glob.glob(os.path.join(cfg.workspace_dir, 'runs', problem, '*', 'verbose'))
+        def generate_verbose_paths(problem='*'):
+            return glob.glob(os.path.join(cfg.workspace_dir, 'runs', problem, '*', 'verbose'))
 
-    proof_paths = generate_verbose_paths()
-    problems_with_proofs = set(path_to_problem(path) for path in proof_paths)
+        proof_paths = generate_verbose_paths()
+        problems_with_proofs = set(path_to_problem(path) for path in proof_paths)
 
-    train_count = int(len(problem_names) * cfg.validation_split)
-    problem_name_datasets = {
-        'train': problem_names[:train_count],
-        'val': problem_names[train_count:]
-    }
-    log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
-    problem_with_proof_name_datasets = {k: [p for p in v if p in problems_with_proofs] for k, v in
-                                        problem_name_datasets.items()}
-    log.info('Number of problems with proofs: %s' % {k: len(v) for k, v in problem_with_proof_name_datasets.items()})
-    problem_name_datasets['train'] = problem_with_proof_name_datasets['train']
-    log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
-    problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
-    log.info(f'Number of problems: {len(problem_names)}')
+        train_count = int(len(problem_names) * cfg.validation_split)
+        problem_name_datasets = {
+            'train': problem_names[:train_count],
+            'val': problem_names[train_count:]
+        }
+        log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
+        problem_with_proof_name_datasets = {k: [p for p in v if p in problems_with_proofs] for k, v in
+                                            problem_name_datasets.items()}
+        log.info(
+            'Number of problems with proofs: %s' % {k: len(v) for k, v in problem_with_proof_name_datasets.items()})
+        problem_name_datasets['train'] = problem_with_proof_name_datasets['train']
+        log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
+        problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
+        log.info(f'Number of problems: {len(problem_names)}')
 
-    with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs):
         parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
 
         clausifier = Solver()
