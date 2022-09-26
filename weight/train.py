@@ -26,6 +26,7 @@ from utils import json_dump_default
 from utils import save_df
 from utils import to_tensor
 from weight import proof
+from weight import signature
 from weight import vampire
 
 log = logging.getLogger(__name__)
@@ -104,15 +105,7 @@ def main(cfg):
 
         clausifier = Solver()
 
-        def get_signature(problem):
-            try:
-                # Raises `RuntimeError` when clausification fails
-                return clausifier.signature(problem)
-            except RuntimeError:
-                return None
-
-        print(f'Collecting signatures of {len(problem_names)} problems', file=sys.stderr)
-        signatures = parallel(joblib.delayed(get_signature)(problem) for problem in problem_names)
+        signatures = signature.get_signatures(problem_names, clausifier=clausifier, parallel=parallel)
         problem_to_signature = dict(zip(problem_names, signatures))
 
         all_problem_names = itertools.chain.from_iterable(problem_name_datasets.values())
