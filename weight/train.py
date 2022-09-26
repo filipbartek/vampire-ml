@@ -31,6 +31,10 @@ from weight import vampire
 
 log = logging.getLogger(__name__)
 
+yaml.add_representer(np.ndarray, yaml.representer.SafeRepresenter.represent_list)
+yaml.add_representer(np.int64, yaml.representer.SafeRepresenter.represent_int)
+yaml.add_representer(np.uint64, yaml.representer.SafeRepresenter.represent_int)
+
 
 def path_to_problem(path):
     # Path format: runs/{problem}/{seed}/verbose
@@ -400,6 +404,14 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_counts=No
                                    y=tf.cast(tf.repeat(proof_clause_weights, y.row_lengths()), dtypes['sample_weight']))
             sample_weight = tf.RaggedTensor.from_nested_row_splits(flat_values, y.nested_row_splits,
                                                                    name='sample_weight')
+            tf.get_logger().debug(yaml.dump({
+                'problems': x['problem'].shape[0],
+                'clauses': {
+                    'total': y.row_lengths().numpy(),
+                    'nonproof': tf.reduce_sum(tf.cast(y, tf.uint64), axis=1).numpy()
+                },
+                'clause_features': [row['occurrence_count'].shape[1] for row in b]
+            }, sort_keys=False))
             yield x, y, sample_weight
 
     # The first dimension of the shape is the batch size.
