@@ -167,7 +167,7 @@ def main(cfg):
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
         log.info(f'Max counts:\n{yaml.dump(max_counts)}')
 
-        graphifier = Graphifier(clausifier, max_number_of_nodes=10000)
+        graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
         graphs, graphs_df = graphifier.get_graphs_dict(problem_names)
         log.info(f'Number of graphs: {len(graphs)}')
 

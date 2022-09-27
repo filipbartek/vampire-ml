@@ -86,6 +86,8 @@ gcn:
     train: 100000
     val: 100000
 
+max_problem_nodes: 10000
+
 embedding_to_cost:
   hidden:
     units: 0
