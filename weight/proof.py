@@ -91,7 +91,7 @@ def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint32)
     else:
         data, indices = [], []
     data += token_counts['symbol'].values()
-    assert all(r <= np.iinfo(dtype).max for r in data)
+    assert is_compatible(data, dtype)
     indices += [4 + symbol_name_to_index[s] for s in token_counts['symbol'].keys()]
     assert len(data) == len(indices)
     indptr = [0, len(data)]
