@@ -7,6 +7,7 @@ import pyparsing
 import scipy
 
 from questions.memory import memory
+from utils import is_compatible
 from weight import vampire
 
 log = logging.getLogger(__name__)
