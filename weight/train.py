@@ -126,10 +126,10 @@ def main(cfg):
 
         if cfg.workspace_dir is None:
             raise RuntimeError('Input workspace directory path is required.')
-        print(f'Loading proofs of {len(problem_to_signature)} problems', file=sys.stderr)
+        cases = list(generate_paths(problem_to_signature))
+        print(f'Loading {len(cases)} proofs of {len(problem_to_signature)} problems', file=sys.stderr)
         proof_traces = parallel(
-            joblib.delayed(proof.load)(path, signature, cfg.max_proof_stdout_size) for path, signature in
-            generate_paths(problem_to_signature))
+            joblib.delayed(proof.load)(path, signature, cfg.max_proof_stdout_size) for path, signature in cases)
 
         problem_samples = defaultdict(list)
         max_counts = {
