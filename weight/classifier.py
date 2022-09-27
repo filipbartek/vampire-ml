@@ -87,17 +87,20 @@ class Classifier(tf.keras.Model):
         return y_pred, y, sample_weight
 
     def predict_pairs(self, x, clause_nonproof):
-        clause_weights = self(x, training=True)
+        clause_weights, valid = self(x, training=True)
 
         problem_pairs = []
-        for nonproof in clause_nonproof:
-            clause_indices = {
-                'proof': tf.where(tf.math.logical_not(nonproof)),
-                'nonproof': tf.where(nonproof)
-            }
-            # Using `indexing='ij'` ensures that we first pair all the nonproof clauses with the first proof clause and so on.
-            pair_clause_indices = tf.meshgrid(clause_indices['proof'], clause_indices['nonproof'], indexing='ij')
-            pair_clause_indices = tf.reshape(pair_clause_indices, (2, -1))
+        for v, nonproof in zip(valid, clause_nonproof):
+            if v:
+                clause_indices = {
+                    'proof': tf.where(tf.math.logical_not(nonproof)),
+                    'nonproof': tf.where(nonproof)
+                }
+                # Using `indexing='ij'` ensures that we first pair all the nonproof clauses with the first proof clause and so on.
+                pair_clause_indices = tf.meshgrid(clause_indices['proof'], clause_indices['nonproof'], indexing='ij')
+                pair_clause_indices = tf.reshape(pair_clause_indices, (2, -1))
+            else:
+                pair_clause_indices = tf.zeros((2, 0), dtype=tf.int64)
             problem_pairs.append(pair_clause_indices)
 
         problem_pairs_ragged = tf.RaggedTensor.from_row_lengths(tf.transpose(tf.concat(problem_pairs, 1)),
@@ -139,7 +142,7 @@ class Classifier(tf.keras.Model):
         clause_feature_weight_decorated = self.symbol_weight_model(x['problem'], training=training)
         clause_features = x['occurrence_count']
         clause_weights = self.costs_decorated_to_logits(clause_feature_weight_decorated, clause_features)
-        return clause_weights
+        return clause_weights, clause_feature_weight_decorated['valid']
 
     @classmethod
     @tf.function
