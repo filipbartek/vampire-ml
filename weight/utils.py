@@ -2,10 +2,12 @@ import itertools
 import logging
 import os
 import sys
+from contextlib import suppress
 from decimal import Decimal
 from enum import Enum
 
 import numpy as np
+import pandas as pd
 import scipy
 import tensorflow as tf
 
@@ -68,10 +70,32 @@ assert list(flatten([[0, [1]], [2, 3]])) == [0, [1], 2, 3]
 
 
 def is_compatible(data, dtype):
+    # Pandas categorical
+    if dtype == 'category':
+        return True
     if isinstance(data, list):
         return all(is_compatible(d, dtype) for d in data)
+    # Pandas
+    if pd.api.types.is_bool_dtype(dtype):
+        return data.isin([0, 1]).all()
+
+    try:
+        data_span = data.min(), data.max()
+    except AttributeError:
+        # We assume `data` to be scalar.
+        data_span = data, data
+
+    # Watch out: bool is considered numeric.
+    if pd.api.types.is_numeric_dtype(dtype):
+        with suppress(AttributeError):
+            # If `dtype` is a Pandas dtype, it exposes an underlying numpy dtype in `dtype.numpy_dtype`.
+            # Otherwise we assume `dtype` to be a numpy dtype.
+            dtype = dtype.numpy_dtype
+        iinfo = np.iinfo(dtype)
+        return iinfo.min <= data_span[0] and data_span[1] <= iinfo.max
+    # TensorFlow
     if dtype.is_floating or dtype.is_integer:
-        return dtype.min <= data.min() and data.max() <= dtype.max
+        return dtype.min <= data_span[0] and data_span[1] <= dtype.max
     if dtype.is_bool:
         return data.dtype == np.bool
     return True
