@@ -33,7 +33,7 @@ def load_proof_samples(stdout_path, signature, max_size=None):
     if max_size is not None:
         cur_size = os.path.getsize(stdout_path)
         if cur_size > max_size:
-            raise RuntimeError(f'{stdout_path}: The stdout file is too large: {cur_size} > {max_size}')
+            raise RuntimeError(f'Proof file is too large: {cur_size} > {max_size}')
     with open(stdout_path) as f:
         stdout = f.read()
     # Raises `ValueError` if no proof is found.
