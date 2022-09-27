@@ -18,15 +18,17 @@ def load(path, signature, max_size=None):
     log.debug(f'Loading proof: {path}')
     with open(os.path.join(path, 'meta.json')) as f:
         meta = json.load(f)
-    stdout_path = os.path.join(path, 'stdout.txt')
-    symbol_name_to_index = {s: i for i, s in enumerate(signature)}
-    try:
-        # Raises `RuntimeError` if the output file is too large.
-        # Raises `ValueError` if no proof is found in the output file.
-        samples = load_proof_samples(stdout_path, symbol_name_to_index, max_size)
-    except (RuntimeError, ValueError) as e:
-        log.warning(f'{stdout_path}: Failed to load proof samples: {str(e)}')
-        samples = None
+    samples = None
+    if meta['szs_status'] in ['THM', 'CAX', 'UNS']:
+        # We only care about successful refutation proofs.
+        stdout_path = os.path.join(path, 'stdout.txt')
+        symbol_name_to_index = {s: i for i, s in enumerate(signature)}
+        try:
+            # Raises `RuntimeError` if the output file is too large.
+            # Raises `ValueError` if no proof is found in the output file.
+            samples = load_proof_samples(stdout_path, symbol_name_to_index, max_size)
+        except (RuntimeError, ValueError) as e:
+            log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
     return meta['problem'], samples
 
 
@@ -38,8 +40,13 @@ def load_proof_samples(stdout_path, signature, max_size=None):
     with open(stdout_path) as f:
         stdout = f.read()
     # Raises `ValueError` if no proof is found.
-    df = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
-    samples_list = list(df_to_samples(df[df.role_active], signature))
+    df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
+    formula_sets = {role: df_operations[df_operations.role == role].formula_id for role in ['active', 'proof']}
+    assert all(ids.nunique() == len(ids) for ids in formula_sets.values())
+    assert all(set(ids) <= set(df_formulas.index) for ids in formula_sets.values())
+    df_formulas_active = df_formulas.loc[formula_sets['active']]
+    df_formulas_active['role_proof'] = df_formulas_active.index.isin(formula_sets['proof'])
+    samples_list = list(df_to_samples(df_formulas_active, signature))
     if len(samples_list) == 0:
         raise RuntimeError(f'{stdout_path}: No proof samples were extracted.')
     samples_aggregated = {
@@ -61,7 +68,7 @@ def df_to_samples(df, signature):
 
 def row_to_sample(index, row, signature):
     # Raises `RuntimeError` if parsing of the formula fails.
-    formula = row.formula
+    formula = row.string
     proof = row.role_proof
     proof_symbol = '-+'[proof]
     formula_description = f'{proof_symbol} {index}: {formula}'

@@ -1,7 +1,7 @@
 import itertools
 import re
-from collections import namedtuple
 
+import numpy as np
 import pandas as pd
 
 from utils import astype
@@ -14,95 +14,102 @@ role_to_operations = {
     'active': [('SA', 'active')]
 }
 operation_to_role = invert_dict_of_lists(role_to_operations)
-formula_pattern = r'(?P<formula_id>\d+)\. (?P<formula>.+) \[(?P<inference_rule>[\w ]*)(?: (?P<inference_parents>[\d,]+))?\](?: \{(?P<extra>[\w,:-]*)\})?'
-operation_pattern = fr'\[(?P<phase>\w+)\] (?P<operation>[\w ]+): {formula_pattern}'
-FormulaOperation = namedtuple('FormulaOperation', ['id', 'formula', 'role', 'extra'])
 supported_roles = ['proof'] + list(role_to_operations)
 
 
 def extract_df(output, roles=None):
     # Raises `ValueError` if no proof is found.
-    formulas = extract(output, roles=roles)
-    records = [formula_to_record(k, v, roles=roles) for k, v in formulas.items()]
-    df = pd.json_normalize(records, sep='_')
-    df.set_index('formula_id', inplace=True)
-    df.sort_index(inplace=True)
-    if 'extra_goal' in df:
-        df.extra_goal.fillna(0, inplace=True)
-    dtype = {
-        'extra_a': pd.UInt64Dtype(),
-        'extra_w': pd.UInt64Dtype(),
-        'extra_nSel': pd.UInt8Dtype(),
-        'extra_thAx': pd.UInt64Dtype(),
-        'extra_allAx': pd.UInt64Dtype(),
-        'extra_thDist': pd.Int64Dtype(),
-        'extra_goal': bool
-    }
-    df = astype(df, dtype, copy=False)
-    return df
-
-
-def formula_to_record(formula_id, properties, roles=None):
-    if roles is None:
-        roles = supported_roles
-    result = {'formula_id': formula_id, 'formula': properties['formula'],
-              'role': {role: role in properties['role'] for role in roles},
-              'extra': properties['extra']}
-    if 'goal' not in result['extra']:
-        result['extra']['goal'] = None
-    return result
+    formulas, operations = extract(output, roles=roles)
+    df_operations = pd.json_normalize(operations, sep='_')
+    df_operations = astype(df_operations, {
+        'formula_id': np.uint64,
+        'role': 'category',
+        'inference_rule': 'category',
+        'span_start': np.uint64,
+        'span_end': np.uint64
+    }, copy=False)
+    df_formulas = pd.json_normalize(formulas.values(), sep='_')
+    df_formulas.set_index(pd.Index(formulas.keys(), dtype=np.uint32, name='id'), inplace=True)
+    df_formulas.sort_index(inplace=True)
+    if 'extra_goal' in df_formulas:
+        df_formulas.extra_goal.fillna(0, inplace=True)
+    dtype = {f'extra_{k}': v for k, v in {
+        'a': pd.UInt64Dtype(),
+        'w': pd.UInt64Dtype(),
+        'nSel': pd.UInt8Dtype(),
+        'thAx': pd.UInt64Dtype(),
+        'allAx': pd.UInt64Dtype(),
+        'thDist': pd.Int64Dtype(),
+        'goal': bool
+    }.items()}
+    df_formulas = astype(df_formulas, dtype, copy=False)
+    return df_formulas, df_operations
 
 
 def extract(output, roles=None):
-    # Raises `ValueError` if no proof is found.
-    proof_str = extract_proof(output)
     formula_operation_generators = []
+    # We extract proof formulas first to fail early in case the proof segment of `output` is missing or incomplete.
     if roles is None or 'proof' in roles:
-        formula_operation_generators.append(extract_operations(fr'^{formula_pattern}$', proof_str, default_role='proof'))
+        formula_operation_generators.append(extract_operations_proof(output))
+    formula_operation_generators.append(extract_operations_nonproof(output, roles))
+    formulas = {}
+    operations = []
+    for op in itertools.chain(*formula_operation_generators):
+        formula_id = op['formula']['id']
+        if formula_id not in formulas:
+            formulas[formula_id] = {k: v for k, v in op['formula'].items() if k != 'id'}
+        extra = op['formula']['extra']
+        if extra is not None:
+            for k in extra:
+                if k not in formulas[formula_id]['extra']:
+                    formulas[formula_id]['extra'][k] = extra[k]
+                assert extra[k] == formulas[formula_id]['extra'][k]
+        operations.append({
+            'formula_id': formula_id,
+            **{k: v for k, v in op.items() if k != 'formula'}
+        })
+    return formulas, operations
+
+
+formula_pattern = r'(?P<formula_id>\d+)\. (?P<formula>.+) \[(?P<inference_rule>[a-z ]*)(?: (?P<inference_parents>[\d,]+))?\](?: \{(?P<extra>[\w,:-]*)\})?'
+operation_pattern = fr'\[(?P<phase>\w+)\] (?P<operation>[\w ]+): {formula_pattern}'
+
+
+def extract_operations_nonproof(output, roles=None):
     roles_nonproof = None
     if roles is not None:
         roles_nonproof = [r for r in roles if r != 'proof']
     if roles_nonproof is None or len(roles_nonproof) >= 1:
-        formula_operation_generators.append(extract_operations(fr'^{operation_pattern}$', output, roles=roles_nonproof))
-    formula_operations = itertools.chain(*formula_operation_generators)
-    #formula_operations = list(formula_operations)
-    formulas = {}
-    for res in formula_operations:
-        assert res.role is not None
-        if res.id not in formulas:
-            formulas[res.id] = {
-                'formula': res.formula,
-                'role': set(),
-                'extra': res.extra
-            }
-        extra_expected = formulas[res.id]['extra']
-        if res.extra is not None:
-            for k in res.extra:
-                if k in extra_expected:
-                    assert res.extra[k] == extra_expected[k]
-                else:
-                    formulas[res.id]['extra'][k] = res.extra[k]
-        formulas[res.id]['role'].add(res.role)
-    return formulas
+        return extract_operations(fr'^{operation_pattern}$', output, roles=roles_nonproof)
+    return []
 
 
-def extract_proof(output):
-    # Raises `ValueError` if no proof is found.
-    parts = re.split(r'^% SZS output start Proof for (?P<problem>.+)$', output, maxsplit=1, flags=re.MULTILINE)
-    if len(parts) != 3:
-        # This happens namely when the problem is solved as satisfiable by saturating the passive clause set.
-        raise ValueError('The output string does not contain a proof start line.')
-    suffix = parts[2].lstrip()
-    parts_2 = re.split(r'^% SZS output end Proof for (?P<problem>.+)$', suffix, maxsplit=1, flags=re.MULTILINE)
-    if len(parts_2) != 3:
-        raise ValueError('The output string does not contain a proof end line.')
-    proof = parts_2[0].rstrip()
-    return proof
+def extract_operations_proof(output):
+    return extract_operations(fr'^{formula_pattern}$', output, default_role='proof',
+                              pos=extract_proof_start(output), endpos=extract_proof_end(output))
 
 
-def extract_operations(pattern, string, default_role=None, roles=None):
-    for m in re.finditer(pattern, string, re.MULTILINE):
+def extract_proof_start(output):
+    m = re.search(r'^% SZS output start Proof for (?P<problem>.+)$', output, flags=re.MULTILINE)
+    if m is None:
+        raise ValueError('Proof start not found.')
+    return m.end() + 1
+
+
+def extract_proof_end(output):
+    m = re.search(r'^% SZS output end Proof for (?P<problem>.+)$', output, flags=re.MULTILINE)
+    if m is None:
+        raise ValueError('Proof end not found.')
+    return m.start()
+
+
+def extract_operations(pattern, string, default_role=None, roles=None, **kwargs):
+    for m in re.compile(pattern, re.MULTILINE).finditer(string, **kwargs):
         try:
+            # Phase and operation is only extracted if the pattern contains the respective named fields.
+            # `operation_pattern` contains these fields, while `formula_pattern` does not.
+            # Raises `IndexError` if `m` does not contain 'phase' or 'operation'.
+            # Raises `KeyError` if `operation_to_role` does not contain the given combination of phase and operation.
             role = operation_to_role[m['phase'], m['operation']]
         except (IndexError, KeyError):
             role = default_role
@@ -110,11 +117,30 @@ def extract_operations(pattern, string, default_role=None, roles=None):
             continue
         if roles is not None and role not in roles:
             continue
-        formula_id = int(m['formula_id'])
-        extra_dict = {}
-        extra = m['extra']
-        if extra is not None:
-            pair_strings = (p.strip() for p in extra.split(','))
-            string_pairs = (p.split(':', 1) for p in pair_strings)
-            extra_dict = {k: int(v) for k, v in string_pairs}
-        yield FormulaOperation(formula_id, m['formula'], role, extra_dict)
+        inference_parents = []
+        if m['inference_parents'] is not None:
+            inference_parents = list(map(int, m['inference_parents'].split(',')))
+        yield {
+            'formula': {
+                'id': int(m['formula_id']),
+                'string': m['formula'],
+                'extra': extract_extra(m['extra'])
+            },
+            'role': role,
+            'inference': {
+                'rule': m['inference_rule'],
+                'parents': inference_parents
+            },
+            'span': {
+                'start': m.start(),
+                'end': m.end()
+            }
+        }
+
+
+def extract_extra(extra_str):
+    if extra_str is None:
+        return {}
+    pair_strings = (p.strip() for p in extra_str.split(','))
+    string_pairs = (p.split(':', 1) for p in pair_strings)
+    return {k: int(v) for k, v in string_pairs}
