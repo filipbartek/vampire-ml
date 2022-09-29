@@ -25,9 +25,10 @@ def json_dump_default(obj, default=str):
 
 
 def astype(df, dtype, **kwargs):
+    dtype = {k: v for k, v in dtype.items() if k in df}
     assert all(is_compatible(df[col], t) for col, t in dtype.items())
     # Cast the dataframe columns to appropriate dtypes
-    return df.astype({k: v for k, v in dtype.items() if k in df}, **kwargs)
+    return df.astype(dtype, **kwargs)
 
 
 def save_df(df, basename, **kwargs):
