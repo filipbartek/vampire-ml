@@ -139,10 +139,14 @@ class Classifier(tf.keras.Model):
         :param x: problem names and clause feature values
         :return: clause weights
         """
-        clause_feature_weight_decorated = self.symbol_weight_model(x['problem'], training=training)
-        clause_features = x['occurrence_count']
-        clause_weights = self.costs_decorated_to_logits(clause_feature_weight_decorated, clause_features)
-        return clause_weights, clause_feature_weight_decorated['valid']
+        try:
+            clause_feature_weight_decorated = self.symbol_weight_model(x['problem'], training=training)
+            clause_features = x['occurrence_count']
+            clause_weights = self.costs_decorated_to_logits(clause_feature_weight_decorated, clause_features)
+            return clause_weights, clause_feature_weight_decorated['valid']
+        except Exception as e:
+            problems_str = ','.join(py_str(p) for p in x['problem'])
+            raise RuntimeError(f'Exception occurred when processing problems: {problems_str}') from e
 
     @classmethod
     @tf.function
