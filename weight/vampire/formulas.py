@@ -33,6 +33,8 @@ def extract_df(output, roles=None):
     df_formulas.sort_index(inplace=True)
     if 'extra_goal' in df_formulas:
         df_formulas.extra_goal.fillna(0, inplace=True)
+    else:
+        df_formulas['extra_goal'] = False
     dtype = {f'extra_{k}': v for k, v in {
         'a': pd.UInt64Dtype(),
         'w': pd.UInt64Dtype(),
