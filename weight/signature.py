@@ -4,7 +4,7 @@ import sys
 from questions.memory import memory
 
 
-@memory.cache(ignore=['clausifier', 'parallel'])
+@memory.cache(ignore=['parallel'], verbose=2)
 def get_signatures(problem_names, clausifier, parallel=None):
     if parallel is None:
         parallel = joblib.Parallel()
