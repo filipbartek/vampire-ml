@@ -1,5 +1,7 @@
 import tensorflow as tf
 
+from questions.utils import py_str
+
 
 class Classifier(tf.keras.Model):
     def __init__(self, symbol_weight_model, name='classifier'):
