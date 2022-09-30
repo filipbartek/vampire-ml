@@ -1,10 +1,14 @@
 import json
 import logging
 import os
+import sys
 
+import joblib
 import numpy as np
+import pandas as pd
 import pyparsing
 import scipy
+import yaml
 
 from questions.memory import memory
 from utils import is_compatible
@@ -13,23 +17,38 @@ from weight import vampire
 log = logging.getLogger(__name__)
 
 
-@memory.cache(ignore=['signature'])
-def load(path, signature, max_size=None):
-    log.debug(f'Loading proof: {path}')
-    with open(os.path.join(path, 'meta.json')) as f:
-        meta = json.load(f)
-    samples = None
-    if meta['szs_status'] in ['THM', 'CAX', 'UNS']:
-        # We only care about successful refutation proofs.
-        stdout_path = os.path.join(path, 'stdout.txt')
-        symbol_name_to_index = {s: i for i, s in enumerate(signature)}
+@memory.cache(ignore=['parallel'], verbose=2)
+def load_proofs(paths, clausifier, max_size=None, parallel=None):
+    def get_signature(problem):
         try:
-            # Raises `RuntimeError` if the output file is too large.
-            # Raises `ValueError` if no proof is found in the output file.
-            samples = load_proof_samples(stdout_path, symbol_name_to_index, max_size)
-        except (RuntimeError, ValueError) as e:
-            log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
-    return meta['problem'], samples
+            # Raises `RuntimeError` when clausification fails
+            return clausifier.signature(problem)
+        except RuntimeError:
+            return None
+
+    def load_one(path):
+        log.debug(f'Loading proof: {path}')
+        with open(os.path.join(path, 'meta.json')) as f:
+            meta = json.load(f)
+        problem = meta['problem']
+        result = {'problem': problem}
+        if meta['szs_status'] in ['THM', 'CAX', 'UNS']:
+            # We only care about successful refutation proofs.
+            stdout_path = os.path.join(path, 'stdout.txt')
+            signature = get_signature(problem)
+            result['signature'] = signature
+            # Assert that every symbol name is unique.
+            assert len(signature) == len(set(signature))
+            try:
+                # Raises `RuntimeError` if the output file is too large.
+                # Raises `ValueError` if no proof is found in the output file.
+                result['clauses'] = load_proof_samples(stdout_path, signature, max_size)
+            except (RuntimeError, ValueError) as e:
+                log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
+        return result
+
+    print(f'Loading {len(paths)} proofs', file=sys.stderr)
+    return parallel(joblib.delayed(load_one)(path) for path in paths)
 
 
 def load_proof_samples(stdout_path, signature, max_size=None):
@@ -41,51 +60,52 @@ def load_proof_samples(stdout_path, signature, max_size=None):
         stdout = f.read()
     # Raises `ValueError` if no proof is found.
     df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
-    formula_sets = {role: df_operations[df_operations.role == role].formula_id for role in ['active', 'proof']}
-    assert all(ids.nunique() == len(ids) for ids in formula_sets.values())
-    assert all(set(ids) <= set(df_formulas.index) for ids in formula_sets.values())
-    df_formulas_active = df_formulas.loc[formula_sets['active']]
-    df_formulas_active['role_proof'] = df_formulas_active.index.isin(formula_sets['proof'])
+    df_formulas_active = df_formulas[df_formulas.role_active.notna()]
+    log.debug('Clause count:\n%s' % yaml.dump({
+        'total': len(df_formulas),
+        'active': {
+            'total': len(df_formulas_active),
+            'proof': df_formulas_active.role_proof.count(),
+            '~proof': df_formulas_active.role_proof.isna().sum()
+        },
+        'proof': df_formulas.role_proof.count()
+    }, sort_keys=False))
     samples_list = list(df_to_samples(df_formulas_active, signature))
     if len(samples_list) == 0:
         raise RuntimeError(f'{stdout_path}: No proof samples were extracted.')
     samples_aggregated = {
         'token_counts': scipy.sparse.vstack(s['token_counts'] for s in samples_list),
         'proof': scipy.sparse.csc_matrix([[s['proof']] for s in samples_list], dtype=bool),
-        'goal': scipy.sparse.csc_matrix([[s['goal']] for s in samples_list], dtype=bool)
+        'goal': scipy.sparse.csc_matrix([[s['goal']] for s in samples_list], dtype=bool),
     }
     return samples_aggregated
 
 
 def df_to_samples(df, signature):
-    for index, row in df.iterrows():
+    for index, row in df.loc[:, ['string', 'role_proof', 'extra_goal']].iterrows():
         try:
-            yield row_to_sample(index, row, signature)
+            yield {
+                'token_counts': clause_feature_vector(row.string, signature),
+                'proof': pd.notna(row.role_proof),
+                'goal': row.extra_goal
+            }
         except RuntimeError as e:
             log.debug(str(e))
             continue
 
 
-def row_to_sample(index, row, signature):
+def clause_feature_vector(formula, signature):
     # Raises `RuntimeError` if parsing of the formula fails.
-    formula = row.string
-    proof = row.role_proof
-    proof_symbol = '-+'[proof]
-    formula_description = f'{proof_symbol} {index}: {formula}'
     try:
         # Raises `pyparsing.ParseException` if parsing of the formula fails.
         # Raises `RecursionError` if the formula is too deep.
         token_counts = vampire.clause.token_counts(formula)
     except (pyparsing.ParseException, RecursionError) as e:
-        raise RuntimeError(f'{formula_description}. Failed to parse.') from e
-    return {
-        'token_counts': occurrence_count_vector(token_counts, signature),
-        'proof': proof,
-        'goal': row.extra_goal
-    }
+        raise RuntimeError(f'{formula}: Failed to parse.') from e
+    return token_counts_to_feature_vector(token_counts, signature)
 
 
-def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint32):
+def token_counts_to_feature_vector(token_counts, signature, dtype=np.uint32):
     """
     0. variable
     1. negation
@@ -100,8 +120,9 @@ def occurrence_count_vector(token_counts, symbol_name_to_index, dtype=np.uint32)
         data, indices = [], []
     data += token_counts['symbol'].values()
     assert is_compatible(data, dtype)
-    indices += [4 + symbol_name_to_index[s] for s in token_counts['symbol'].keys()]
+    signature = signature.tolist()
+    indices += [4 + signature.index(s) for s in token_counts['symbol'].keys()]
     assert len(data) == len(indices)
     indptr = [0, len(data)]
-    result = scipy.sparse.csr_matrix((data, indices, indptr), shape=(1, 4 + len(symbol_name_to_index)), dtype=dtype)
+    result = scipy.sparse.csr_matrix((data, indices, indptr), shape=(1, 4 + len(signature)), dtype=dtype)
     return result

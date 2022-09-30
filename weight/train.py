@@ -119,17 +119,12 @@ def main(cfg):
             evaluate(None, problem_signatures, cfg, parallel, problem_name_datasets, 'baseline')
 
         def generate_paths(problem_to_signature):
-            for problem_name, signature in problem_to_signature.items():
+            for problem_name in problem_to_signature:
                 # We automatically omit problems that do not have any proof.
                 for path in generate_verbose_paths(problem_name):
-                    yield path, signature
+                    yield path
 
-        if cfg.workspace_dir is None:
-            raise RuntimeError('Input workspace directory path is required.')
-        cases = list(generate_paths(problem_to_signature))
-        print(f'Loading {len(cases)} proofs of {len(problem_to_signature)} problems', file=sys.stderr)
-        proof_traces = parallel(
-            joblib.delayed(proof.load)(path, signature, cfg.max_proof_stdout_size) for path, signature in cases)
+        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier, max_size=cfg.max_proof_stdout_size, parallel=parallel)
 
         problem_samples = defaultdict(list)
         max_counts = {
@@ -141,10 +136,11 @@ def main(cfg):
             'nonproof': 0,
             'proof_nonproof': 0
         }
-        for path, samples in proof_traces:
-            if samples is None:
+        for res in proof_traces:
+            if 'clauses' not in res:
                 continue
-            problem_samples[problem_path_to_name[path]].append(samples)
+            samples = res['clauses']
+            problem_samples[problem_path_to_name[res['problem']]].append(samples)
             proof_count = samples['proof'].nnz
             nonproof_count = samples['proof'].shape[0] - proof_count
             if cfg.max_clauses_per_proof.proof is not None:
@@ -369,6 +365,10 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_counts=No
             assert np.any(proof_array)
             proof_indices = np.nonzero(proof_array)[0]
             nonproof_indices = np.nonzero(np.logical_not(proof_array))[0]
+            assert len(proof_indices) >= 1
+            if len(nonproof_indices) == 0:
+                # We only care about proof searches with at least one nonproof clause.
+                continue
             if max_counts.proof is not None and max_counts.proof < len(proof_indices):
                 proof_indices = rng.choice(proof_indices, max_counts.proof)
             if max_counts.nonproof is not None and max_counts.nonproof < len(nonproof_indices):
