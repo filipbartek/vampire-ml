@@ -3,6 +3,12 @@ defaults:
   - override hydra/job_logging: colorlog
   - override hydra/hydra_logging: colorlog
 
+hydra:
+  job:
+    env_set:
+      DGLBACKEND: tensorflow
+      TF_CPP_MIN_LOG_LEVEL: 1
+
 seed: 0
 eras: 10
 epochs_per_era: 10
