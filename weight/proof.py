@@ -40,7 +40,7 @@ def load_proofs(paths, clausifier, max_size=None, parallel=None):
             # Assert that every symbol name is unique.
             assert len(signature) == len(set(signature))
             try:
-                # Raises `RuntimeError` if the output file is too large.
+                # Raises `RuntimeError` if the output file is too large or a formula fails to be parsed.
                 # Raises `ValueError` if no proof is found in the output file.
                 result['clauses'] = load_proof_samples(stdout_path, signature, max_size)
             except (RuntimeError, ValueError) as e:
@@ -83,15 +83,11 @@ def load_proof_samples(stdout_path, signature, max_size=None):
 
 def df_to_samples(df, signature):
     for index, row in df.loc[:, ['string', 'role_proof', 'extra_goal']].iterrows():
-        try:
-            yield {
-                'token_counts': clause_feature_vector(row.string, signature),
-                'proof': pd.notna(row.role_proof),
-                'goal': row.extra_goal
-            }
-        except RuntimeError as e:
-            log.debug(str(e))
-            continue
+        yield {
+            'token_counts': clause_feature_vector(row.string, signature),
+            'proof': pd.notna(row.role_proof),
+            'goal': row.extra_goal
+        }
 
 
 def clause_feature_vector(formula, signature):
