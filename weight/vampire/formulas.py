@@ -44,6 +44,7 @@ def extract_df(output, roles=None):
         'thDist': pd.Int64Dtype(),
         'goal': bool
     }.items()}
+    dtype.update({f'role_{role}': pd.UInt64Dtype() for role in roles})
     df_formulas = astype(df_formulas, dtype, copy=False)
     return df_formulas, df_operations
 
@@ -60,12 +61,15 @@ def extract(output, roles=None):
         formula_id = op['formula']['id']
         if formula_id not in formulas:
             formulas[formula_id] = {k: v for k, v in op['formula'].items() if k != 'id'}
+            formulas[formula_id]['role'] = {}
         extra = op['formula']['extra']
         if extra is not None:
             for k in extra:
                 if k not in formulas[formula_id]['extra']:
                     formulas[formula_id]['extra'][k] = extra[k]
                 assert extra[k] == formulas[formula_id]['extra'][k]
+        assert op['role'] not in formulas[formula_id]['role']
+        formulas[formula_id]['role'][op['role']] = op['span']['start']
         operations.append({
             'formula_id': formula_id,
             **{k: v for k, v in op.items() if k != 'formula'}
