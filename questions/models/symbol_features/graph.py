@@ -6,11 +6,13 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, gcn):
+    def __init__(self, graphifier, gcn, common_clause_feature_count=0):
         SymbolFeatures.__init__(self, dynamic=True)
         self.gcn = gcn
         self.graphifier = graphifier
-        self.special_token_model = self.add_weight(name='special_token_weight', shape=(1, 4, 16), initializer='random_normal', trainable=True)
+        self.special_token_model = self.add_weight(name='special_token_weight',
+                                                   shape=(1, common_clause_feature_count, 16),
+                                                   initializer='random_normal', trainable=True)
 
     def call(self, problems, training=False, cache=True):
         batch_graph, valid = self.problems_to_batch_graph(problems, cache=cache)

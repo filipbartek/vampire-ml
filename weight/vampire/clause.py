@@ -1,41 +1,61 @@
 from collections import Counter
 
-import pyparsing as pp
-
-
-# https://www.tptp.org/TPTP/SyntaxBNF.html
-alpha_numeric = pp.alphanums + '_'
-upper_word = pp.Word(pp.alphas.upper(), alpha_numeric)
-variable = upper_word.set_results_name('variable', list_all_matches=True)
-lower_word = pp.Word(pp.alphas.lower(), alpha_numeric)
-functor = lower_word.set_results_name('symbol', list_all_matches=True)
-fof_term = pp.Forward()
-fof_plain_term = functor + pp.Optional('(' + pp.delimited_list(fof_term, ',') + ')')
-fof_term <<= variable | fof_plain_term
-infix_equality = pp.Literal('=').set_results_name('equality', list_all_matches=True)
-infix_inequality = pp.Literal('!=').set_results_name('inequality', list_all_matches=True)
-infix_op = infix_equality | infix_inequality
-infix_atom = fof_term + infix_op + fof_term
-fof_atomic_formula = infix_atom | fof_plain_term
-negation = pp.Literal('~').set_results_name('negation', list_all_matches=True)
-literal = pp.Optional(negation) + fof_atomic_formula
-cnf_formula = pp.delimited_list(literal, '|')
+from antlr4 import *
+from tptp_grammar.tptp_v7_0_0_0Lexer import tptp_v7_0_0_0Lexer
+from tptp_grammar.tptp_v7_0_0_0Parser import tptp_v7_0_0_0Parser
+from tptp_grammar.tptp_v7_0_0_0Listener import tptp_v7_0_0_0Listener
 
 
 def token_counts(c):
-    parsed = cnf_formula.parse_string(c, parse_all=True)
-    res = {}
-    if 'symbol' in parsed.keys():
-        res['symbol'] = Counter(iter(parsed['symbol']))
-    else:
-        res['symbol'] = Counter()
-    if 'variable' in parsed.keys():
-        res['variable'] = sorted(Counter(iter(parsed['variable'])).values(), reverse=True)
-    else:
-        res['variable'] = []
-    for name in ['equality', 'inequality', 'negation']:
-        if name in parsed.keys():
-            res[name] = len(parsed[name])
-        else:
-            res[name] = 0
+    input_stream = InputStream(c)
+    lexer = tptp_v7_0_0_0Lexer(input_stream)
+    stream = CommonTokenStream(lexer)
+    parser = tptp_v7_0_0_0Parser(stream)
+    listener = Listener()
+    tree = parser.cnf_formula()
+    walker = ParseTreeWalker()
+    walker.walk(listener, tree)
+
+    res = {
+        'literal': listener.literals,
+        'not': listener.terminals[tptp_v7_0_0_0Parser.Not],
+        'equality': listener.terminals[tptp_v7_0_0_0Parser.Infix_equality],
+        'inequality': listener.terminals[tptp_v7_0_0_0Parser.Infix_inequality],
+        'variable': sorted(listener.variables.values(), reverse=True),
+        'number': listener.numbers,
+        'symbol': listener.functors,
+    }
     return res
+
+
+class Listener(tptp_v7_0_0_0Listener):
+    def __init__(self):
+        super().__init__()
+        self.terminals = Counter()
+        self.functors = Counter()
+        self.variables = Counter()
+        self.literals = 0
+        self.numbers = 0
+
+    tracked_terminal_types = [
+        tptp_v7_0_0_0Parser.Not,
+        tptp_v7_0_0_0Parser.Infix_equality,
+        tptp_v7_0_0_0Parser.Infix_inequality,
+    ]
+
+    def visitTerminal(self, node:TerminalNode):
+        symbol_type = node.symbol.type
+        if symbol_type in self.tracked_terminal_types:
+            self.terminals[symbol_type] += 1
+
+    def enterFunctor(self, ctx):
+        self.functors[ctx.start.text] += 1
+
+    def enterVariable(self, ctx):
+        self.variables[ctx.start.text] += 1
+
+    def enterCnf_literal(self, ctx):
+        self.literals += 1
+
+    def enterNumber(self, ctx):
+        self.numbers += 1

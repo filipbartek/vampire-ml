@@ -8,6 +8,7 @@ import sys
 import tempfile
 import warnings
 from collections import defaultdict
+from contextlib import suppress
 
 import joblib
 import hydra
@@ -124,7 +125,9 @@ def main(cfg):
                 for path in generate_verbose_paths(problem_name):
                     yield path
 
-        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier, max_size=cfg.max_proof_stdout_size, parallel=parallel)
+        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier,
+                                         features=cfg.clause_features, max_size=cfg.max_proof_stdout_size,
+                                         parallel=parallel)
 
         problem_samples = defaultdict(list)
         max_counts = {
@@ -171,7 +174,8 @@ def main(cfg):
         gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                          graphifier.ntype_feat_sizes, output_ntypes=output_ntypes)
         # Outputs an embedding for each token.
-        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
+        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn,
+                                                              common_clause_feature_count=len(cfg.clause_features))
         embedding_to_weight = tf.keras.layers.Dense(1, name='embedding_to_weight',
                                                     activation='softplus',
                                                     kernel_regularizer=tf.keras.regularizers.L1L2(
@@ -287,12 +291,9 @@ def evaluate_options(model_result, problem_signatures, cfg, eval_options, parall
         if cost is not None:
             weight = cost.numpy()
             signature = problem_signatures[problem]
-            assert len(weight) == 4 + len(signature)
+            assert len(weight) == len(cfg.clause_features) + len(signature)
             weights = {
-                'variable': weight[0],
-                'negation': weight[1],
-                'equality': weight[2],
-                'inequality': weight[3],
+                **dict(zip(cfg.clause_features, weight)),
                 'symbol': dict(zip(signature, weight[4:]))
             }
             log.debug(f'{problem} {weights}')
@@ -332,8 +333,9 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
         del options['include']
     weights_file = None
     if weights is not None:
-        options['variable_weight'] = weights['variable']
-        # TODO: Set weights for negation, equality, inequality.
+        with suppress(KeyError):
+            options['variable_weight'] = weights['variable_occurrence']
+        # TODO: Set weights for other clause features.
         if weights_filename is None:
             weights_file = tempfile.NamedTemporaryFile('w+', suffix='.properties',
                                                        prefix=os.path.join('vampire_functor_weights_'))
