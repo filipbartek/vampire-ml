@@ -23,13 +23,13 @@ class Graph(SymbolFeatures):
         with tf.device('/cpu'):
             problems = list(map(py_str, problems))
             graphs = self.graphifier.get_graphs(problems, cache=cache, get_df=False)
-    
+
             def convert(g):
                 if g is None:
                     return self.graphifier.empty_graph(), False
                 else:
                     return g, True
-    
+
             graphs, valid = zip(*map(convert, graphs))
             batch_graph = dgl.batch(graphs)
             valid = tf.convert_to_tensor(valid, dtype=tf.bool)
