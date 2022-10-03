@@ -125,9 +125,8 @@ def main(cfg):
                 for path in generate_verbose_paths(problem_name):
                     yield path
 
-        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier,
-                                         features=cfg.clause_features, max_size=cfg.max_proof_stdout_size,
-                                         parallel=parallel)
+        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier, cfg.clause_features,
+                                         max_size=cfg.max_proof_stdout_size, parallel=parallel)
 
         problem_samples = defaultdict(list)
         max_counts = {
