@@ -42,6 +42,7 @@ def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None)
             assert len(signature) == len(set(signature))
             try:
                 # Raises `RuntimeError` if the output file is too large.
+                # Raises `RuntimeError` if the signature is too large.
                 # Raises `RuntimeError` if the proof contains no nonproof clauses.
                 # Raises `ValueError` if no proof is found in the output file.
                 # Raises `ValueError` if a symbol encountered in a clause is missing from the signature.
@@ -59,6 +60,8 @@ def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None)
 
 def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
     cfg = AttributeDict(cfg)
+    if cfg.max_symbols is not None and len(signature) > cfg.max_symbols:
+        raise RuntimeError(f'Signature is too large: {len(signature)} > {cfg.max_symbols}')
     if cfg.max_size is not None:
         actual_size = os.path.getsize(stdout_path)
         if actual_size > cfg.max_size:

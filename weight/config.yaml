@@ -25,6 +25,7 @@ proof:
   max_clauses:
     proof: 1000
     nonproof: 1000
+  max_symbols: 1000
 
 clause_features:
   # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
