@@ -81,14 +81,17 @@ def is_compatible(data, dtype):
     if pd.api.types.is_bool_dtype(dtype):
         return data.isin([0, 1]).all()
 
-    if isinstance(data, pd.Series) and len(data) == 0:
-        return True
-
     try:
         data_span = data.min(), data.max()
     except AttributeError:
         # We assume `data` to be scalar.
         data_span = data, data
+
+    assert pd.isna(data_span[0]) == pd.isna(data_span[1])
+    if all(pd.isna(ds) for ds in data_span):
+        # This happens when data is all-NA, namely empty.
+        # We assume that NA fits into all dtypes.
+        return True
 
     # Watch out: bool is considered numeric.
     if pd.api.types.is_numeric_dtype(dtype):
