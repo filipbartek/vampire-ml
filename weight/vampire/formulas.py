@@ -35,6 +35,11 @@ def extract_df(output, roles=None):
         df_formulas.extra_goal.fillna(0, inplace=True)
     else:
         df_formulas['extra_goal'] = False
+    if roles is not None:
+        for role in roles:
+            col = f'role_{role}'
+            if col not in df_formulas:
+                df_formulas[col] = pd.NA
     dtype = {f'extra_{k}': v for k, v in {
         'a': pd.UInt64Dtype(),
         'w': pd.UInt64Dtype(),
