@@ -72,9 +72,6 @@ assert list(flatten([[0, [1]], [2, 3]])) == [0, [1], 2, 3]
 
 
 def is_compatible(data, dtype):
-    # Empty container
-    if len(data) == 0:
-        return True
     # Pandas categorical
     if dtype == 'category':
         return True
@@ -83,6 +80,9 @@ def is_compatible(data, dtype):
     # Pandas
     if pd.api.types.is_bool_dtype(dtype):
         return data.isin([0, 1]).all()
+
+    if isinstance(data, pd.Series) and len(data) == 0:
+        return True
 
     try:
         data_span = data.min(), data.max()
