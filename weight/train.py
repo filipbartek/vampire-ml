@@ -89,44 +89,28 @@ def main(cfg):
         def generate_verbose_paths(problem='*'):
             return glob.glob(os.path.join(cfg.workspace_dir, 'runs', problem, '*', 'verbose'))
 
-        proof_paths = generate_verbose_paths()
-        problems_with_proofs = set(path_to_problem(path) for path in proof_paths)
-
         train_count = int(len(problem_names) * cfg.validation_split)
         problem_name_datasets = {
             'train': problem_names[:train_count],
             'val': problem_names[train_count:]
         }
         log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
-        problem_with_proof_name_datasets = {k: [p for p in v if p in problems_with_proofs] for k, v in
-                                            problem_name_datasets.items()}
-        log.info(
-            'Number of problems with proofs: %s' % {k: len(v) for k, v in problem_with_proof_name_datasets.items()})
-        problem_name_datasets['train'] = problem_with_proof_name_datasets['train']
-        log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
-        problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
-        log.info(f'Number of problems: {len(problem_names)}')
-
         parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
 
         clausifier = Solver()
 
-        signatures = signature.get_signatures(problem_names, clausifier=clausifier, parallel=parallel)
-        problem_to_signature = dict(zip(problem_names, signatures))
-
-        all_problem_names = itertools.chain.from_iterable(problem_name_datasets.values())
-        problem_signatures = {path: problem_to_signature[path] for path in all_problem_names}
+        active_problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
 
         if cfg.evaluate.baseline:
-            evaluate(None, problem_signatures, cfg, parallel, problem_name_datasets, 'baseline')
+            evaluate(None, active_problem_names, clausifier, cfg, parallel, problem_name_datasets, 'baseline')
 
-        def generate_paths(problem_to_signature):
-            for problem_name in problem_to_signature:
+        def generate_paths(problem_names):
+            for problem_name in problem_names:
                 # We automatically omit problems that do not have any proof.
                 for path in generate_verbose_paths(problem_name):
                     yield path
 
-        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier,
+        proof_traces = proof.load_proofs(list(generate_paths(active_problem_names)), clausifier,
                                          OmegaConf.to_container(cfg.clause_features),
                                          cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
 
@@ -164,9 +148,6 @@ def main(cfg):
         log.info(f'Max counts:\n{yaml.dump(max_counts)}')
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
-        graphs, graphs_df = graphifier.get_graphs_dict(problem_names)
-        log.info(f'Number of graphs: {len(graphs)}')
-
         output_ntypes = ['predicate', 'function']
         gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                          graphifier.ntype_feat_sizes, output_ntypes=output_ntypes)
@@ -200,7 +181,7 @@ def main(cfg):
                  len(problem_samples[problem_name]) >= 1},
                 cfg.batch.size, cfg.proof_sample_weight).cache() for
             dataset_name, problem_names in
-            problem_with_proof_name_datasets.items()}
+            problem_name_datasets.items()}
 
         ckpt_dir = 'ckpt'
         log.info(f'Checkpoint directory: {ckpt_dir}')
@@ -212,7 +193,7 @@ def main(cfg):
             tf.keras.callbacks.ReduceLROnPlateau(**cfg.reduce_lr_on_plateau)
         ]
 
-        if len(problem_with_proof_name_datasets['val']) >= 1:
+        if len(problem_name_datasets['val']) >= 1:
             cbs.append(tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(ckpt_dir, 'acc', 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
                 save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True))
@@ -223,7 +204,7 @@ def main(cfg):
                 log.info(f'{dataset_name}: Evaluating...')
                 res = model_logit.evaluate(dataset, return_dict=True)
                 log.info(f'{dataset_name}: {res}')
-            evaluate(model_symbol_weight, problem_signatures, cfg, parallel, problem_name_datasets,
+            evaluate(model_symbol_weight, active_problem_names, clausifier, cfg, parallel, problem_name_datasets,
                      os.path.join(era_dir, 'eval'))
 
         if cfg.evaluate.initial:
@@ -239,11 +220,10 @@ def main(cfg):
             evaluate_all(era_dir)
 
 
-def evaluate(model, problem_signatures, cfg, parallel, problem_name_datasets, out_dir):
+def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir):
     model_result = None
     if model is not None:
         log.info('Evaluating a model')
-        problem_names = list(map(str, problem_signatures.keys()))
         model_result = model.predict(problem_names)
     else:
         log.info('Evaluating baseline')
@@ -252,7 +232,7 @@ def evaluate(model, problem_signatures, cfg, parallel, problem_name_datasets, ou
         log.info(f'Evaluating configuration {eval_name}')
         eval_dir = os.path.join(out_dir, eval_name)
         os.makedirs(eval_dir, exist_ok=True)
-        df = evaluate_options(model_result, problem_signatures, cfg, eval_options, parallel, out_dir=eval_dir)
+        df = evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=eval_dir)
         df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
         df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
         df['success'] = df.success_uns | df.success_sat
@@ -276,18 +256,17 @@ def evaluate(model, problem_signatures, cfg, parallel, problem_name_datasets, ou
         save_df(df, os.path.join(eval_dir, 'problems'))
 
 
-def evaluate_options(model_result, problem_signatures, cfg, eval_options, parallel, out_dir=None):
-    problem_names = list(map(str, problem_signatures.keys()))
+def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):
     options = {**cfg.options.common, **cfg.options.probe, **eval_options}
 
     def run(problem, valid, cost):
         log.debug(f'Attempting problem {problem}')
-        result = {'problem': problem, 'valid': bool(valid)}
+        result = {'problem': problem, 'valid': valid}
         if not valid:
             return result
         if cost is not None:
-            weight = cost.numpy()
-            signature = problem_signatures[problem]
+            weight = cost
+            signature = clausifier.signature(problem)
             assert len(weight) == len(cfg.clause_features) + len(signature)
             weights = {
                 **dict(zip(cfg.clause_features, weight)),
@@ -315,7 +294,7 @@ def evaluate_options(model_result, problem_signatures, cfg, eval_options, parall
     if model_result is None:
         cases = zip(problem_names, itertools.repeat(True), itertools.repeat(None))
     else:
-        cases = zip(problem_names, model_result['valid'], model_result['costs'])
+        cases = zip(problem_names, map(bool, model_result['valid']), map(lambda x: x.numpy(), model_result['costs']))
     print(f'Running {len(problem_names)} cases', file=sys.stderr)
     results = parallel(joblib.delayed(run)(problem, valid, cost) for problem, valid, cost in cases)
 
@@ -390,14 +369,6 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
                                    y=tf.cast(tf.repeat(proof_clause_weights, y.row_lengths()), dtypes['sample_weight']))
             sample_weight = tf.RaggedTensor.from_nested_row_splits(flat_values, y.nested_row_splits,
                                                                    name='sample_weight')
-            tf.get_logger().debug(yaml.dump({
-                'problems': x['problem'].shape[0],
-                'clauses': {
-                    'total': y.row_lengths().numpy(),
-                    'nonproof': tf.reduce_sum(tf.cast(y, tf.uint64), axis=1).numpy()
-                },
-                'clause_features': [row['occurrence_count'].shape[1] for row in b]
-            }, sort_keys=False))
             yield x, y, sample_weight
 
     # The first dimension of the shape is the batch size.
