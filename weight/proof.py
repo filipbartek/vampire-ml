@@ -44,6 +44,7 @@ def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None)
                 # Raises `RuntimeError` if the output file is too large.
                 # Raises `RuntimeError` if the proof contains no nonproof clauses.
                 # Raises `ValueError` if no proof is found in the output file.
+                # Raises `ValueError` if a symbol encountered in a clause is missing from the signature.
                 result['clauses'] = load_proof_samples(stdout_path, signature, clause_features, cfg, seed)
             except (RuntimeError, ValueError) as e:
                 log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
