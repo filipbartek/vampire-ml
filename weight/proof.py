@@ -42,6 +42,7 @@ def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None)
             assert len(signature) == len(set(signature))
             try:
                 # Raises `RuntimeError` if the output file is too large.
+                # Raises `RuntimeError` if the proof contains no nonproof clauses.
                 # Raises `ValueError` if no proof is found in the output file.
                 result['clauses'] = load_proof_samples(stdout_path, signature, clause_features, cfg, seed)
             except (RuntimeError, ValueError) as e:
@@ -72,6 +73,8 @@ def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
         'proof': df_samples.role_proof.to_numpy().nonzero()[0],
         'nonproof': np.logical_not(df_samples.role_proof.to_numpy()).nonzero()[0]
     }
+    if len(category_indices['nonproof']) == 0:
+        raise RuntimeError('The proof contains no active nonproof clauses.')
 
     rng = np.random.default_rng(seed)
     category_indices_selected = {k: sample(v, cfg.max_clauses[k], rng) for k, v in category_indices.items()}
