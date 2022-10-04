@@ -11,12 +11,12 @@ def token_counts(c):
     lexer = tptp_v7_0_0_0Lexer(input_stream)
     stream = CommonTokenStream(lexer)
     parser = tptp_v7_0_0_0Parser(stream)
+    parser.buildParseTrees = False
     listener = Listener()
-    tree = parser.cnf_formula()
+    parser.addParseListener(listener)
+    parser.cnf_formula()
     if parser.getNumberOfSyntaxErrors() > 0:
         raise RuntimeError(f'{parser.getNumberOfSyntaxErrors()} syntax errors occurred while parsing \"{c}\".')
-    walker = ParseTreeWalker()
-    walker.walk(listener, tree)
 
     res = {
         'literal': listener.literals,
