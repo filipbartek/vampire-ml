@@ -18,6 +18,7 @@ import pandas as pd
 import scipy
 import tensorflow as tf
 import yaml
+from omegaconf import OmegaConf
 
 import classifier
 import questions
@@ -74,10 +75,10 @@ def main(cfg):
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
 
-        rng = np.random.default_rng(cfg.seed)
+        ss = np.random.SeedSequence(cfg.seed)
 
         problem_names = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
-        problem_names = rng.permutation(problem_names)
+        problem_names = np.random.default_rng(ss.spawn(1)[0]).permutation(problem_names)
         if cfg.max_problem_count is not None:
             problem_names = problem_names[:cfg.max_problem_count]
 
@@ -125,8 +126,9 @@ def main(cfg):
                 for path in generate_verbose_paths(problem_name):
                     yield path
 
-        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier, cfg.clause_features,
-                                         max_size=cfg.max_proof_stdout_size, parallel=parallel)
+        proof_traces = proof.load_proofs(list(generate_paths(problem_to_signature)), clausifier,
+                                         OmegaConf.to_container(cfg.clause_features),
+                                         cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
 
         problem_samples = defaultdict(list)
         max_counts = {
@@ -145,10 +147,6 @@ def main(cfg):
             problem_samples[problem_path_to_name[res['problem']]].append(samples)
             proof_count = samples['proof'].nnz
             nonproof_count = samples['proof'].shape[0] - proof_count
-            if cfg.max_clauses_per_proof.proof is not None:
-                proof_count = min(proof_count, cfg.max_clauses_per_proof.proof)
-            if cfg.max_clauses_per_proof.nonproof is not None:
-                nonproof_count = min(nonproof_count, cfg.max_clauses_per_proof.nonproof)
             clause_count = proof_count + nonproof_count
             token_count = samples['token_counts'].shape[1]
             cur_counts = {
@@ -200,7 +198,7 @@ def main(cfg):
             dataset_name: dict_to_batches(
                 {problem_name: problem_samples[problem_name] for problem_name in problem_names if
                  len(problem_samples[problem_name]) >= 1},
-                cfg.batch.size, cfg.proof_sample_weight, max_counts=cfg.max_clauses_per_proof, rng=rng).cache() for
+                cfg.batch.size, cfg.proof_sample_weight).cache() for
             dataset_name, problem_names in
             problem_with_proof_name_datasets.items()}
 
@@ -353,7 +351,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
     return result
 
 
-def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_counts=None, rng=None):
+def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
     # `tf.data.Dataset.batch` cannot batch structured input with variably-shaped entries.
 
     def gen_samples():
@@ -362,23 +360,10 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5, max_counts=No
                 continue
             token_counts = scipy.sparse.vstack((d['token_counts'] for d in data), format='csr')
             proof = scipy.sparse.vstack((d['proof'] for d in data), format='csc')
-            proof_array = proof.toarray()
-            assert np.any(proof_array)
-            proof_indices = np.nonzero(proof_array)[0]
-            nonproof_indices = np.nonzero(np.logical_not(proof_array))[0]
-            assert len(proof_indices) >= 1
-            if len(nonproof_indices) == 0:
-                # We only care about proof searches with at least one nonproof clause.
-                continue
-            if max_counts.proof is not None and max_counts.proof < len(proof_indices):
-                proof_indices = rng.choice(proof_indices, max_counts.proof)
-            if max_counts.nonproof is not None and max_counts.nonproof < len(nonproof_indices):
-                nonproof_indices = rng.choice(nonproof_indices, max_counts.nonproof)
-            selected_indices = np.concatenate((proof_indices, nonproof_indices))
 
             yield {'problem': problem,
-                   'occurrence_count': token_counts[selected_indices],
-                   'proof': proof[selected_indices]}
+                   'occurrence_count': token_counts,
+                   'proof': proof}
 
     dtypes = {'problem': tf.string, 'occurrence_count': tf.float32, 'nonproof': tf.bool, 'sample_weight': tf.float32}
 

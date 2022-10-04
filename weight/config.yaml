@@ -19,16 +19,16 @@ evaluate:
   initial: true
 proof_sample_weight: 0.5
 
-max_clauses_per_proof:
-  proof: 1000
-  nonproof: 1000
+proof:
+  # Maximum proof output file size in bytes
+  max_size: 100000000
+  max_clauses:
+    proof: 1000
+    nonproof: 1000
 
 clause_features:
   # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
   - variable_occurrence
-
-# Maximum proof output file size in bytes
-max_proof_stdout_size: 100000000
 
 workspace_dir: null
 vampire_cmd: vampire

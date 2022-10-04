@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy
 import yaml
+from attributedict.collections import AttributeDict
 
 from questions.memory import memory
 from questions.utils import timer
@@ -18,7 +19,7 @@ log = logging.getLogger(__name__)
 
 
 @memory.cache(ignore=['parallel'], verbose=2)
-def load_proofs(paths, clausifier, clause_features, max_size=None, parallel=None):
+def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None):
     def get_signature(problem):
         try:
             # Raises `RuntimeError` when clausification fails
@@ -26,7 +27,7 @@ def load_proofs(paths, clausifier, clause_features, max_size=None, parallel=None
         except RuntimeError:
             return None
 
-    def load_one(path):
+    def load_one(path, seed):
         log.debug(f'Loading proof: {path}')
         with open(os.path.join(path, 'meta.json')) as f:
             meta = json.load(f)
@@ -42,37 +43,55 @@ def load_proofs(paths, clausifier, clause_features, max_size=None, parallel=None
             try:
                 # Raises `RuntimeError` if the output file is too large.
                 # Raises `ValueError` if no proof is found in the output file.
-                result['clauses'] = load_proof_samples(stdout_path, signature, clause_features, max_size)
+                result['clauses'] = load_proof_samples(stdout_path, signature, clause_features, cfg, seed)
             except (RuntimeError, ValueError) as e:
                 log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
         return result
 
+    if ss is None:
+        ss = np.random.SeedSequence(0)
+
     print(f'Loading {len(paths)} proofs', file=sys.stderr)
-    return parallel(joblib.delayed(load_one)(path) for path in paths)
+    return parallel(joblib.delayed(load_one)(path, seed) for path, seed in zip(paths, ss.spawn(len(paths))))
 
 
-def load_proof_samples(stdout_path, signature, clause_features, max_size=None):
-    if max_size is not None:
-        cur_size = os.path.getsize(stdout_path)
-        if cur_size > max_size:
-            raise RuntimeError(f'Proof file is too large: {cur_size} > {max_size}')
+def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
+    cfg = AttributeDict(cfg)
+    if cfg.max_size is not None:
+        actual_size = os.path.getsize(stdout_path)
+        if actual_size > cfg.max_size:
+            raise RuntimeError(f'Proof file is too large: {actual_size} > {cfg.max_size}')
     with open(stdout_path) as f:
         stdout = f.read()
     # Raises `ValueError` if no proof is found.
     df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
-    df_formulas_active = df_formulas[df_formulas.role_active.notna()]
+    df_samples = df_formulas.loc[df_formulas.role_active.notna(), ['string', 'role_proof', 'extra_goal']]
+    df_samples = pd.concat([df_samples.loc[:, ['string', 'extra_goal']], df_samples.role_proof.notna()], axis='columns')
+
+    category_indices = {
+        'proof': df_samples.role_proof.to_numpy().nonzero()[0],
+        'nonproof': np.logical_not(df_samples.role_proof.to_numpy()).nonzero()[0]
+    }
+
+    rng = np.random.default_rng(seed)
+    category_indices_selected = {k: sample(v, cfg.max_clauses[k], rng) for k, v in category_indices.items()}
+    all_selected_indices = np.concatenate(list(category_indices_selected.values()))
+    df_samples = df_samples.iloc[all_selected_indices]
+
     log.debug('Clause count:\n%s' % yaml.dump({
         'total': len(df_formulas),
-        'active': {
-            'total': len(df_formulas_active),
-            'proof': df_formulas_active.role_proof.count(),
-            '~proof': df_formulas_active.role_proof.isna().sum()
-        },
-        'proof': df_formulas.role_proof.count()
+        'proof': df_formulas.role_proof.count(),
+        'active&selected': {
+            'total': len(df_samples),
+            'proof': df_samples.role_proof.sum(),
+            '~proof': df_samples.role_proof.sum()
+        }
     }, sort_keys=False))
+
+    log.debug(f'{stdout_path}: Parsing {len(df_samples)} clauses...')
     with timer() as t:
-        samples_list = list(df_to_samples(df_formulas_active, signature, clause_features))
-    log.debug(f'{stdout_path}: {t.elapsed}')
+        samples_list = df_to_samples(df_samples, signature, clause_features)
+    log.debug(f'{stdout_path}: {len(df_samples)} clauses parsed in {t.elapsed} s.')
     if len(samples_list) == 0:
         raise RuntimeError(f'{stdout_path}: No proof samples were extracted.')
     samples_aggregated = {
@@ -83,13 +102,22 @@ def load_proof_samples(stdout_path, signature, clause_features, max_size=None):
     return samples_aggregated
 
 
-def df_to_samples(df, signature, clause_features):
-    for index, row in df.loc[:, ['string', 'role_proof', 'extra_goal']].iterrows():
-        yield {
+def sample(indices, max_count, rng):
+    if max_count is not None and max_count < len(indices):
+        indices = rng.choice(indices, max_count)
+    return indices
+
+
+def df_to_samples(df_samples, signature, clause_features):
+    def row_to_sample(row):
+        return {
             'token_counts': clause_feature_vector(row.string, signature, features=clause_features),
-            'proof': pd.notna(row.role_proof),
+            'proof': row.role_proof,
             'goal': row.extra_goal
         }
+
+    parallel = joblib.Parallel()
+    return parallel(joblib.delayed(row_to_sample)(row) for index, row in df_samples.iterrows())
 
 
 def clause_feature_vector(formula, signature, **kwargs):
