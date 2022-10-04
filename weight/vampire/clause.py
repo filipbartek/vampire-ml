@@ -13,6 +13,8 @@ def token_counts(c):
     parser = tptp_v7_0_0_0Parser(stream)
     listener = Listener()
     tree = parser.cnf_formula()
+    if parser.getNumberOfSyntaxErrors() > 0:
+        raise RuntimeError(f'{parser.getNumberOfSyntaxErrors()} syntax errors occurred while parsing \"{c}\".')
     walker = ParseTreeWalker()
     walker.walk(listener, tree)
 
