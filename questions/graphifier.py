@@ -183,6 +183,7 @@ class Graphifier:
         symbols = {symbol_type: clausify_result.symbols_of_type(symbol_type) for symbol_type in symbol_types}
         record['num_clauses'] = len(clausify_result.clauses)
         record.update({f'num_{symbol_type}': len(symbols[symbol_type]) for symbol_type in symbol_types})
+        g = None
         with timer() as t:
             try:
                 g = self.clausify_result_to_graph(clausify_result)
@@ -190,8 +191,11 @@ class Graphifier:
                 # The graph would be too large (too many nodes).
                 logging.debug(f'Failed to graphify problem {problem}.', exc_info=True)
                 record['error'] = 'node_count'
-                g = None
                 record['graph_nodes_lower_bound'] = e.actual
+            except RecursionError:
+                logging.warning(f'Failed to graphify problem {problem}.', exc_info=True)
+                record['error'] = 'recursion'
+                record['graph_nodes_lower_bound'] = 0
         record['graph_time'] = t.elapsed
         if g is not None:
             record['graph_nodes'] = g.num_nodes()
