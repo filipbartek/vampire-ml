@@ -8,6 +8,8 @@ hydra:
     env_set:
       DGLBACKEND: tensorflow
       TF_CPP_MIN_LOG_LEVEL: 1
+      # TF_NUM_INTEROP_THREADS: 0
+      # TF_NUM_INTRAOP_THREADS: 0
 
 seed: 0
 eras: 10
@@ -119,9 +121,6 @@ tf:
   device: null
   run_eagerly: false
   log_device_placement: false
-  threads:
-    inter: 0
-    intra: 0
 
 reduce_lr_on_plateau:
   # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ReduceLROnPlateau
@@ -135,5 +134,3 @@ early_stopping:
   monitor: val_binary_accuracy
   patience: 100
   baseline: 0.5
-
-recursion_limit: 10000

@@ -22,6 +22,8 @@ from omegaconf import OmegaConf
 
 import classifier
 import questions
+from questions import models
+from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
 from utils import json_dump_default
@@ -47,18 +49,7 @@ def path_to_problem(path):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
-    # Parallelism cannot be modified after initialization.
-    tf.config.threading.set_inter_op_parallelism_threads(cfg.tf.threads.inter)
-    tf.config.threading.set_intra_op_parallelism_threads(cfg.tf.threads.intra)
-
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs), tf.device(cfg.tf.device):
-        # `import dgl` initializes TensorFlow context. The parallelism needs to be configured before the context is initialized. For this reason importing the modules that transitively import `dgl` is delayed.
-        from questions.graphifier import Graphifier
-        from questions import models
-
-        if cfg.recursion_limit is not None:
-            sys.setrecursionlimit(cfg.recursion_limit)
-
         # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
         random.seed(0)
         # Seeding `np.random` is just a precaution.
