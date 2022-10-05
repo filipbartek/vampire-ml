@@ -80,7 +80,15 @@ class Graphifier:
             verbose = 10
         else:
             verbose = 0
-        return Parallel(verbose=verbose)(delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
+        old_environ = os.environ.copy()
+        try:
+            # We disable CUDA for the subprocesses so that they do not crash due to the exclusivity of access to a GPU.
+            # https://github.com/tensorflow/tensorflow/issues/30594
+            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+            return Parallel(verbose=verbose)(delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
+        finally:
+            os.environ.clear()
+            os.environ.update(old_environ)
 
     def problem_to_graph(self, problem_name, cache=True):
         graph = None
