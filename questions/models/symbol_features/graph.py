@@ -43,5 +43,6 @@ class Graph(SymbolFeatures):
         ragged_tensors = {k: tf.RaggedTensor.from_row_lengths(v, row_lengths[k]) for k, v in values.items()}
         # TODO: Replace the dummy embeddings with some output of the GCN.
         special_token_embeddings = tf.tile(self.special_token_model, [batch_graph.batch_size, 1, 1])
+        # TODO: Make sure the concatenation happens on GPU even with ragged tensors.
         res = tf.concat([special_token_embeddings, ragged_tensors['predicate'], ragged_tensors['function']], 1)
         return res
