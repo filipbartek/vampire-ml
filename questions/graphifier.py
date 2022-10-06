@@ -123,7 +123,7 @@ class Graphifier:
                     logging.debug(f'Graph of {problem_name} loaded.')
                     assert graph.num_nodes() == record['graph_nodes']
                 graph_instantiated = True
-            except (FileNotFoundError, RuntimeError, ValueError, EOFError):
+            except (FileNotFoundError, RuntimeError, ValueError, EOFError, KeyError):
                 logging.debug(f'Failed to load graph of {problem_name}.', exc_info=True)
             except Exception as e:
                 raise RuntimeError(
