@@ -1,8 +1,11 @@
 import collections
 import itertools
 import os
+import sys
 import time
 import warnings
+from contextlib import contextmanager
+from contextlib import suppress
 
 import contexttimer
 import numpy as np
@@ -112,3 +115,17 @@ def flatten_dict(d, **kwargs):
 
 def timer(*args, **kwargs):
     return contexttimer.Timer(*args, **kwargs, timer=time.perf_counter)
+
+
+@contextmanager
+def recursion_limit(limit=None):
+    if limit is None:
+        with suppress(KeyError):
+            limit = int(os.environ['RECURSIONLIMIT'])
+    default_limit = sys.getrecursionlimit()
+    if limit is not None:
+        sys.setrecursionlimit(limit)
+    try:
+        yield
+    finally:
+        sys.setrecursionlimit(default_limit)

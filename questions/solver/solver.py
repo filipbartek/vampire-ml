@@ -6,6 +6,7 @@ import warnings
 from joblib import Parallel, delayed
 
 from questions.memory import memory
+from questions.utils import recursion_limit
 from . import vampire
 
 log = logging.getLogger(__name__)
@@ -94,7 +95,10 @@ class Solver:
         if cache:
             call = functools.partial(memory.cache(vampire.call).call_and_shelve, *args, **kwargs)
             for i in range(2):
-                memo_result = call()
+                # If the clauses are too deep with respect to the recursion limit, pickling of the result crashes.
+                # We set the recursion limit locally using an environment variable so that this works even within a subprocess of the main process.
+                with recursion_limit():
+                    memo_result = call()
                 try:
                     # Raises KeyError if the file 'output.pkl' does not exist.
                     result = memo_result.get()
