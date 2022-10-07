@@ -22,10 +22,12 @@ def main(cfg):
     log.info(f'cwd: {os.getcwd()}')
     log.info(f'Workspace directory: {cfg.workspace_dir}')
 
+    workspace_abs_path = hydra.utils.to_absolute_path(cfg.workspace_dir)
+
     def run(problem, seed):
         log.debug(f'Attempting problem {problem} with seed {seed}')
         problem_path = tptp.problem_path(problem, cfg.tptp_path)
-        out_path = os.path.join(cfg.workspace_dir, 'runs', problem, str(seed))
+        out_path = os.path.join(workspace_abs_path, 'runs', problem, str(seed))
         vampire_run = functools.partial(vampire.run, vampire=cfg.vampire_cmd)
         # First run: probe, proof off
         result_probe = vampire_run(problem_path,
@@ -82,7 +84,7 @@ def main(cfg):
                                              k in result['verbose']}
                     records.append(record)
                 df = pd.json_normalize(records, sep='_')
-                save_df(df, os.path.join(cfg.workspace_dir, 'runs'), index=False)
+                save_df(df, os.path.join(workspace_abs_path, 'runs'), index=False)
                 case_i += len(batch_problems)
                 t.set_postfix({'total': n_total, 'successes': n_successes})
 

@@ -61,7 +61,7 @@ def main(cfg):
         tf.summary.experimental.set_step(0)
 
         log.info(f'Working directory: {os.getcwd()}')
-        log.info(f'Workspace directory: {cfg.workspace_dir}')
+        log.info(f'Workspace directory: {hydra.utils.to_absolute_path(cfg.workspace_dir)}')
         log.info(f'Cache directory: {memory.location}')
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
@@ -78,7 +78,8 @@ def main(cfg):
         problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
 
         def generate_verbose_paths(problem='*'):
-            return glob.glob(os.path.join(cfg.workspace_dir, 'runs', problem, '*', 'verbose'))
+            return glob.glob(
+                os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose'))
 
         train_count = int(len(problem_names) * cfg.train_ratio)
         problem_name_datasets = {
