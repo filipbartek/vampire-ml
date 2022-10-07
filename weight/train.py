@@ -80,7 +80,7 @@ def main(cfg):
         def generate_verbose_paths(problem='*'):
             return glob.glob(os.path.join(cfg.workspace_dir, 'runs', problem, '*', 'verbose'))
 
-        train_count = int(len(problem_names) * cfg.validation_split)
+        train_count = int(len(problem_names) * cfg.train_ratio)
         problem_name_datasets = {
             'train': problem_names[:train_count],
             'val': problem_names[train_count:]
