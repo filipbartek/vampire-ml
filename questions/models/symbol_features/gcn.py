@@ -214,10 +214,16 @@ class GraphConv(dglnn.GraphConv):
             # The message is formed by tiling the bias, which corresponds to summation over 0 inputs.
             assert len(graph.dsttypes) == 1
             dtype = graph.dsttypes[0]
-            outputs = tf.tile(tf.expand_dims(tf.stop_gradient(self.bias), 0), (graph.num_nodes(dtype), 1))
+            if self.bias is not None:
+                value = self.bias
+            else:
+                value = 0
+            rst = tf.tile(tf.expand_dims(value, 0), (graph.num_nodes(dtype), 1))
+            if self._activation is not None:
+                rst = self._activation(rst)
         else:
-            # `dglnn.GraphConv` does not accept the argument `training`.
-            outputs = super().call(graph, feat)
+            # `dglnn.GraphConv.call` does not accept the argument `training`.
+            rst = super().call(graph, feat)
         if self.dropout is not None:
-            outputs = self.dropout(outputs, training=training)
-        return outputs
+            rst = self.dropout(rst, training=training)
+        return rst
