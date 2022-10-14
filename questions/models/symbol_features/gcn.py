@@ -60,7 +60,7 @@ class GCN(tf.keras.layers.Layer):
                         else:
                             norm = cfg.conv_norm
                         mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], norm=norm,
-                                                    name=f'layer_{layer_i}/{etype}', bias=False)
+                                                    name=f'layer_{layer_i}/{etype}')
             if cfg.layer_norm:
                 layer_norm_ntypes = contributing_dtypes
             layers_reversed.append(HeteroGraphConv(mods, residual=cfg.residual, layer_norm_ntypes=layer_norm_ntypes,
