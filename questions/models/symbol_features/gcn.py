@@ -149,7 +149,7 @@ class HeteroGraphConv(dglnn.HeteroGraphConv):
         outputs = self.super_call(g, inputs, mod_kwargs=mod_kwargs, **kwargs)
         if self.residual:
             assert set(outputs) <= set(inputs)
-            outputs = {k: inputs[k] + outputs[k] for k in outputs}
+            outputs = {k: v + inputs[k] for k, v in outputs.items()}
         for k, layer in self.layer_norm.items():
             if outputs[k].shape[0] >= 1:
                 outputs[k] = layer(outputs[k], training=training)
@@ -194,7 +194,7 @@ class GraphConv(dglnn.GraphConv):
         if dropout is not None:
             self.dropout = tf.keras.layers.Dropout(dropout)
         # `self.weight` initialization mimics `dglnn.GraphConv.__init__`.
-        # The difference is that here we add a MaxNorm constraint.
+        # The difference is that here we add the constraint `constraint`.
         if weight:
             xinit = tf.keras.initializers.glorot_uniform()
             self.weight = tf.Variable(initial_value=xinit(shape=(in_feats, out_feats), dtype='float32'), trainable=True,
