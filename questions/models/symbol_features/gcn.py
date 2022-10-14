@@ -35,12 +35,12 @@ class GCN(tf.keras.layers.Layer):
         stype_feats = ntype_embedding_lengths
         dtype_feats = {ntype: cfg.message_size for ntype in ntypes}
 
-        def create_module(in_feats, out_feats, norm, name):
+        def create_module(*args, **kwargs):
             # We assume that there are no 0-in-degree nodes in any input graph.
             # This holds for the standard graphification scheme because all symbols have loops and all the other nodes
             # have at least one in-edge from another node.
-            return GraphConv(in_feats, out_feats, norm=norm, dropout=cfg.dropout.hidden, constraint=constraint,
-                             name=name, activation=activation, allow_zero_in_degree=True)
+            return GraphConv(*args, dropout=cfg.dropout.hidden, constraint=constraint, activation=activation,
+                             allow_zero_in_degree=True, **kwargs)
 
         layer_norm_ntypes = None
         layers_reversed = []
@@ -59,8 +59,8 @@ class GCN(tf.keras.layers.Layer):
                             norm = FormulaVisitor.conv_norm(etype)
                         else:
                             norm = cfg.conv_norm
-                        mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], norm,
-                                                    f'layer_{layer_i}/{etype}')
+                        mods[etype] = create_module(stype_feats[stype], dtype_feats[dtype], norm=norm,
+                                                    name=f'layer_{layer_i}/{etype}', bias=False)
             if cfg.layer_norm:
                 layer_norm_ntypes = contributing_dtypes
             layers_reversed.append(HeteroGraphConv(mods, residual=cfg.residual, layer_norm_ntypes=layer_norm_ntypes,
