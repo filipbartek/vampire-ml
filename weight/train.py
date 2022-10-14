@@ -140,19 +140,29 @@ def main(cfg):
         log.info(f'Max counts:\n{yaml.dump(max_counts)}')
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
-        output_ntypes = ['predicate', 'function']
+        output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
+        # Per-node values:
+        # - symbol <- predicate, function
+        # Readouts:
+        # - variable_occurrence <- variable
+        # - variable_count <- variable
+        # - literal_positive <- atom, equality
+        # - literal_negative <- atom, equality
+        # - equality <- equality
+        # - inequality <- equality
+        # - number <- function
         gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                          graphifier.ntype_feat_sizes, output_ntypes=output_ntypes)
         # Outputs an embedding for each token.
-        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn,
-                                                              common_clause_feature_count=len(cfg.clause_features))
+        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
         embedding_to_weight = tf.keras.layers.Dense(1, name='embedding_to_weight',
                                                     activation='softplus',
                                                     kernel_regularizer=tf.keras.regularizers.L1L2(
                                                         l1=cfg.embedding_to_cost.l1,
                                                         l2=cfg.embedding_to_cost.l2))
         model_symbol_weight = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_weight,
-                                                           l2=cfg.symbol_cost.l2)
+                                                           l2=cfg.symbol_cost.l2,
+                                                           common_clause_features=cfg.clause_features)
         model_logit = classifier.Classifier(model_symbol_weight)
 
         Optimizer = {

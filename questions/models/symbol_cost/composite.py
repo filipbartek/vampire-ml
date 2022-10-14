@@ -4,10 +4,11 @@ from .symbol_cost import SymbolCostModel
 
 
 class Composite(SymbolCostModel):
-    def __init__(self, problem_to_embedding, embedding_to_cost, l2=0):
+    def __init__(self, problem_to_embedding, embedding_to_cost, common_clause_features=None, l2=0):
         super().__init__()
         self.problem_to_embedding = problem_to_embedding
         self.embedding_to_cost = embedding_to_cost
+        self.common_clause_features = common_clause_features
         self.l2 = l2
         self.symbol_cost_metrics = []
 
@@ -18,9 +19,23 @@ class Composite(SymbolCostModel):
         embeddings = self.problem_to_embedding(problems, training=training, cache=cache)
         # `TimeDistributed` can be used in eager mode to support ragged tensor input.
         # In non-eager mode it is necessary to flatten the ragged tensor `embedding`.
-        costs_flat_values = self.embedding_to_cost(embeddings['embeddings'].flat_values, training=training)
+        costs_flat_values = self.embedding_to_cost(embeddings['embeddings']['symbol'].flat_values, training=training)
         costs_flat_values = tf.squeeze(costs_flat_values, axis=1)
-        costs = tf.RaggedTensor.from_nested_row_splits(costs_flat_values, embeddings['embeddings'].nested_row_splits)
+        symbol_costs = tf.RaggedTensor.from_nested_row_splits(costs_flat_values, embeddings['embeddings']['symbol'].nested_row_splits)
+
+        default_feature_weights = {
+            'literal_positive': 0,
+            'literal_negative': 0,
+            'equality': 1,
+            'inequality': 1,
+            'variable_occurrence': 1,
+            'number': 1
+        }
+        common_feature_vector = tf.constant([default_feature_weights[k] for k in self.common_clause_features],
+                                            dtype=symbol_costs.dtype)
+        common_feature_matrix = tf.tile(tf.expand_dims(common_feature_vector, 0), (symbol_costs.shape[0], 1))
+
+        costs = tf.concat([common_feature_matrix, symbol_costs], axis=1)
         # For each problem, its regularization loss is proportional to the l2-norm of the symbol cost vector.
         # More precisely, it is `reduce_mean(square(x))` where x is the symbol cost vector.
         # We take the mean over symbols instead of sum so that problems with large signature don't contribute more than problems with small signature.
