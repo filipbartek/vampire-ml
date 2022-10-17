@@ -33,7 +33,8 @@ def astype(df, dtype, **kwargs):
 
 def save_df(df, basename, **kwargs):
     log.debug('%s.{csv,pkl}: Saving a dataframe of shape %s.' % (basename, df.shape))
-    os.makedirs(os.path.dirname(basename), exist_ok=True)
+    if os.path.dirname(basename) != '':
+        os.makedirs(os.path.dirname(basename), exist_ok=True)
     with np.printoptions(threshold=sys.maxsize, linewidth=sys.maxsize):
         df.to_csv(f'{basename}.csv', **kwargs)
     df.to_pickle(f'{basename}.pkl')
