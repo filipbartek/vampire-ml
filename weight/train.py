@@ -68,7 +68,10 @@ def main(cfg):
 
         ss = np.random.SeedSequence(cfg.seed)
 
-        problem_names = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
+        problem_name_lists = [cfg.problem.names]
+        if cfg.problem.list_file is not None:
+            problem_name_lists.append(pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem)
+        problem_names = list(itertools.chain.from_iterable(problem_name_lists))
         problem_names = np.random.default_rng(ss.spawn(1)[0]).permutation(problem_names)
         if cfg.max_problem_count is not None:
             problem_names = problem_names[:cfg.max_problem_count]
