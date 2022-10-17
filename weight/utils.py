@@ -73,7 +73,7 @@ assert list(flatten([[0, [1]], [2, 3]])) == [0, [1], 2, 3]
 
 def is_compatible(data, dtype):
     # Pandas categorical
-    if dtype == 'category':
+    if dtype in ['string', 'category']:
         return True
     if isinstance(data, list):
         return all(is_compatible(d, dtype) for d in data)
