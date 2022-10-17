@@ -25,10 +25,15 @@ def json_dump_default(obj, default=str):
 
 
 def astype(df, dtype, **kwargs):
-    dtype = {k: v for k, v in dtype.items() if k in df}
-    assert all(is_compatible(df[col], t) for col, t in dtype.items())
+    dtype_final = {}
+    for column_pattern, column_dtype in dtype.items():
+        matching_columns = df.columns[df.columns.str.fullmatch(column_pattern)]
+        for matching_column in matching_columns:
+            assert matching_column not in dtype_final
+            dtype_final[matching_column] = column_dtype
+    assert all(is_compatible(df[col], t) for col, t in dtype_final.items())
     # Cast the dataframe columns to appropriate dtypes
-    return df.astype(dtype, **kwargs)
+    return df.astype(dtype_final, **kwargs)
 
 
 def save_df(df, basename, **kwargs):
