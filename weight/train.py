@@ -105,7 +105,9 @@ def main(cfg):
                 for path in generate_verbose_paths(problem_name):
                     yield path
 
-        proof_traces = proof.load_proofs(list(generate_paths(active_problem_names)), clausifier,
+        # We sort the problem names because `load_proofs` is cached.
+        proof_paths = list(generate_paths(sorted(active_problem_names)))
+        proof_traces = proof.load_proofs(proof_paths, clausifier,
                                          OmegaConf.to_container(cfg.clause_features),
                                          cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
 
