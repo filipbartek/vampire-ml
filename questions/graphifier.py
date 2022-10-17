@@ -158,7 +158,8 @@ class Graphifier:
 
     def nodes_lower_bound(self, problem):
         props = tptp.problem_properties(problem)
-        return props['atoms'] + props['predicates'] + props['functors'] + props['variables']
+        prop_names = ['atoms', 'predicates', 'functors', 'variables']
+        return sum(props.get(k, 0) for k in prop_names)
 
     def graphify(self, problem, cache=True):
         # TODO: Time the whole call (all inclusive).
