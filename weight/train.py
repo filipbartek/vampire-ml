@@ -226,7 +226,10 @@ def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datas
     model_result = None
     if model is not None:
         log.info('Evaluating a model')
-        model_result = model.predict(problem_names, batch_size=cfg.batch.size)
+        # We convert problem names to Python strings.
+        # They may be input as numpy strings.
+        # If a list of numpy strings of length 1 is used, `tf.keras.Model.predict` is confused.
+        model_result = model.predict(list(map(str, problem_names)), batch_size=cfg.batch.size)
     else:
         log.info('Evaluating baseline')
 
