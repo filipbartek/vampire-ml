@@ -26,6 +26,7 @@ from questions import models
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
+from utils import astype
 from utils import json_dump_default
 from utils import save_df
 from utils import to_tensor
@@ -111,38 +112,41 @@ def main(cfg):
                                          OmegaConf.to_container(cfg.clause_features),
                                          cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
 
+        proof_records = []
+        for proof_path, t in zip(proof_paths, proof_traces):
+            rec = {
+                'proof': proof_path,
+                'problem': t['problem']
+            }
+            if 'signature' in t:
+                rec['symbols'] = len(t['signature'])
+            if 'clauses' in t:
+                rec['clauses'] = {
+                    'total': t['clauses']['token_counts'].shape[0],
+                    'proof': t['clauses']['proof'].nnz,
+                    'nonproof': t['clauses']['token_counts'].shape[0] - t['clauses']['proof'].nnz,
+                    'goal': t['clauses']['goal'].nnz
+                }
+                rec['clauses']['proof_x_nonproof'] = rec['clauses']['proof'] * rec['clauses']['nonproof']
+                rec['max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in enumerate(cfg.clause_features)}
+                rec['clause_features'] = t['clauses']['token_counts'].shape[1]
+                rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
+                rec['clauses_x_clause_features'] = rec['clauses']['total'] * rec['clause_features']
+            proof_records.append(rec)
+        proof_df = pd.json_normalize(proof_records, sep='_')
+        proof_df.set_index('proof', inplace=True)
+        proof_df = astype(proof_df, {k: pd.UInt32Dtype() for k in ['symbols', 'clauses_.*', 'max_.*']})
+        save_df(proof_df, 'proofs')
+        print(proof_df.describe(include='all'))
+
         problem_samples = defaultdict(list)
-        max_counts = {
-            'clause': 0,
-            'token': 0,
-            'clause_token': 0,
-            'clause_token_unfiltered_nz': 0,
-            'proof': 0,
-            'nonproof': 0,
-            'proof_nonproof': 0
-        }
         for res in proof_traces:
             if 'clauses' not in res:
                 continue
             samples = res['clauses']
             problem_samples[problem_path_to_name[res['problem']]].append(samples)
-            proof_count = samples['proof'].nnz
-            nonproof_count = samples['proof'].shape[0] - proof_count
-            clause_count = proof_count + nonproof_count
-            token_count = samples['token_counts'].shape[1]
-            cur_counts = {
-                'clause': clause_count,
-                'token': token_count,
-                'clause_token': clause_count * token_count,
-                'clause_token_unfiltered_nz': samples['token_counts'].nnz,
-                'proof': proof_count,
-                'nonproof': nonproof_count,
-                'proof_nonproof': proof_count * nonproof_count
-            }
-            max_counts = {k: max(v, cur_counts[k]) for k, v in max_counts.items()}
 
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
-        log.info(f'Max counts:\n{yaml.dump(max_counts)}')
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
         output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
@@ -396,4 +400,7 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
 
 
 if __name__ == '__main__':
-    main()
+    with pd.option_context('display.max_columns', sys.maxsize,
+                           'display.width', None,
+                           'display.float_format', '{:.2f}'.format):
+        main()
