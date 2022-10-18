@@ -89,6 +89,7 @@ gcn:
   depth: 4
   message_size: 16
   activation: relu
+  # Options: concat, sum
   aggregate: sum
   dropout:
     input: null
