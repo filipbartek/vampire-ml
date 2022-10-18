@@ -164,14 +164,14 @@ def main(cfg):
                                          graphifier.ntype_feat_sizes, output_ntypes=output_ntypes)
         # Outputs an embedding for each token.
         model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
-        embedding_to_weight = tf.keras.layers.Dense(1, name='embedding_to_weight',
-                                                    activation='softplus',
-                                                    kernel_regularizer=tf.keras.regularizers.L1L2(
-                                                        l1=cfg.embedding_to_cost.l1,
-                                                        l2=cfg.embedding_to_cost.l2))
+        embedding_to_weight = {
+            name: tf.keras.layers.Dense(1, name=name, activation=cfg.embedding_to_cost.activation,
+                                        kernel_regularizer=tf.keras.regularizers.L1L2(
+                                            **cfg.embedding_to_cost.regularization)) for
+            name in cfg.clause_features + ['symbol']
+        }
         model_symbol_weight = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_weight,
-                                                           l2=cfg.symbol_cost.l2,
-                                                           common_clause_features=cfg.clause_features)
+                                                           l2=cfg.symbol_cost.l2)
         model_logit = classifier.Classifier(model_symbol_weight)
 
         Optimizer = {
@@ -324,9 +324,11 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
         del options['include']
     weights_file = None
     if weights is not None:
-        with suppress(KeyError):
-            options['variable_weight'] = weights['variable_occurrence']
         # TODO: Set weights for other clause features.
+        weight_name_to_option_name = {
+            'variable_occurrence': 'variable_weight'
+        }
+        options.update({weight_name_to_option_name[weight_name]: v for weight_name, v in weights.items() if weight_name != 'symbol'})
         if weights_filename is None:
             weights_file = tempfile.NamedTemporaryFile('w+', suffix='.properties',
                                                        prefix=os.path.join('vampire_functor_weights_'))
