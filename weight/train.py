@@ -32,7 +32,6 @@ from utils import json_dump_default
 from utils import save_df
 from utils import to_tensor
 from weight import proof
-from weight import signature
 from weight import vampire
 
 log = logging.getLogger(__name__)
