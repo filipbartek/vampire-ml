@@ -129,3 +129,15 @@ def recursion_limit(limit=None):
         yield
     finally:
         sys.setrecursionlimit(default_limit)
+
+
+@contextmanager
+def set_env(**environ):
+    # Source: https://stackoverflow.com/a/34333710/4054250
+    old_environ = os.environ.copy()
+    os.environ.update(environ)
+    try:
+        yield
+    finally:
+        os.environ.clear()
+        os.environ.update(old_environ)
