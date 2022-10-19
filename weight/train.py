@@ -8,7 +8,6 @@ import sys
 import tempfile
 import warnings
 from collections import defaultdict
-from contextlib import suppress
 
 import joblib
 import hydra
