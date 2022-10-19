@@ -22,6 +22,7 @@ from omegaconf import OmegaConf
 
 import classifier
 import questions
+from dense import Dense
 from questions import models
 from questions.graphifier import Graphifier
 from questions.memory import memory
@@ -166,9 +167,8 @@ def main(cfg):
         # Outputs an embedding for each token.
         model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
         embedding_to_weight = {
-            name: tf.keras.layers.Dense(1, name=name, activation=cfg.embedding_to_cost.activation,
-                                        kernel_regularizer=tf.keras.regularizers.L1L2(
-                                            **cfg.embedding_to_cost.regularization)) for
+            name: Dense(1, name=name, activation=cfg.embedding_to_cost.activation,
+                        kernel_regularizer=tf.keras.regularizers.L1L2(**cfg.embedding_to_cost.regularization)) for
             name in cfg.clause_features + ['symbol']
         }
         model_symbol_weight = models.symbol_cost.Composite(model_symbol_embedding, embedding_to_weight,
