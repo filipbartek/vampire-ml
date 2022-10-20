@@ -34,6 +34,7 @@ proof:
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
   - variable_occurrence
+  - equality
 
 workspace_dir: null
 vampire_cmd: vampire
