@@ -286,7 +286,6 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
                 'symbol': dict(zip(signature, weight[len(cfg.clause_features):]))
             }
             assert len(weights['symbol']) == len(signature)
-            log.debug(f'{problem} {weights}')
         else:
             weights = None
         # result['weights'] = weights
