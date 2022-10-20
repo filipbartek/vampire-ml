@@ -325,7 +325,8 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
     if weights is not None:
         # TODO: Set weights for other clause features.
         weight_name_to_option_name = {
-            'variable_occurrence': 'variable_weight'
+            'variable_occurrence': 'variable_weight',
+            'equality': 'equality_weight'
         }
         options.update({weight_name_to_option_name[weight_name]: v for weight_name, v in weights.items() if
                         weight_name != 'symbol'})
