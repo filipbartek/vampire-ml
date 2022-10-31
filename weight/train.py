@@ -123,9 +123,12 @@ def main(cfg):
         for k, v in problem_name_datasets.items():
             eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], np.random.default_rng(ss.spawn(1)[0])))
 
+        baseline_dfs = None
         if cfg.evaluate.baseline:
-            evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets, 'baseline', writers,
-                     'baseline')
+            baseline_dfs = evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
+                                    'baseline', writers, 'baseline')
+        elif cfg.baseline_files is not None:
+            baseline_dfs = {name: pd.read_pickle(path) for name, path in cfg.baseline_files.items()}
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
@@ -251,7 +254,7 @@ def main(cfg):
                     for k, v in res.items():
                         tf.summary.scalar(f'eval/{k}', v)
             evaluate(model_symbol_weight, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
-                     os.path.join(era_dir, 'eval'), writers, 'eval')
+                     os.path.join(era_dir, 'eval'), writers, 'eval', baseline_dfs)
 
         if cfg.evaluate.initial:
             era_dir = os.path.join('era', str(-1))
@@ -269,7 +272,7 @@ def main(cfg):
 
 
 def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers=None,
-             log_prefix=None):
+             log_prefix=None, baseline_dfs=None):
     if len(problem_names) == 0:
         return
 
@@ -283,6 +286,7 @@ def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datas
     else:
         log.info('Evaluating baseline')
 
+    res = {}
     for eval_name, eval_options in cfg.options.evaluation.items():
         log.info(f'Evaluating configuration {eval_name}')
         eval_dir = os.path.join(out_dir, eval_name)
@@ -316,7 +320,14 @@ def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datas
                     tf.summary.scalar(f'{cur_prefix}/success_rate', cur_df.success.mean())
         with open(os.path.join(eval_dir, 'stats.json'), 'w') as f:
             json.dump(stats, f, indent=4, default=json_dump_default)
+
+        res[eval_name] = df.copy()
+
+        if baseline_dfs is not None and eval_name in baseline_dfs:
+            df = df.join(baseline_dfs[eval_name], rsuffix='_baseline')
+
         save_df(df, os.path.join(eval_dir, 'problems'))
+    return res
 
 
 def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):
