@@ -23,6 +23,7 @@ import classifier
 import questions
 from dense import Dense
 from questions import models
+from questions.callbacks import TensorBoard
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
@@ -97,8 +98,17 @@ def main(cfg):
 
         active_problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
 
+        def subsample(a, size=None, rng=None):
+            if size is None or size >= len(a):
+                return a
+            return rng.choice(a, size, replace=False)
+
+        eval_problem_names = []
+        for k, v in problem_name_datasets.items():
+            eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], np.random.default_rng(ss.spawn(1)[0])))
+
         if cfg.evaluate.baseline:
-            evaluate(None, active_problem_names, clausifier, cfg, parallel, problem_name_datasets, 'baseline')
+            evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets, 'baseline')
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
@@ -195,7 +205,15 @@ def main(cfg):
 
         ckpt_dir = 'ckpt'
         log.info(f'Checkpoint directory: {ckpt_dir}')
+
+        tensorboard = TensorBoard(**cfg.tensorboard)
+        writers = {
+            'train': tf.summary.create_file_writer(os.path.join(cfg.tensorboard.log_dir, 'train')),
+            'val': tf.summary.create_file_writer(os.path.join(cfg.tensorboard.log_dir, 'validation'))
+        }
+
         cbs = [
+            tensorboard,
             tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(ckpt_dir, 'epoch', 'weights.{epoch:05d}.tf'),
                 save_weights_only=True, verbose=0),
@@ -214,12 +232,13 @@ def main(cfg):
                 log.info(f'{dataset_name}: Evaluating...')
                 res = model_logit.evaluate(dataset, return_dict=True)
                 log.info(f'{dataset_name}: {res}')
-            evaluate(model_symbol_weight, active_problem_names, clausifier, cfg, parallel, problem_name_datasets,
-                     os.path.join(era_dir, 'eval'))
+            evaluate(model_symbol_weight, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
+                     os.path.join(era_dir, 'eval'), writers)
 
         if cfg.evaluate.initial:
             era_dir = os.path.join('era', str(-1))
             os.makedirs(era_dir, exist_ok=True)
+            tf.summary.experimental.set_step(-1)
             evaluate_all(era_dir)
         for era in range(cfg.eras):
             era_dir = os.path.join('era', str(era))
@@ -227,10 +246,11 @@ def main(cfg):
             model_logit.fit(datasets_batched['train'], validation_data=datasets_batched['val'],
                             initial_epoch=cfg.epochs_per_era * era, epochs=cfg.epochs_per_era * (era + 1),
                             callbacks=cbs + [tf.keras.callbacks.CSVLogger(os.path.join(era_dir, 'epochs.csv'))])
+            tf.summary.experimental.set_step(cfg.epochs_per_era * (era + 1) - 1)
             evaluate_all(era_dir)
 
 
-def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir):
+def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers):
     model_result = None
     if model is not None:
         log.info('Evaluating a model')
@@ -256,14 +276,18 @@ def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datas
             }
         }
         assert df.index.name == 'problem'
-        for dataset_name, problem_names in problem_name_datasets.items():
-            df[f'dataset_{dataset_name}'] = df.index.isin(problem_names)
-            cur_df = df[df.index.isin(problem_names)]
-            log.info(f'{eval_name} {dataset_name} empirical success count: {cur_df.success.sum()}/{len(cur_df)}')
-            stats[dataset_name] = {
-                'problems': len(cur_df),
-                'successes': cur_df.success.sum()
-            }
+        for dataset_name, pn in problem_name_datasets.items():
+            with writers[dataset_name].as_default():
+                df[f'dataset_{dataset_name}'] = df.index.isin(pn)
+                cur_df = df[df.index.isin(pn)]
+                log.info(f'{eval_name} {dataset_name} empirical success count: {cur_df.success.sum()}/{len(cur_df)}')
+                stats[dataset_name] = {
+                    'problems': len(cur_df),
+                    'successes': cur_df.success.sum()
+                }
+                tf.summary.scalar(f'{eval_name}/problem_count', len(cur_df))
+                tf.summary.scalar(f'{eval_name}/success_count', cur_df.success.sum())
+                tf.summary.scalar(f'{eval_name}/success_rate', cur_df.success.mean())
         with open(os.path.join(eval_dir, 'stats.json'), 'w') as f:
             json.dump(stats, f, indent=4, default=json_dump_default)
         save_df(df, os.path.join(eval_dir, 'problems'))

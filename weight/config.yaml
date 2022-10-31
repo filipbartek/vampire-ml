@@ -43,6 +43,10 @@ problem:
   names: []
 tptp_path: null
 
+evaluation_problems:
+  train: null
+  val: null
+
 options:
   common:
     include: ${tptp_path}
@@ -127,6 +131,14 @@ tf:
   device: null
   run_eagerly: false
   log_device_placement: false
+
+tensorboard:
+  # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/TensorBoard
+  log_dir: logs
+  histogram_freq: 1
+  write_steps_per_second: true
+  profile_batch: 0
+  embeddings_freq: 1
 
 reduce_lr_on_plateau:
   # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/ReduceLROnPlateau
