@@ -137,7 +137,8 @@ def main(cfg):
             baseline_dfs = evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
                                     'baseline', writers, 'baseline')
         elif cfg.baseline_files is not None:
-            baseline_dfs = {name: pd.read_pickle(path) for name, path in cfg.baseline_files.items()}
+            baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
+                            cfg.baseline_files.items()}
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
