@@ -218,7 +218,7 @@ def main(cfg):
                      os.path.join(era_dir, 'eval'))
 
         if cfg.evaluate.initial:
-            era_dir = os.path.join('era', str(0))
+            era_dir = os.path.join('era', str(-1))
             os.makedirs(era_dir, exist_ok=True)
             evaluate_all(era_dir)
         for era in range(cfg.eras):
