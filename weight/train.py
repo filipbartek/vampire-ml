@@ -59,13 +59,23 @@ def main(cfg):
 
         tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
         tf.debugging.set_log_device_placement(cfg.tf.log_device_placement)
-        tf.summary.experimental.set_step(0)
+        tf.summary.experimental.set_step(-1)
+
+        writers = {
+            'train': tf.summary.create_file_writer(os.path.join(cfg.tensorboard.log_dir, 'train')),
+            'val': tf.summary.create_file_writer(os.path.join(cfg.tensorboard.log_dir, 'validation'))
+        }
 
         log.info(f'Working directory: {os.getcwd()}')
         log.info(f'Workspace directory: {hydra.utils.to_absolute_path(cfg.workspace_dir)}')
         log.info(f'Cache directory: {memory.location}')
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
+
+        with writers['train'].as_default():
+            tf.summary.text('path/cwd', os.getcwd())
+            tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
+            tf.summary.text('path/cache', memory.location)
 
         ss = np.random.SeedSequence(cfg.seed)
 
@@ -79,6 +89,8 @@ def main(cfg):
             problem_names = problem_names[:cfg.max_problem_count]
 
         log.info(f'Number of problems: {len(problem_names)}')
+        with writers['train'].as_default():
+            tf.summary.scalar('problems/grand_total', len(problem_names))
 
         problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
 
@@ -92,6 +104,10 @@ def main(cfg):
             'val': problem_names[train_count:]
         }
         log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
+        for dataset_name, dataset_problems in problem_name_datasets.items():
+            with writers[dataset_name].as_default():
+                tf.summary.scalar('problems/total', len(dataset_problems))
+
         parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
 
         clausifier = Solver()
@@ -108,7 +124,8 @@ def main(cfg):
             eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], np.random.default_rng(ss.spawn(1)[0])))
 
         if cfg.evaluate.baseline:
-            evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets, 'baseline')
+            evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets, 'baseline', writers,
+                     'baseline')
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
@@ -157,6 +174,9 @@ def main(cfg):
             problem_samples[problem_path_to_name[res['problem']]].append(samples)
 
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
+        for dataset_name, dataset_problems in problem_name_datasets.items():
+            with writers[dataset_name].as_default():
+                tf.summary.scalar('problems/with_proof', len(set(dataset_problems) | set(problem_samples)))
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
         output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
@@ -207,11 +227,6 @@ def main(cfg):
         log.info(f'Checkpoint directory: {ckpt_dir}')
 
         tensorboard = TensorBoard(**cfg.tensorboard)
-        writers = {
-            'train': tf.summary.create_file_writer(os.path.join(cfg.tensorboard.log_dir, 'train')),
-            'val': tf.summary.create_file_writer(os.path.join(cfg.tensorboard.log_dir, 'validation'))
-        }
-
         cbs = [
             tensorboard,
             tf.keras.callbacks.ModelCheckpoint(
@@ -232,8 +247,11 @@ def main(cfg):
                 log.info(f'{dataset_name}: Evaluating...')
                 res = model_logit.evaluate(dataset, return_dict=True)
                 log.info(f'{dataset_name}: {res}')
+                with writers[dataset_name].as_default():
+                    for k, v in res.items():
+                        tf.summary.scalar(f'eval/{k}', v)
             evaluate(model_symbol_weight, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
-                     os.path.join(era_dir, 'eval'), writers)
+                     os.path.join(era_dir, 'eval'), writers, 'eval')
 
         if cfg.evaluate.initial:
             era_dir = os.path.join('era', str(-1))
@@ -250,9 +268,13 @@ def main(cfg):
             evaluate_all(era_dir)
 
 
-def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers=None):
+def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers=None,
+             log_prefix=None):
+    if len(problem_names) == 0:
+        return
+
     model_result = None
-    if model is not None:
+    if model is not None and len(problem_names) > 0:
         log.info('Evaluating a model')
         # We convert problem names to Python strings.
         # They may be input as numpy strings.
@@ -286,9 +308,12 @@ def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datas
             }
             if writers is not None:
                 with writers[dataset_name].as_default():
-                    tf.summary.scalar(f'{eval_name}/problem_count', len(cur_df))
-                    tf.summary.scalar(f'{eval_name}/success_count', cur_df.success.sum())
-                    tf.summary.scalar(f'{eval_name}/success_rate', cur_df.success.mean())
+                    cur_prefix = eval_name
+                    if log_prefix is not None:
+                        cur_prefix = f'{log_prefix}/{cur_prefix}'
+                    tf.summary.scalar(f'{cur_prefix}/problem_count', len(cur_df))
+                    tf.summary.scalar(f'{cur_prefix}/success_count', cur_df.success.sum())
+                    tf.summary.scalar(f'{cur_prefix}/success_rate', cur_df.success.mean())
         with open(os.path.join(eval_dir, 'stats.json'), 'w') as f:
             json.dump(stats, f, indent=4, default=json_dump_default)
         save_df(df, os.path.join(eval_dir, 'problems'))
