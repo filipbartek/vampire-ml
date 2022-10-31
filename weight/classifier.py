@@ -23,6 +23,8 @@ class Classifier(tf.keras.Model):
         threshold = 0
         weighted_metrics = [tf.keras.metrics.BinaryCrossentropy(from_logits=True),
                             tf.keras.metrics.BinaryAccuracy(threshold=threshold)] + weighted_metrics
+        # We use the reduction `SUM` because the loss is applied to flattened samples and each problem may contribute a different number of samples.
+        # Loss normalization is done by sample weighting and postprocessing.
         loss = tf.keras.losses.BinaryCrossentropy(from_logits=True, reduction=tf.keras.losses.Reduction.SUM)
         super().compile(loss=loss, weighted_metrics=weighted_metrics, **kwargs)
 
@@ -76,6 +78,7 @@ class Classifier(tf.keras.Model):
         flat_y_pred = tf.expand_dims(y_pred.flat_values, 1)
         flat_y = tf.ones_like(flat_y_pred)
         flat_sample_weight = 1 / tf.repeat(y_pred.row_lengths(), y_pred.row_lengths())
+        # This sample weight ensures that each problem contributes a cumulative weight 1 into the raw loss.
 
         loss_raw = self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight, regularization_losses=self.losses)
         # We normalize the loss to make it comparable across batches of different sizes.
