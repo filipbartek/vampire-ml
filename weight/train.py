@@ -250,7 +250,7 @@ def main(cfg):
             evaluate_all(era_dir)
 
 
-def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers):
+def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers=None):
     model_result = None
     if model is not None:
         log.info('Evaluating a model')
@@ -277,17 +277,18 @@ def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datas
         }
         assert df.index.name == 'problem'
         for dataset_name, pn in problem_name_datasets.items():
-            with writers[dataset_name].as_default():
-                df[f'dataset_{dataset_name}'] = df.index.isin(pn)
-                cur_df = df[df.index.isin(pn)]
-                log.info(f'{eval_name} {dataset_name} empirical success count: {cur_df.success.sum()}/{len(cur_df)}')
-                stats[dataset_name] = {
-                    'problems': len(cur_df),
-                    'successes': cur_df.success.sum()
-                }
-                tf.summary.scalar(f'{eval_name}/problem_count', len(cur_df))
-                tf.summary.scalar(f'{eval_name}/success_count', cur_df.success.sum())
-                tf.summary.scalar(f'{eval_name}/success_rate', cur_df.success.mean())
+            df[f'dataset_{dataset_name}'] = df.index.isin(pn)
+            cur_df = df[df.index.isin(pn)]
+            log.info(f'{eval_name} {dataset_name} empirical success count: {cur_df.success.sum()}/{len(cur_df)}')
+            stats[dataset_name] = {
+                'problems': len(cur_df),
+                'successes': cur_df.success.sum()
+            }
+            if writers is not None:
+                with writers[dataset_name].as_default():
+                    tf.summary.scalar(f'{eval_name}/problem_count', len(cur_df))
+                    tf.summary.scalar(f'{eval_name}/success_count', cur_df.success.sum())
+                    tf.summary.scalar(f'{eval_name}/success_rate', cur_df.success.mean())
         with open(os.path.join(eval_dir, 'stats.json'), 'w') as f:
             json.dump(stats, f, indent=4, default=json_dump_default)
         save_df(df, os.path.join(eval_dir, 'problems'))
