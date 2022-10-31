@@ -127,8 +127,10 @@ def main(cfg):
             return rng.choice(a, size, replace=False)
 
         eval_problem_names = []
+        # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
+        rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
         for k, v in problem_name_datasets.items():
-            eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], np.random.default_rng(ss.spawn(1)[0])))
+            eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
 
         baseline_dfs = None
         if cfg.evaluate.baseline:
