@@ -136,7 +136,6 @@ tensorboard:
   # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/TensorBoard
   log_dir: logs
   histogram_freq: 1
-  write_steps_per_second: true
   profile_batch: 0
   embeddings_freq: 1
 
