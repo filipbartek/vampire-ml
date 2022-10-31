@@ -70,23 +70,26 @@ class Classifier(tf.keras.Model):
         return self.update_metrics(y, y_pred, sample_weight)
 
     def compute_loss(self, x, clause_nonproof):
-        y_pred, y, sample_weight = self.compute_pairs(x, clause_nonproof)
+        y_pred, y, sample_weight, valid = self.compute_pairs(x, clause_nonproof)
 
         # Sample weights are only supported with flat (non-ragged) tensors.
         flat_y_pred = tf.expand_dims(y_pred.flat_values, 1)
         flat_y = tf.ones_like(flat_y_pred)
         flat_sample_weight = 1 / tf.repeat(y_pred.row_lengths(), y_pred.row_lengths())
 
-        loss = self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight, regularization_losses=self.losses)
+        loss_raw = self.compiled_loss(flat_y, flat_y_pred, flat_sample_weight, regularization_losses=self.losses)
+        # We normalize the loss to make it comparable across batches of different sizes.
+        # We ensure that each batch contributes cumulative weight 1.
+        loss = loss_raw / tf.cast(tf.math.count_nonzero(valid), loss_raw.dtype)
 
         return loss, y, y_pred, sample_weight
 
     def compute_pairs(self, x, clause_nonproof):
-        y_pred = self.predict_pairs(x, clause_nonproof)
+        y_pred, valid = self.predict_pairs(x, clause_nonproof)
         y = tf.ones_like(y_pred)
         sample_weight = tf.RaggedTensor.from_nested_row_splits(
             1 / tf.repeat(y_pred.row_lengths(), y_pred.row_lengths()), y_pred.nested_row_splits)
-        return y_pred, y, sample_weight
+        return y_pred, y, sample_weight, valid
 
     def predict_pairs(self, x, clause_nonproof):
         clause_weights, valid = self(x, training=True)
@@ -120,7 +123,7 @@ class Classifier(tf.keras.Model):
         # accuracy and decreasing the loss) by increasing the nonproof weight and decreasing the proof weight.
         # In other words, a pair is classified correctly iff "w(nonproof) > w(proof)".
         clause_pair_weight_difference = pair_clause_weights[:, :, 1] - pair_clause_weights[:, :, 0]
-        return clause_pair_weight_difference
+        return clause_pair_weight_difference, valid
 
     def optimizer_minimize(self, loss, var_list, tape):
         # Inspiration:
