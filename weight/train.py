@@ -48,14 +48,23 @@ def path_to_problem(path):
     return os.path.basename(path_problem)
 
 
+def random_integers(rng, dtype=np.int64, **kwargs):
+    # Sample integers uniformly from the whole domain of `dtype`.
+    ii = np.iinfo(dtype)
+    return rng.integers(low=ii.min, high=ii.max, dtype=dtype, endpoint=True, **kwargs)
+
+
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs), tf.device(cfg.tf.device):
+        ss = np.random.SeedSequence(cfg.seed)
+
+        rng_seeds = np.random.default_rng(ss.spawn(1)[0])
         # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
-        random.seed(0)
+        random.seed(random_integers(rng_seeds))
         # Seeding `np.random` is just a precaution.
-        np.random.seed(0)
-        tf.random.set_seed(0)
+        np.random.seed(random_integers(rng_seeds, dtype=np.uint32))
+        tf.random.set_seed(random_integers(rng_seeds))
 
         tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
         tf.debugging.set_log_device_placement(cfg.tf.log_device_placement)
@@ -76,8 +85,6 @@ def main(cfg):
             tf.summary.text('path/cwd', os.getcwd())
             tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
-
-        ss = np.random.SeedSequence(cfg.seed)
 
         problem_name_lists = [cfg.problem.names]
         if cfg.problem.list_file is not None:
