@@ -266,7 +266,7 @@ def main(cfg):
             problem_loss = tf.reduce_mean(clause_pair_loss, axis=1)
             return {
                 'loss': problem_loss,
-                'accuracy': tf.math.reduce_mean(tf.cast(clause_pair_weights > 0, tf.uint64), 1)
+                'accuracy': tf.math.reduce_mean(tf.cast(clause_pair_weights > 0, tf.float64), 1)
             }
 
         def train_step(model, x, y):
