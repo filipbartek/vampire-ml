@@ -8,6 +8,7 @@ import sys
 import tempfile
 import warnings
 from collections import defaultdict
+from itertools import count
 
 import joblib
 import hydra
@@ -18,6 +19,7 @@ import scipy
 import tensorflow as tf
 import yaml
 from omegaconf import OmegaConf
+from tqdm import tqdm
 
 import classifier
 import questions
@@ -132,14 +134,6 @@ def main(cfg):
         for k, v in problem_name_datasets.items():
             eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
 
-        baseline_dfs = None
-        if cfg.evaluate.baseline:
-            baseline_dfs = evaluate(None, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
-                                    'baseline', writers, 'baseline')
-        elif cfg.baseline_files is not None:
-            baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
-                            cfg.baseline_files.items()}
-
         def generate_paths(problem_names):
             for problem_name in problem_names:
                 # We automatically omit problems that do not have any proof.
@@ -216,25 +210,26 @@ def main(cfg):
                                                            l2=cfg.symbol_cost.l2)
         model_logit = classifier.Classifier(model_symbol_weight)
 
+        problems_with_proofs = {dataset_name: [n for n in problem_names if len(problem_samples[n]) >= 1] for
+                                dataset_name, problem_names in problem_name_datasets.items()}
+        log.info('Number of problems with proofs: %s' % {k: len(v) for k, v in problems_with_proofs.items()})
+
         Optimizer = {
             'sgd': tf.keras.optimizers.SGD,
             'adam': tf.keras.optimizers.Adam,
             'rmsprop': tf.keras.optimizers.RMSprop
         }[cfg.optimizer]
-        # https://arxiv.org/pdf/1706.02677.pdf
-        # https://arxiv.org/abs/1711.00489
-        learning_rate = cfg.learning_rate * cfg.batch.size
-        optimizer = Optimizer(learning_rate=learning_rate)
+        # We do not scale the learning rate by batch size because the loss is agregated by summation instead of averaging.
+        optimizer = Optimizer(learning_rate=cfg.learning_rate)
 
         model_logit.compile(optimizer=optimizer)
 
         datasets_batched = {
             dataset_name: dict_to_batches(
-                {problem_name: problem_samples[problem_name] for problem_name in problem_names if
-                 len(problem_samples[problem_name]) >= 1},
+                {problem_name: problem_samples[problem_name] for problem_name in problem_names},
                 cfg.batch.size, cfg.proof_sample_weight).cache() for
             dataset_name, problem_names in
-            problem_name_datasets.items()}
+            problems_with_proofs.items()}
 
         ckpt_dir = 'ckpt'
         log.info(f'Checkpoint directory: {ckpt_dir}')
@@ -254,90 +249,117 @@ def main(cfg):
                 os.path.join(ckpt_dir, 'acc', 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
                 save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True))
 
-        def evaluate_all(era_dir):
-            log.info(f'Evaluating {era_dir}')
-            for dataset_name, dataset in datasets_batched.items():
-                log.info(f'{dataset_name}: Evaluating...')
-                res = model_logit.evaluate(dataset, return_dict=True)
-                log.info(f'{dataset_name}: {res}')
-                with writers[dataset_name].as_default():
-                    for k, v in res.items():
-                        tf.summary.scalar(f'eval/{k}', v)
-            evaluate(model_symbol_weight, eval_problem_names, clausifier, cfg, parallel, problem_name_datasets,
-                     os.path.join(era_dir, 'eval'), writers, 'eval', baseline_dfs)
+        def range_count(stop, *args, **kwargs):
+            if stop is None:
+                return count(*args, **kwargs)
+            return range(stop, *args, **kwargs)
 
-        if cfg.evaluate.initial:
-            era_dir = os.path.join('era', str(-1))
-            os.makedirs(era_dir, exist_ok=True)
-            tf.summary.experimental.set_step(-1)
-            evaluate_all(era_dir)
-        for era in range(cfg.eras):
-            era_dir = os.path.join('era', str(era))
-            os.makedirs(era_dir, exist_ok=True)
-            model_logit.fit(datasets_batched['train'], validation_data=datasets_batched['val'],
-                            initial_epoch=cfg.epochs_per_era * era, epochs=cfg.epochs_per_era * (era + 1),
-                            callbacks=cbs + [tf.keras.callbacks.CSVLogger(os.path.join(era_dir, 'epochs.csv'))])
-            tf.summary.experimental.set_step(cfg.epochs_per_era * (era + 1) - 1)
-            evaluate_all(era_dir)
+        def minimize(optimizer, loss, var_list, tape):
+            grads_and_vars = optimizer._compute_gradients(loss, var_list=var_list, tape=tape)
+            return optimizer.apply_gradients((grad, var) for grad, var in grads_and_vars if grad is not None)
 
-
-def evaluate(model, problem_names, clausifier, cfg, parallel, problem_name_datasets, out_dir, writers=None,
-             log_prefix=None, baseline_dfs=None):
-    if len(problem_names) == 0:
-        return
-
-    model_result = None
-    if model is not None and len(problem_names) > 0:
-        log.info('Evaluating a model')
-        # We convert problem names to Python strings.
-        # They may be input as numpy strings.
-        # If a list of numpy strings of length 1 is used, `tf.keras.Model.predict` is confused.
-        model_result = model.predict(list(map(str, problem_names)), batch_size=cfg.batch.size)
-    else:
-        log.info('Evaluating baseline')
-
-    res = {}
-    for eval_name, eval_options in cfg.options.evaluation.items():
-        log.info(f'Evaluating configuration {eval_name}')
-        eval_dir = os.path.join(out_dir, eval_name)
-        os.makedirs(eval_dir, exist_ok=True)
-        df = evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=eval_dir)
-        df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
-        df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
-        df['success'] = df.success_uns | df.success_sat
-        stats = {
-            'total': {
-                'problems': len(df),
-                'successes': df.success.sum()
+        def test_step(model, x, y):
+            clause_weights, problem_valid = model(x, training=True)
+            # TODO: Allow two losses: 1. clause classifier, 2. clause pair classifier
+            clause_pair_weights = model.clause_pair_weights(clause_weights, problem_valid, y)
+            clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights)
+            problem_loss = tf.reduce_mean(clause_pair_loss, axis=1)
+            return {
+                'loss': problem_loss,
+                'accuracy': tf.math.reduce_mean(tf.cast(clause_pair_weights > 0, tf.uint64), 1)
             }
-        }
-        assert df.index.name == 'problem'
-        for dataset_name, pn in problem_name_datasets.items():
-            df[f'dataset_{dataset_name}'] = df.index.isin(pn)
-            cur_df = df[df.index.isin(pn)]
-            log.info(f'{eval_name} {dataset_name} empirical success count: {cur_df.success.sum()}/{len(cur_df)}')
-            stats[dataset_name] = {
-                'problems': len(cur_df),
-                'successes': cur_df.success.sum()
+
+        def train_step(model, x, y):
+            with tf.GradientTape() as tape:
+                stats = test_step(model, x, y)
+                problem_loss = stats['loss']
+                # https://stackoverflow.com/a/50165189/4054250
+                problem_loss_without_nans = tf.where(tf.math.is_nan(problem_loss), tf.zeros_like(problem_loss), problem_loss)
+                loss_value = tf.reduce_sum(problem_loss_without_nans)
+            minimize(optimizer, loss_value, model.trainable_weights, tape)
+            return stats
+
+        def evaluate_proxy_one(model, dataset, step_fn):
+            batch_values = {
+                'loss': [],
+                'accuracy': []
             }
-            if writers is not None:
+            for step, (x, y, clause_sample_weight) in enumerate(dataset):
+                stats = step_fn(model, x, y)
+                for k, v in stats.items():
+                    batch_values[k].append(v)
+            for k, v in batch_values.items():
+                values = tf.concat(v, 0)
+                tf.summary.scalar(f'nans/{k}', tf.math.count_nonzero(tf.math.is_nan(values)))
+                values_without_nans = values[~tf.math.is_nan(values)]
+                tf.summary.histogram(k, values_without_nans)
+                tf.summary.scalar(f'{k}_mean', tf.reduce_mean(values_without_nans))
+                if k == 'loss':
+                    tf.summary.scalar(f'{k}_sum', tf.reduce_sum(values_without_nans))
+
+        def evaluate_proxy(model, datasets, step_fn):
+            for dataset_name, dataset in datasets.items():
+                log.debug(f'Proxy evaluation of dataset {dataset_name}...')
                 with writers[dataset_name].as_default():
-                    cur_prefix = eval_name
-                    if log_prefix is not None:
-                        cur_prefix = f'{log_prefix}/{cur_prefix}'
-                    tf.summary.scalar(f'{cur_prefix}/problem_count', len(cur_df))
-                    tf.summary.scalar(f'{cur_prefix}/success_count', cur_df.success.sum())
-                    tf.summary.scalar(f'{cur_prefix}/success_rate', cur_df.success.mean())
-        with open(os.path.join(eval_dir, 'stats.json'), 'w') as f:
-            json.dump(stats, f, indent=4, default=json_dump_default)
+                    evaluate_proxy_one(model, dataset, step_fn)
 
-        res[eval_name] = df.copy()
+        def evaluate_empirical(model, problem_names, problem_name_datasets, baseline_df=None):
+            log.info('Empirical evaluation...')
 
-        if baseline_dfs is not None and eval_name in baseline_dfs:
-            df = df.join(baseline_dfs[eval_name], rsuffix='_baseline')
+            model_result = None
+            if model is not None and len(problem_names) > 0:
+                log.info('Evaluating a model')
+                # We convert problem names to Python strings.
+                # They may be input as numpy strings.
+                # If a list of numpy strings of length 1 is used, `tf.keras.Model.predict` is confused.
+                model_result = model.predict(list(map(str, problem_names)), batch_size=cfg.batch.size)
+            else:
+                log.info('Evaluating baseline')
 
-        save_df(df, os.path.join(eval_dir, 'problems'))
-    return res
+            eval_dir = os.path.join('epoch', str(tf.summary.experimental.get_step()), 'eval')
+            df = evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default, parallel, out_dir=eval_dir)
+
+            for dataset_name, pn in problem_name_datasets.items():
+                with writers[dataset_name].as_default():
+                    df[f'dataset_{dataset_name}'] = df.index.isin(pn)
+                    cur_df = df[df.index.isin(pn)]
+                    summary_prefix = 'empirical'
+                    tf.summary.scalar(f'{summary_prefix}/problems/total', len(cur_df))
+                    tf.summary.scalar(f'{summary_prefix}/problems/success', cur_df.success.sum())
+                    tf.summary.scalar(f'{summary_prefix}/problems/success_uns', cur_df.success_uns.sum())
+                    tf.summary.scalar(f'{summary_prefix}/problems/success_sat', cur_df.success_sat.sum())
+                    tf.summary.scalar(f'{summary_prefix}/success_rate', cur_df.success.mean())
+                    tf.summary.histogram(f'{summary_prefix}/elapsed', cur_df.elapsed[cur_df.success])
+
+            if baseline_df is not None:
+                df = df.join(baseline_df, rsuffix='_baseline')
+
+            save_df(df, os.path.join(eval_dir, 'problems'))
+
+        baseline_dfs = None
+        if cfg.eval.baseline:
+            baseline_dfs = evaluate_empirical(None, eval_problem_names, problem_name_datasets)
+        elif cfg.baseline_files is not None:
+            baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
+                            cfg.baseline_files.items()}
+        baseline_df = None
+        if baseline_dfs is not None:
+            baseline_df = baseline_dfs['default']
+
+        start = 0
+        if cfg.eval.initial:
+            start = -1
+        for epoch in tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training'):
+            tf.summary.experimental.set_step(epoch)
+            if epoch >= 0:
+                with writers['train'].as_default():
+                    evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
+            evaluate_proxy(model_logit, datasets_batched, test_step)
+            if cfg.empirical.step is not None:
+                epoch_rel = epoch - cfg.empirical.start
+                if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
+                    evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
+                                       baseline_df=baseline_df)
 
 
 def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):
@@ -384,6 +406,9 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
 
     df = pd.json_normalize(results, sep='_')
     df.set_index('problem', inplace=True)
+    df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
+    df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
+    df['success'] = df.success_uns | df.success_sat
     return df
 
 

@@ -96,7 +96,11 @@ class Classifier(tf.keras.Model):
 
     def predict_pairs(self, x, clause_nonproof):
         clause_weights, valid = self(x, training=True)
+        clause_pair_weight_difference = self.clause_pair_weights(clause_weights, valid, clause_nonproof)
+        return clause_pair_weight_difference, valid
 
+    @staticmethod
+    def clause_pair_weights(clause_weights, valid, clause_nonproof):
         problem_pairs = []
         for v, nonproof in zip(valid, clause_nonproof):
             if v:
@@ -126,7 +130,7 @@ class Classifier(tf.keras.Model):
         # accuracy and decreasing the loss) by increasing the nonproof weight and decreasing the proof weight.
         # In other words, a pair is classified correctly iff "w(nonproof) > w(proof)".
         clause_pair_weight_difference = pair_clause_weights[:, :, 1] - pair_clause_weights[:, :, 0]
-        return clause_pair_weight_difference, valid
+        return clause_pair_weight_difference
 
     def optimizer_minimize(self, loss, var_list, tape):
         # Inspiration:

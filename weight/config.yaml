@@ -14,15 +14,17 @@ hydra:
       # TF_NUM_INTRAOP_THREADS: 0
 
 seed: 0
-eras: 10
-epochs_per_era: 10
+epochs: null
 train_ratio: 0.5
 max_problem_count: null
-evaluate:
+eval:
   baseline: true
   initial: true
 proof_sample_weight: 0.5
 baseline_files: {}
+empirical:
+  start: -1
+  step: 1
 
 proof:
   # Maximum proof output file size in bytes
