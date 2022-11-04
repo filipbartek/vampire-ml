@@ -276,7 +276,8 @@ def main(cfg):
                 stats = test_step(model, x, y)
                 problem_loss = stats['loss']
                 # https://stackoverflow.com/a/50165189/4054250
-                problem_loss_without_nans = tf.where(tf.math.is_nan(problem_loss), tf.zeros_like(problem_loss), problem_loss)
+                problem_loss_without_nans = tf.where(tf.math.is_nan(problem_loss), tf.zeros_like(problem_loss),
+                                                     problem_loss)
                 loss_value = tf.reduce_sum(problem_loss_without_nans)
             minimize(optimizer, loss_value, model.trainable_weights, tape)
             return stats
