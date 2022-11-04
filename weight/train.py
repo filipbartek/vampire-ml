@@ -29,6 +29,7 @@ from questions.callbacks import TensorBoard
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
+from questions.utils import py_str
 from utils import astype
 from utils import json_dump_default
 from utils import save_df
@@ -265,6 +266,7 @@ def main(cfg):
             clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights)
             problem_loss = tf.reduce_mean(clause_pair_loss, axis=1)
             return {
+                'problem': x['problem'],
                 'loss': problem_loss,
                 'accuracy': tf.math.reduce_mean(tf.cast(clause_pair_weights > 0, tf.float64), 1)
             }
@@ -280,30 +282,37 @@ def main(cfg):
             return stats
 
         def evaluate_proxy_one(model, dataset, step_fn):
-            batch_values = {
-                'loss': [],
-                'accuracy': []
-            }
+            batch_values = defaultdict(list)
             for step, (x, y, clause_sample_weight) in enumerate(dataset):
                 stats = step_fn(model, x, y)
                 for k, v in stats.items():
                     batch_values[k].append(v)
+            data = {}
             for k, v in batch_values.items():
                 values = tf.concat(v, 0)
+                if k == 'problem':
+                    data[k] = list(map(py_str, values))
+                    continue
+                data[k] = values
                 tf.summary.scalar(f'nans/{k}', tf.math.count_nonzero(tf.math.is_nan(values)))
                 values_without_nans = values[~tf.math.is_nan(values)]
                 tf.summary.histogram(k, values_without_nans)
                 tf.summary.scalar(f'{k}_mean', tf.reduce_mean(values_without_nans))
                 if k == 'loss':
                     tf.summary.scalar(f'{k}_sum', tf.reduce_sum(values_without_nans))
+            df = pd.DataFrame(data=data)
+            df.set_index('problem', inplace=True)
+            return df
 
         def evaluate_proxy(model, datasets, step_fn):
+            res = {}
             for dataset_name, dataset in datasets.items():
                 log.debug(f'Proxy evaluation of dataset {dataset_name}...')
                 with writers[dataset_name].as_default():
-                    evaluate_proxy_one(model, dataset, step_fn)
+                    res[dataset_name] = evaluate_proxy_one(model, dataset, step_fn)
+            return res
 
-        def evaluate_empirical(model, problem_names, problem_name_datasets, baseline_df=None):
+        def evaluate_empirical(model, problem_names, problem_name_datasets, eval_dir):
             log.info('Empirical evaluation...')
 
             model_result = None
@@ -316,8 +325,8 @@ def main(cfg):
             else:
                 log.info('Evaluating baseline')
 
-            eval_dir = os.path.join('epoch', str(tf.summary.experimental.get_step()), 'eval')
-            df = evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default, parallel, out_dir=eval_dir)
+            df = evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default,
+                                  parallel, out_dir=eval_dir)
 
             for dataset_name, pn in problem_name_datasets.items():
                 with writers[dataset_name].as_default():
@@ -331,10 +340,7 @@ def main(cfg):
                     tf.summary.scalar(f'{summary_prefix}/success_rate', cur_df.success.mean())
                     tf.summary.histogram(f'{summary_prefix}/elapsed', cur_df.elapsed[cur_df.success])
 
-            if baseline_df is not None:
-                df = df.join(baseline_df, rsuffix='_baseline')
-
-            save_df(df, os.path.join(eval_dir, 'problems'))
+            return df
 
         baseline_dfs = None
         if cfg.eval.baseline:
@@ -354,12 +360,18 @@ def main(cfg):
             if epoch >= 0:
                 with writers['train'].as_default():
                     evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
-            evaluate_proxy(model_logit, datasets_batched, test_step)
+            res = evaluate_proxy(model_logit, datasets_batched, test_step)
             if cfg.empirical.step is not None:
                 epoch_rel = epoch - cfg.empirical.start
                 if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
-                    evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
-                                       baseline_df=baseline_df)
+                    # TODO: Save checkpoint.
+                    eval_dir = os.path.join('epoch', str(epoch), 'eval')
+                    df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
+                                            eval_dir)
+                    df = df.join(pd.concat(res.values()))
+                    if baseline_df is not None:
+                        df = df.join(baseline_df, rsuffix='_baseline')
+                    save_df(df, os.path.join(eval_dir, 'problems'))
 
 
 def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):
