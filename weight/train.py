@@ -135,6 +135,7 @@ def main(cfg):
         rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
         for k, v in problem_name_datasets.items():
             eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
+        eval_problem_names = sorted(eval_problem_names)
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
