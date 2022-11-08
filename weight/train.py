@@ -343,14 +343,14 @@ def main(cfg):
 
             return df
 
-        baseline_dfs = None
+        baseline_df = None
         if cfg.eval.baseline:
-            baseline_dfs = evaluate_empirical(None, eval_problem_names, problem_name_datasets)
+            eval_dir = 'baseline'
+            baseline_df = evaluate_empirical(None, eval_problem_names, problem_name_datasets, eval_dir)
+            save_df(baseline_df, os.path.join(eval_dir, 'problems'))
         elif cfg.baseline_files is not None:
             baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
                             cfg.baseline_files.items()}
-        baseline_df = None
-        if baseline_dfs is not None:
             baseline_df = baseline_dfs['default']
 
         start = 0
