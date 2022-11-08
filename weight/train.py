@@ -259,8 +259,8 @@ def main(cfg):
             grads_and_vars = optimizer._compute_gradients(loss, var_list=var_list, tape=tape)
             return optimizer.apply_gradients((grad, var) for grad, var in grads_and_vars if grad is not None)
 
-        def test_step(model, x, y):
-            clause_weights, problem_valid = model(x, training=True)
+        def test_step(model, x, y, training=False):
+            clause_weights, problem_valid = model(x, training=training)
             # TODO: Allow two losses: 1. clause classifier, 2. clause pair classifier
             clause_pair_weights = model.clause_pair_weights(clause_weights, problem_valid, y)
             clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights)
@@ -273,7 +273,7 @@ def main(cfg):
 
         def train_step(model, x, y):
             with tf.GradientTape() as tape:
-                stats = test_step(model, x, y)
+                stats = test_step(model, x, y, training=True)
                 problem_loss = stats['loss']
                 # https://stackoverflow.com/a/50165189/4054250
                 problem_loss_without_nans = tf.where(tf.math.is_nan(problem_loss), tf.zeros_like(problem_loss),
