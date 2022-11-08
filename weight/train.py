@@ -33,6 +33,7 @@ from questions.utils import py_str
 from utils import astype
 from utils import json_dump_default
 from utils import save_df
+from utils import to_str
 from utils import to_tensor
 from weight import proof
 from weight import vampire
@@ -447,7 +448,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
         for functor, weight in weights['symbol'].items():
             if functor == '=':
                 continue
-            weights_file.write(f'{functor}={weight}\n')
+            weights_file.write(f'{functor}={to_str(weight)}\n')
         weights_file.seek(0)
         options['functor_weight'] = weights_file.name
     result = vampire.run(problem_path, options, *args, **kwargs)

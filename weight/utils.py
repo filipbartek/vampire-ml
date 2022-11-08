@@ -169,3 +169,9 @@ def train_test_split(array, test_size=None, train_size=None, random_state=None):
     test_set = array[perm[-1:-test_size - 1:-1]]
     assert len(test_set) == test_size
     return train_set, test_set
+
+
+def to_str(value, precision=4):
+    if isinstance(value, float) or isinstance(value, np.floating):
+        return f'%.{precision}f' % value
+    return str(value)

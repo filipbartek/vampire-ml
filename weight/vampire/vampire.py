@@ -5,6 +5,7 @@ import os
 import re
 from contextlib import suppress
 
+from utils import to_str
 from weight import runner
 
 log = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def run(problem_path, options, out_dir=None, **kwargs):
 
 
 def run_bare(problem, options, vampire='vampire', **kwargs):
-    args = [vampire, problem, *itertools.chain.from_iterable((f'--{k}', str(v)) for k, v in options.items())]
+    args = [vampire, problem, *itertools.chain.from_iterable((f'--{k}', to_str(v)) for k, v in options.items())]
     result = runner.run(args, **kwargs)
     result['problem'] = problem
     result['vampire'] = {
