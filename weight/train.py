@@ -206,6 +206,7 @@ def main(cfg):
         model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
         embedding_to_weight = {
             name: Dense(1, name=name, activation=cfg.embedding_to_cost.activation,
+                        output_bias=cfg.embedding_to_cost.output_bias,
                         kernel_regularizer=tf.keras.regularizers.L1L2(**cfg.embedding_to_cost.regularization)) for
             name in cfg.clause_features + ['symbol']
         }
