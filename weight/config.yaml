@@ -128,7 +128,6 @@ symbol_cost:
 
 # Choices: adam, sgd, rmsprop
 optimizer: adam
-# Before training the learning rate is multiplied by `batch_size.train`.
 learning_rate: 0.00001
 
 tf:
