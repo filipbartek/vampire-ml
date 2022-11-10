@@ -24,6 +24,18 @@ def run(problem_path, options, out_dir=None, **kwargs):
     if status_short is None:
         status_short = extract_status(output)
     result['szs_status'] = status_short
+
+    with suppress(TypeError):
+        result['elapsed_vampire'] = float(re.search(r'^% Time elapsed: (\d+\.\d+) s$', output, re.MULTILINE)[1])
+    with suppress(TypeError):
+        result['megainstructions'] = int(re.search(r'^% Instructions burned: (\d+) \(million\)$', output, re.MULTILINE)[1])
+    with suppress(TypeError):
+        result['activations'] = int(re.search(r'^% Activations started: (\d+)$', output, re.MULTILINE)[1])
+    with suppress(TypeError):
+        result['passive'] = int(re.search(r'^% Passive clauses: (\d+)$', output, re.MULTILINE)[1])
+    with suppress(TypeError):
+        result['memory'] = int(re.search(r'^% Memory used \[KB\]: (\d+)$', output, re.MULTILINE)[1])
+
     # 523837 Aborted by signal SIGHUP on /home/bartefil/TPTP-v7.5.0/Problems/SYN/SYN764-1.p
     # Aborted by signal SIGTERM on /home/filip/TPTP-v7.5.0/Problems/SET/SET713+4.p
     m = re.search(r'^(?:(?P<pid>\d+) )?Aborted by signal (?P<signal>\w+) on (?P<problem>.+)$', output, re.MULTILINE)
