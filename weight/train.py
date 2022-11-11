@@ -371,6 +371,7 @@ def main(cfg):
                         eval_dir = os.path.join('epoch', str(epoch), 'eval')
                         df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
                                                 eval_dir)
+                        # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
                         df = df.join(pd.concat(res.values()))
                         if baseline_df is not None:
                             df = df.join(baseline_df, rsuffix='_baseline')
