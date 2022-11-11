@@ -11,6 +11,7 @@ import yaml
 from attributedict.collections import AttributeDict
 
 from questions.memory import memory
+from questions.solver import Solver
 from questions.utils import timer
 from utils import is_compatible
 from utils import subsample
@@ -20,7 +21,15 @@ log = logging.getLogger(__name__)
 
 
 @memory.cache(ignore=['parallel'], verbose=2)
-def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None):
+def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, parallel=None, ss=None):
+    # `ss` generates seeds to subsample clauses.
+    if clausifier is None:
+        clausifier = Solver()
+    if parallel is None:
+        parallel = joblib.Parallel()
+    if ss is None:
+        ss = np.random.SeedSequence(0)
+
     def get_signature(problem):
         try:
             # Raises `RuntimeError` when clausification fails
@@ -52,18 +61,15 @@ def load_proofs(paths, clausifier, clause_features, cfg, parallel=None, ss=None)
                 log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
         return result
 
-    if ss is None:
-        ss = np.random.SeedSequence(0)
-
     print(f'Loading {len(paths)} proofs', file=sys.stderr)
     return parallel(joblib.delayed(load_one)(path, seed) for path, seed in zip(paths, ss.spawn(len(paths))))
 
 
 def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
     cfg = AttributeDict(cfg)
-    if cfg.max_symbols is not None and len(signature) > cfg.max_symbols:
+    if 'max_symbols' in cfg and cfg.max_symbols is not None and len(signature) > cfg.max_symbols:
         raise RuntimeError(f'Signature is too large: {len(signature)} > {cfg.max_symbols}')
-    if cfg.max_size is not None:
+    if 'max_size' in cfg and cfg.max_size is not None:
         actual_size = os.path.getsize(stdout_path)
         if actual_size > cfg.max_size:
             raise RuntimeError(f'Proof file is too large: {actual_size} > {cfg.max_size}')
@@ -81,10 +87,11 @@ def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
     if len(category_indices['nonproof']) == 0:
         raise RuntimeError('The proof contains no active nonproof clauses.')
 
-    rng = np.random.default_rng(seed)
-    category_indices_selected = {k: subsample(v, cfg.max_clauses[k], rng) for k, v in category_indices.items()}
-    all_selected_indices = np.concatenate(list(category_indices_selected.values()))
-    df_samples = df_samples.iloc[all_selected_indices]
+    if 'max_clauses' in cfg:
+        rng = np.random.default_rng(seed)
+        category_indices_selected = {k: subsample(v, cfg.max_clauses[k], rng) for k, v in category_indices.items()}
+        all_selected_indices = np.concatenate(list(category_indices_selected.values()))
+        df_samples = df_samples.iloc[all_selected_indices]
 
     log.debug('Clause count:\n%s' % yaml.dump({
         'total': len(df_formulas),
