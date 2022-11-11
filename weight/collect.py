@@ -11,6 +11,7 @@ import pandas as pd
 from tqdm import tqdm
 
 from utils import save_df
+from utils import subsample
 from weight import tptp
 from weight import vampire
 
@@ -42,8 +43,15 @@ def main(cfg):
                                          os.path.join(out_path, 'verbose'))
         return {'probe': result_probe, 'verbose': result_verbose}
 
-    problems = pd.read_csv(hydra.utils.to_absolute_path(cfg.problems), names=['problem']).problem
+    problem_name_lists = [cfg.problem.names]
+    if cfg.problem.list_file is not None:
+        problem_name_lists.append(
+            pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem)
+    problems = sorted(set(itertools.chain.from_iterable(problem_name_lists)))
+
     rng = np.random.default_rng(cfg.seed)
+    problems = subsample(problems, size=cfg.max_problem_count, rng=rng)
+    problems = sorted(problems)
 
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs):
         parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
