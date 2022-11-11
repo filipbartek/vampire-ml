@@ -262,6 +262,16 @@ def main(cfg):
             clause_pair_weights = model.clause_pair_weights(clause_weights, problem_valid, y)
             clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights)
             problem_loss = tf.reduce_mean(clause_pair_loss, axis=1)
+            if cfg.per_problem_stats:
+                for p, cw, cpw, cpl, pl, nonproof in zip(x['problem'], clause_weights, clause_pair_weights,
+                                                         clause_pair_loss, problem_loss, y):
+                    summary_prefix = f'problem_{py_str(p)}'
+                    tf.summary.histogram(f'{summary_prefix}/clause_weight/all', cw)
+                    tf.summary.histogram(f'{summary_prefix}/clause_weight/proof', cw[~nonproof])
+                    tf.summary.histogram(f'{summary_prefix}/clause_weight/nonproof', cw[nonproof])
+                    tf.summary.histogram(f'{summary_prefix}/clause_pair/weight', cpw)
+                    tf.summary.histogram(f'{summary_prefix}/clause_pair/loss', cpl)
+                    tf.summary.scalar(f'{summary_prefix}/train_loss', pl)
             return {
                 'problem': x['problem'],
                 'loss': problem_loss,
@@ -436,7 +446,7 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
             if 'weight' not in result:
                 continue
             problem = result['problem']
-            summary_prefix = f'problem_{problem}_feature_weight'
+            summary_prefix = f'problem_{problem}/feature_weight'
             for k, v in result['weight']['symbol'].items():
                 if k == '=':
                     continue
