@@ -125,11 +125,6 @@ def main(cfg):
 
         active_problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
 
-        def subsample(a, size=None, rng=None):
-            if size is None or size >= len(a):
-                return a
-            return rng.choice(a, size, replace=False)
-
         eval_problem_names = []
         # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
         rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
