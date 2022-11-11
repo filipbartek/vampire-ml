@@ -13,6 +13,7 @@ from attributedict.collections import AttributeDict
 from questions.memory import memory
 from questions.utils import timer
 from utils import is_compatible
+from utils import subsample
 from weight import vampire
 
 log = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
         raise RuntimeError('The proof contains no active nonproof clauses.')
 
     rng = np.random.default_rng(seed)
-    category_indices_selected = {k: sample(v, cfg.max_clauses[k], rng) for k, v in category_indices.items()}
+    category_indices_selected = {k: subsample(v, cfg.max_clauses[k], rng) for k, v in category_indices.items()}
     all_selected_indices = np.concatenate(list(category_indices_selected.values()))
     df_samples = df_samples.iloc[all_selected_indices]
 
@@ -107,12 +108,6 @@ def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
         'goal': scipy.sparse.csc_matrix([[s['goal']] for s in samples_list], dtype=bool),
     }
     return samples_aggregated
-
-
-def sample(indices, max_count, rng):
-    if max_count is not None and max_count < len(indices):
-        indices = rng.choice(indices, max_count)
-    return indices
 
 
 def df_to_samples(df_samples, signature, clause_features):
