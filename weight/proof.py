@@ -33,7 +33,7 @@ def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, parallel
     def get_signature(problem):
         try:
             # Raises `RuntimeError` when clausification fails
-            return clausifier.signature(problem)
+            return clausifier.signature(problem).tolist()
         except RuntimeError:
             return None
 
