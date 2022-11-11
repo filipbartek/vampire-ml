@@ -356,23 +356,25 @@ def main(cfg):
         start = 0
         if cfg.eval.initial:
             start = -1
-        for epoch in tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training'):
-            tf.summary.experimental.set_step(epoch)
-            if epoch >= 0:
-                with writers['train'].as_default():
-                    evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
-            res = evaluate_proxy(model_logit, datasets_batched, test_step)
-            if cfg.empirical.step is not None:
-                epoch_rel = epoch - cfg.empirical.start
-                if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
-                    # TODO: Save checkpoint.
-                    eval_dir = os.path.join('epoch', str(epoch), 'eval')
-                    df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
-                                            eval_dir)
-                    df = df.join(pd.concat(res.values()))
-                    if baseline_df is not None:
-                        df = df.join(baseline_df, rsuffix='_baseline')
-                    save_df(df, os.path.join(eval_dir, 'problems'))
+        with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t:
+            for epoch in t:
+                tf.summary.experimental.set_step(epoch)
+                if epoch >= 0:
+                    with writers['train'].as_default():
+                        train_df = evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
+                        t.set_postfix({col: train_df[col].mean() for col in train_df})
+                res = evaluate_proxy(model_logit, datasets_batched, test_step)
+                if cfg.empirical.step is not None:
+                    epoch_rel = epoch - cfg.empirical.start
+                    if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
+                        # TODO: Save checkpoint.
+                        eval_dir = os.path.join('epoch', str(epoch), 'eval')
+                        df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
+                                                eval_dir)
+                        df = df.join(pd.concat(res.values()))
+                        if baseline_df is not None:
+                            df = df.join(baseline_df, rsuffix='_baseline')
+                        save_df(df, os.path.join(eval_dir, 'problems'))
 
 
 def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):
