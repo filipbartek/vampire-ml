@@ -1,6 +1,5 @@
 import glob
 import itertools
-import json
 import logging
 import os
 import random
