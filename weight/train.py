@@ -33,6 +33,7 @@ from questions.utils import py_str
 from utils import astype
 from utils import json_dump_default
 from utils import save_df
+from utils import subsample
 from utils import to_str
 from utils import to_tensor
 from weight import proof

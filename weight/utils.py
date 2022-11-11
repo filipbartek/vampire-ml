@@ -175,3 +175,9 @@ def to_str(value, precision=4):
     if isinstance(value, float) or isinstance(value, np.floating):
         return f'%.{precision}f' % value
     return str(value)
+
+
+def subsample(a, size=None, rng=None):
+    if size is None or size >= len(a):
+        return a
+    return rng.choice(a, size, replace=False)
