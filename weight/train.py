@@ -343,7 +343,8 @@ def main(cfg):
                     tf.summary.scalar(f'{summary_prefix}/problems/success_uns', cur_df.success_uns.sum())
                     tf.summary.scalar(f'{summary_prefix}/problems/success_sat', cur_df.success_sat.sum())
                     tf.summary.scalar(f'{summary_prefix}/success_rate', cur_df.success.mean())
-                    for col in ['elapsed', 'megainstructions', 'activations']:
+                    col_names_weight = [f'weight_{feature}' for feature in cfg.clause_features]
+                    for col in ['elapsed', 'megainstructions', 'activations'] + col_names_weight:
                         if col in cur_df:
                             tf.summary.histogram(f'{summary_prefix}/{col}', cur_df[col][cur_df.success])
             return df
@@ -396,11 +397,13 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
             weight = cost
             signature = clausifier.signature(problem)
             assert len(weight) == len(cfg.clause_features) + len(signature)
+            weights_common = dict(zip(cfg.clause_features, weight))
             weights = {
-                **dict(zip(cfg.clause_features, weight)),
+                **weights_common,
                 'symbol': dict(zip(signature, weight[len(cfg.clause_features):]))
             }
             assert len(weights['symbol']) == len(signature)
+            result['weight'] = weights_common
         else:
             weights = None
         # result['weights'] = weights
