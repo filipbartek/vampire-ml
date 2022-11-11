@@ -26,9 +26,8 @@ class Composite(SymbolCostModel):
             'variable_occurrence': 'variable',
             'number': 'function'
         }
-        costs_dict = {
-            k: self.embedding_to_cost[k](embeddings['embeddings'][clause_feature_to_node_type[k]], training=training)
-            for k in self.embedding_to_cost}
+        costs_dict = {k: etc(embeddings['embeddings'][clause_feature_to_node_type[k]], training=training) for k, etc in
+                      self.embedding_to_cost.items()}
         costs_dict['symbol'] = tf.squeeze(costs_dict['symbol'], axis=-1)
         costs = tf.concat(list(costs_dict.values()), axis=1)
         # For each problem, its regularization loss is proportional to the l2-norm of the symbol cost vector.
