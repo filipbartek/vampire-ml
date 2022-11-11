@@ -343,8 +343,9 @@ def main(cfg):
                     tf.summary.scalar(f'{summary_prefix}/problems/success_uns', cur_df.success_uns.sum())
                     tf.summary.scalar(f'{summary_prefix}/problems/success_sat', cur_df.success_sat.sum())
                     tf.summary.scalar(f'{summary_prefix}/success_rate', cur_df.success.mean())
-                    tf.summary.histogram(f'{summary_prefix}/elapsed', cur_df.elapsed[cur_df.success])
-
+                    for col in ['elapsed', 'megainstructions', 'activations']:
+                        if col in cur_df:
+                            tf.summary.histogram(f'{summary_prefix}/{col}', cur_df[col][cur_df.success])
             return df
 
         baseline_df = None
@@ -413,7 +414,7 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
             warnings.warn(str(e))
             return None
         selected_properties = ['szs_status', 'terminationreason', 'returncode', 'elapsed', 'out_dir',
-                               'stdout_len', 'stderr_len']
+                               'stdout_len', 'stderr_len', 'megainstructions', 'activations']
         result.update({k: run_result[k] for k in selected_properties if k in run_result})
         log.debug(f'Attempt result:\n{yaml.dump(result)}')
         return result
