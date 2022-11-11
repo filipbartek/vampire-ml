@@ -25,6 +25,7 @@ baseline_files: {}
 empirical:
   start: -1
   step: 1
+per_problem_stats: false
 
 proof:
   # Maximum proof output file size in bytes

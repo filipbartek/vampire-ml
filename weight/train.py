@@ -403,7 +403,10 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
                 'symbol': dict(zip(signature, weight[len(cfg.clause_features):]))
             }
             assert len(weights['symbol']) == len(signature)
-            result['weight'] = weights_common
+            if cfg.per_problem_stats:
+                result['weight'] = weights
+            else:
+                result['weight'] = weights_common
         else:
             weights = None
         # result['weights'] = weights
@@ -428,6 +431,20 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
         cases = zip(problem_names, map(bool, model_result['valid']), map(lambda x: x.numpy(), model_result['costs']))
     print(f'Running {len(problem_names)} cases', file=sys.stderr)
     results = parallel(joblib.delayed(run)(problem, valid, cost) for problem, valid, cost in cases)
+
+    if cfg.per_problem_stats:
+        for result in results:
+            if 'weight' not in result:
+                continue
+            problem = result['problem']
+            summary_prefix = f'problem_{problem}_feature_weight'
+            for k, v in result['weight']['symbol'].items():
+                if k == '=':
+                    continue
+                tf.summary.scalar(f'{summary_prefix}/symbol/{k}', v)
+            del result['weight']['symbol']
+            for k, v in result['weight'].items():
+                tf.summary.scalar(f'{summary_prefix}/common/{k}', v)
 
     df = pd.json_normalize(results, sep='_')
     df.set_index('problem', inplace=True)
