@@ -286,6 +286,8 @@ def main(cfg):
                 stats = step_fn(model, x, y)
                 for k, v in stats.items():
                     batch_values[k].append(v)
+            if len(batch_values) == 0:
+                return None
             data = {}
             for k, v in batch_values.items():
                 values = tf.concat(v, 0)
