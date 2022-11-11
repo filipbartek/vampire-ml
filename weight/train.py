@@ -356,13 +356,12 @@ def main(cfg):
         start = 0
         if cfg.eval.initial:
             start = -1
-        with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t:
+        with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t, writers['train'].as_default():
             for epoch in t:
                 tf.summary.experimental.set_step(epoch)
                 if epoch >= 0:
-                    with writers['train'].as_default():
-                        train_df = evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
-                        t.set_postfix({col: train_df[col].mean() for col in train_df})
+                    train_df = evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
+                    t.set_postfix({col: train_df[col].mean() for col in train_df})
                 res = evaluate_proxy(model_logit, datasets_batched, test_step)
                 if cfg.empirical.step is not None:
                     epoch_rel = epoch - cfg.empirical.start
