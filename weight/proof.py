@@ -136,7 +136,7 @@ def clause_feature_vector(formula, signature, **kwargs):
 
 def token_counts_to_feature_vector(token_counts, signature, features=None, dtype=np.uint32):
     assert 0 <= token_counts['not'] <= token_counts['literal']
-    data_dict = {
+    all_features_dict = {
         'literal_positive': token_counts['literal'] - token_counts['not'],
         'literal_negative': token_counts['not'],
         'equality': token_counts['equality'],
@@ -145,18 +145,25 @@ def token_counts_to_feature_vector(token_counts, signature, features=None, dtype
         'variable_count': len(token_counts['variable']),
         'number': token_counts['number']
     }
-    if features is None:
-        features = data_dict.keys()
-    data = [data_dict[k] for k in features]
-    if any(d > 0 for d in data):
-        data, indices = map(list, zip(*((d, i) for i, d in enumerate(data) if d != 0)))
+    common_features = [all_features_dict[k] for k in features]
+    return construct_feature_vector(common_features, token_counts['symbol'], signature, dtype)
+
+
+def construct_feature_vector(common_features, symbol_counts, signature, dtype):
+    """
+    :param common_features: List of common feature values
+    :param symbol_counts: Dict of symbol counts
+    :param signature: List of symbol names
+    :return: Sparse matrix with 1 row
+    """
+    if any(d > 0 for d in common_features):
+        data, indices = map(list, zip(*((d, i) for i, d in enumerate(common_features) if d != 0)))
     else:
         data, indices = [], []
-    data += token_counts['symbol'].values()
-    signature = signature.tolist()
-    indices += [len(features) + signature.index(s) for s in token_counts['symbol'].keys()]
+    data += symbol_counts.values()
+    indices += [len(common_features) + signature.index(s) for s in symbol_counts.keys()]
     assert len(data) == len(indices)
     indptr = [0, len(data)]
     assert is_compatible(data, dtype)
-    result = scipy.sparse.csr_matrix((data, indices, indptr), shape=(1, len(features) + len(signature)), dtype=dtype)
-    return result
+    shape = (1, len(common_features) + len(signature))
+    return scipy.sparse.csr_matrix((data, indices, indptr), shape=shape, dtype=dtype)
