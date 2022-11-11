@@ -329,14 +329,13 @@ def main(cfg):
             return evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default,
                                     parallel, out_dir=eval_dir)
 
-        def evaluate_empirical(model, problem_names, problem_name_datasets, eval_dir):
+        def evaluate_empirical(model, problem_names, problem_name_datasets, eval_dir, summary_prefix='empirical'):
             df = run_empirical(model, problem_names, eval_dir)
 
             for dataset_name, pn in problem_name_datasets.items():
                 with writers[dataset_name].as_default():
                     df[f'dataset_{dataset_name}'] = df.index.isin(pn)
                     cur_df = df[df.index.isin(pn)]
-                    summary_prefix = 'empirical'
                     tf.summary.scalar(f'{summary_prefix}/problems/total', len(cur_df))
                     if len(cur_df) == 0:
                         continue
@@ -351,7 +350,8 @@ def main(cfg):
         baseline_df = None
         if cfg.eval.baseline:
             eval_dir = 'baseline'
-            baseline_df = evaluate_empirical(None, eval_problem_names, problem_name_datasets, eval_dir)
+            baseline_df = evaluate_empirical(None, eval_problem_names, problem_name_datasets, eval_dir,
+                                             summary_prefix='baseline')
             save_df(baseline_df, os.path.join(eval_dir, 'problems'))
         elif cfg.baseline_files is not None:
             baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
