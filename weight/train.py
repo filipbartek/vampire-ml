@@ -372,7 +372,8 @@ def main(cfg):
         start = 0
         if cfg.eval.initial:
             start = -1
-        with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t, writers['train'].as_default():
+        with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t, writers[
+            'train'].as_default():
             for epoch in t:
                 tf.summary.experimental.set_step(epoch)
                 if epoch >= 0:
@@ -385,8 +386,8 @@ def main(cfg):
                         print(f'Empirical evaluation after epoch {epoch}...')
                         # TODO: Save checkpoint.
                         eval_dir = os.path.join('epoch', str(epoch), 'eval')
-                        df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names, problem_name_datasets,
-                                                eval_dir)
+                        df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names,
+                                                problem_name_datasets, eval_dir)
                         # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
                         df = df.join(pd.concat(res.values()))
                         if baseline_df is not None:
