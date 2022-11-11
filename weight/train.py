@@ -313,7 +313,7 @@ def main(cfg):
                     res[dataset_name] = evaluate_proxy_one(model, dataset, step_fn)
             return res
 
-        def evaluate_empirical(model, problem_names, problem_name_datasets, eval_dir):
+        def run_empirical(model, problem_names, eval_dir):
             log.info('Empirical evaluation...')
 
             model_result = None
@@ -326,8 +326,11 @@ def main(cfg):
             else:
                 log.info('Evaluating baseline')
 
-            df = evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default,
-                                  parallel, out_dir=eval_dir)
+            return evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default,
+                                    parallel, out_dir=eval_dir)
+
+        def evaluate_empirical(model, problem_names, problem_name_datasets, eval_dir):
+            df = run_empirical(model, problem_names, eval_dir)
 
             for dataset_name, pn in problem_name_datasets.items():
                 with writers[dataset_name].as_default():
