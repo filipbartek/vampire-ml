@@ -304,12 +304,14 @@ def main(cfg):
                     data[k] = list(map(py_str, values))
                     continue
                 data[k] = values
-                tf.summary.scalar(f'nans/{k}', tf.math.count_nonzero(tf.math.is_nan(values)))
+                tf.summary.scalar(f'problems/{k}/total', len(values))
+                tf.summary.scalar(f'problems/{k}/invalid', tf.math.count_nonzero(tf.math.is_nan(values)))
                 values_without_nans = values[~tf.math.is_nan(values)]
-                tf.summary.histogram(k, values_without_nans)
-                tf.summary.scalar(f'{k}_mean', tf.reduce_mean(values_without_nans))
+                tf.summary.scalar(f'problems/{k}/valid', len(values_without_nans))
+                tf.summary.histogram(f'proxy/{k}', values_without_nans)
+                tf.summary.scalar(f'proxy/{k}/mean', tf.reduce_mean(values_without_nans))
                 if k == 'loss':
-                    tf.summary.scalar(f'{k}_sum', tf.reduce_sum(values_without_nans))
+                    tf.summary.scalar(f'proxy/{k}/sum', tf.reduce_sum(values_without_nans))
             df = pd.DataFrame(data=data)
             df.set_index('problem', inplace=True)
             return df
