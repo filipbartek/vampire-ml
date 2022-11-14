@@ -354,9 +354,11 @@ def main(cfg):
                     tf.summary.scalar(f'{summary_prefix}/success_rate', cur_df.success.mean())
                     for col in ['elapsed', 'megainstructions', 'activations']:
                         if col in cur_df:
-                            tf.summary.histogram(f'{summary_prefix}/{col}', cur_df[col][cur_df.success])
+                            data = cur_df[col][cur_df.success & cur_df[col].notna()]
+                            tf.summary.histogram(f'{summary_prefix}/{col}', data)
                     for feature in cfg.clause_features:
-                        tf.summary.histogram(f'{summary_prefix}/feature_weight/{feature}', cur_df[f'weight_{feature}'])
+                        data = cur_df[f'weight_{feature}'][cur_df[f'weight_{feature}'].notna()]
+                        tf.summary.histogram(f'{summary_prefix}/feature_weight/{feature}', data)
             return df
 
         baseline_df = None
