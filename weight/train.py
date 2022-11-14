@@ -180,7 +180,7 @@ def main(cfg):
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
         for dataset_name, dataset_problems in problem_name_datasets.items():
             with writers[dataset_name].as_default():
-                tf.summary.scalar('problems/with_proof', len(set(dataset_problems) | set(problem_samples)))
+                tf.summary.scalar('problems/with_proof', len(set(dataset_problems) & set(problem_samples)))
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
         output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
