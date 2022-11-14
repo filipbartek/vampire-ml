@@ -382,8 +382,8 @@ def main(cfg):
                 if epoch >= 0:
                     train_df = evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
                     t.set_postfix({col: train_df[col].mean() for col in train_df})
-                res = evaluate_proxy(model_logit, datasets_batched, test_step)
-                if cfg.empirical.step is not None:
+                proxy_results = evaluate_proxy(model_logit, datasets_batched, test_step)
+                if cfg.empirical.start is not None and cfg.empirical.step is not None:
                     epoch_rel = epoch - cfg.empirical.start
                     if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
                         print(f'Empirical evaluation after epoch {epoch}...')
@@ -392,7 +392,7 @@ def main(cfg):
                         df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names,
                                                 problem_name_datasets, eval_dir)
                         # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
-                        df = df.join(pd.concat(res.values()))
+                        df = df.join(pd.concat(proxy_results.values()))
                         if baseline_df is not None:
                             df = df.join(baseline_df, rsuffix='_baseline')
                         save_df(df, os.path.join(eval_dir, 'problems'))
