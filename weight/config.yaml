@@ -18,7 +18,9 @@ epochs: null
 train_ratio: 0.5
 max_problem_count: null
 eval:
+  # Evaluate a baseline
   baseline: true
+  # Evaluate the model before any training (after random initialization)
   initial: true
 proof_sample_weight: 0.5
 baseline_files: {}
@@ -117,6 +119,9 @@ gcn:
 max_problem_nodes: 10000
 
 embedding_to_cost:
+  # Transforms an embedding of a clause component (symbol, variables, equalities)
+  # to the weight of a corresponding clause feature (symbol occurrence count, variable occurrence count,
+  # equality occurrence count).
   # TODO: Support deeper MLPs.
   activation: softplus
   output_bias: 1
