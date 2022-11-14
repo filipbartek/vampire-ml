@@ -208,7 +208,7 @@ def main(cfg):
                                                            l2=cfg.symbol_cost.l2)
         model_logit = classifier.Classifier(model_symbol_weight)
 
-        problems_with_proofs = {dataset_name: [n for n in problem_names if len(problem_samples[n]) >= 1] for
+        problems_with_proofs = {dataset_name: [n for n in problem_names if n in problem_samples] for
                                 dataset_name, problem_names in problem_name_datasets.items()}
         log.info('Number of problems with proofs: %s' % {k: len(v) for k, v in problems_with_proofs.items()})
 
