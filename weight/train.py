@@ -89,6 +89,8 @@ def main(cfg):
             tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
 
+        if isinstance(cfg.problem.names, str):
+            raise RuntimeError('The option problem.names should be a list, not a string.')
         problem_name_lists = [cfg.problem.names]
         if cfg.problem.list_file is not None:
             problem_name_lists.append(
