@@ -488,7 +488,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
         options.update({weight_name_to_option_name[weight_name]: v for weight_name, v in weights.items() if
                         weight_name != 'symbol'})
         if weights_filename is None:
-            weights_file = tempfile.NamedTemporaryFile('w+', suffix='.properties',
+            weights_file = tempfile.NamedTemporaryFile('w+', suffix='.txt',
                                                        prefix=os.path.join('vampire_functor_weights_'))
         else:
             os.makedirs(os.path.dirname(weights_filename), exist_ok=True)
@@ -496,7 +496,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
         for functor, weight in weights['symbol'].items():
             if functor == '=':
                 continue
-            weights_file.write(f'{functor}={to_str(weight)}\n')
+            weights_file.write(f'{functor} {to_str(weight)}\n')
         weights_file.seek(0)
         options['functor_weight'] = weights_file.name
     result = vampire.run(problem_path, options, *args, **kwargs)
