@@ -7,6 +7,7 @@ import sys
 import tempfile
 import warnings
 from collections import defaultdict
+from contextlib import suppress
 from itertools import count
 
 import joblib
@@ -361,8 +362,9 @@ def main(cfg):
                             data = cur_df[col][cur_df.success & cur_df[col].notna()]
                             tf.summary.histogram(f'{summary_prefix}/{col}', data)
                     for feature in cfg.clause_features:
-                        data = cur_df[f'weight_{feature}'][cur_df[f'weight_{feature}'].notna()]
-                        tf.summary.histogram(f'{summary_prefix}/feature_weight/{feature}', data)
+                        with suppress(KeyError):
+                            data = cur_df[f'weight_{feature}'][cur_df[f'weight_{feature}'].notna()]
+                            tf.summary.histogram(f'{summary_prefix}/feature_weight/{feature}', data)
             return df
 
         baseline_df = None
