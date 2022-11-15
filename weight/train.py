@@ -495,6 +495,9 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
             weights_file = open(weights_filename, 'w+')
         for functor, weight in weights['symbol'].items():
             if functor == '=':
+                # The weight of equality is passed using a dedicated option.
+                # This simplifies the integration within Vampire,
+                # since the equality symbol is instantiated before the problem is loaded.
                 continue
             weights_file.write(f'{functor} {to_str(weight)}\n')
         weights_file.seek(0)
