@@ -4,6 +4,12 @@ Root rule: `cnf_formula`
 Only the content transitively used by `cnf_formula` has been preserved from the original TPTP grammar.
 Additionally, some cases of `fof_term` have been removed.
 
+To generate the Python sources of Lexer, Parser and Listener, run:
+
+```
+antlr-4.9-complete.jar cnf_formula.g4 -Dlanguage=Python3
+```
+
 Original TPTP grammar:
 https://github.com/TobiasScholl/TPTP-ANTLR4-Grammar/blob/e2e510bf4ec489732971347d34742a4f40652b98/tptp_v7_0_0_0.g4
 
