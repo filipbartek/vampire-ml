@@ -25,7 +25,7 @@ def token_counts(c):
         'inequality': listener.terminals[Parser.Infix_inequality],
         'variable': sorted(listener.variables.values(), reverse=True),
         'number': listener.numbers,
-        'symbol': listener.functors,
+        'symbol': listener.functors
     }
     return res
 
