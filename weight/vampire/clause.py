@@ -1,18 +1,18 @@
 from collections import Counter
 
 from antlr4 import *
-from tptp_grammar.tptp_v7_0_0_0Lexer import tptp_v7_0_0_0Lexer
-from tptp_grammar.tptp_v7_0_0_0Parser import tptp_v7_0_0_0Parser
-from tptp_grammar.tptp_v7_0_0_0Listener import tptp_v7_0_0_0Listener
+from tptp_grammar.tptp_v7_0_0_0Lexer import tptp_v7_0_0_0Lexer as Lexer
+from tptp_grammar.tptp_v7_0_0_0Parser import tptp_v7_0_0_0Parser as Parser
+from tptp_grammar.tptp_v7_0_0_0Listener import tptp_v7_0_0_0Listener as Listener
 
 
 def token_counts(c):
     input_stream = InputStream(c)
-    lexer = tptp_v7_0_0_0Lexer(input_stream)
+    lexer = Lexer(input_stream)
     stream = CommonTokenStream(lexer)
-    parser = tptp_v7_0_0_0Parser(stream)
+    parser = Parser(stream)
     parser.buildParseTrees = False
-    listener = Listener()
+    listener = MyListener()
     parser.addParseListener(listener)
     parser.cnf_formula()
     if parser.getNumberOfSyntaxErrors() > 0:
@@ -20,9 +20,9 @@ def token_counts(c):
 
     res = {
         'literal': listener.literals,
-        'not': listener.terminals[tptp_v7_0_0_0Parser.Not],
-        'equality': listener.terminals[tptp_v7_0_0_0Parser.Infix_equality],
-        'inequality': listener.terminals[tptp_v7_0_0_0Parser.Infix_inequality],
+        'not': listener.terminals[Parser.Not],
+        'equality': listener.terminals[Parser.Infix_equality],
+        'inequality': listener.terminals[Parser.Infix_inequality],
         'variable': sorted(listener.variables.values(), reverse=True),
         'number': listener.numbers,
         'symbol': listener.functors,
@@ -30,7 +30,7 @@ def token_counts(c):
     return res
 
 
-class Listener(tptp_v7_0_0_0Listener):
+class MyListener(Listener):
     def __init__(self):
         super().__init__()
         self.terminals = Counter()
@@ -40,9 +40,9 @@ class Listener(tptp_v7_0_0_0Listener):
         self.numbers = 0
 
     tracked_terminal_types = [
-        tptp_v7_0_0_0Parser.Not,
-        tptp_v7_0_0_0Parser.Infix_equality,
-        tptp_v7_0_0_0Parser.Infix_inequality,
+        Parser.Not,
+        Parser.Infix_equality,
+        Parser.Infix_inequality,
     ]
 
     def visitTerminal(self, node:TerminalNode):
