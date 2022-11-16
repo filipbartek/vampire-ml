@@ -41,24 +41,26 @@ def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, parallel
         log.debug(f'Loading proof: {path}')
         with open(os.path.join(path, 'meta.json')) as f:
             meta = json.load(f)
-        problem = meta['problem']
-        result = {'problem': problem}
+        result = {k: meta[k] for k in ['problem', 'szs_status', 'activations', 'passive'] if k in meta}
         if meta['szs_status'] in ['THM', 'CAX', 'UNS']:
             # We only care about successful refutation proofs.
             stdout_path = os.path.join(path, 'stdout.txt')
-            signature = get_signature(problem)
+            signature = get_signature(meta['problem'])
             result['signature'] = signature
             # Assert that every symbol name is unique.
             assert len(signature) == len(set(signature))
-            try:
-                # Raises `RuntimeError` if the output file is too large.
-                # Raises `RuntimeError` if the signature is too large.
-                # Raises `RuntimeError` if the proof contains no nonproof clauses.
-                # Raises `ValueError` if no proof is found in the output file.
-                # Raises `ValueError` if a symbol encountered in a clause is missing from the signature.
-                result['clauses'] = load_proof_samples(stdout_path, signature, clause_features, cfg, seed)
-            except (RuntimeError, ValueError) as e:
-                log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
+            with timer() as t:
+                try:
+                    # Raises `RuntimeError` if the output file is too large.
+                    # Raises `RuntimeError` if the signature is too large.
+                    # Raises `RuntimeError` if the proof contains no nonproof clauses.
+                    # Raises `ValueError` if no proof is found in the output file.
+                    # Raises `ValueError` if a symbol encountered in a clause is missing from the signature.
+                    result['clauses'] = load_proof_samples(stdout_path, signature, clause_features, cfg, seed)
+                except (RuntimeError, ValueError) as e:
+                    log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
+                    result['error'] = str(e)
+            result['time_load'] = t.elapsed
         return result
 
     print(f'Loading {len(paths)} proofs', file=sys.stderr)

@@ -150,7 +150,7 @@ def main(cfg):
         for proof_path, t in zip(proof_paths, proof_traces):
             rec = {
                 'proof': proof_path,
-                'problem': t['problem']
+                **{k: t[k] for k in ['problem', 'error', 'time_load', 'szs_status', 'activations', 'passive'] if k in t}
             }
             if 'signature' in t:
                 rec['symbols'] = len(t['signature'])
