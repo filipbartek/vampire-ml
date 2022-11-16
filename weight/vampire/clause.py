@@ -49,9 +49,15 @@ class MyListener(Listener):
         symbol_type = node.symbol.type
         if symbol_type in self.tracked_terminal_types:
             self.terminals[symbol_type] += 1
-
-    def enterFunctor(self, ctx):
-        self.functors[ctx.start.text] += 1
+        if isinstance(node.parentCtx, Parser.Atomic_wordContext) and isinstance(node.parentCtx.parentCtx, Parser.FunctorContext):
+            if symbol_type == Parser.Lower_word:
+                symbol_text = node.symbol.text
+            elif symbol_type == Parser.Single_quoted:
+                assert node.symbol.text[0] == '\'' and node.symbol.text[-1] == '\''
+                symbol_text = node.symbol.text[1:-1]
+            else:
+                raise ValueError(f'Unsupported type of functor token: {symbol_type}')
+            self.functors[symbol_text] += 1
 
     def enterVariable(self, ctx):
         self.variables[ctx.start.text] += 1
