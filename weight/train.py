@@ -361,6 +361,8 @@ def main(cfg):
                     for col in ['elapsed', 'megainstructions', 'activations']:
                         if col in cur_df:
                             data = cur_df[col][cur_df.success & cur_df[col].notna()]
+                            if isinstance(data.dtype, pd.core.dtypes.base.ExtensionDtype):
+                                data = data.to_numpy(dtype=data.dtype.numpy_dtype)
                             tf.summary.histogram(f'{summary_prefix}/{col}', data)
                     for feature in cfg.clause_features:
                         with suppress(KeyError):
@@ -472,6 +474,13 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
     df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
     df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
     df['success'] = df.success_uns | df.success_sat
+    dtypes = {'szs_status': pd.CategoricalDtype(vampire.szs.short_to_long.keys()),
+              'terminationreason': 'category',
+              'stdout_len': pd.UInt64Dtype(),
+              'stderr_len': pd.UInt64Dtype(),
+              'megainstructions': pd.UInt64Dtype(),
+              'activations': pd.UInt64Dtype()}
+    df = astype(df, dtypes)
     return df
 
 
