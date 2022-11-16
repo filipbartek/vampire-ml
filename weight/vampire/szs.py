@@ -17,7 +17,10 @@ short_to_long = {
     'MMO': 'MemoryOut',
     'GUP': 'GaveUp',
     'INC': 'Incomplete',
-    'IAP': 'Inappropriate'
+    'IAP': 'Inappropriate',
+    # Non-standard statuses
+    'ACO': 'ActivationsOut',
+    'INO': 'InstructionsOut'
 }
 
 long_to_short = {v: k for k, v in short_to_long.items()}
