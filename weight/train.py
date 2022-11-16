@@ -358,6 +358,8 @@ def main(cfg):
                     tf.summary.scalar(f'{summary_prefix}/problems/success_uns', cur_df.success_uns.sum())
                     tf.summary.scalar(f'{summary_prefix}/problems/success_sat', cur_df.success_sat.sum())
                     tf.summary.scalar(f'{summary_prefix}/success_rate', cur_df.success.mean())
+                    for status, count in cur_df.szs_status.value_counts(dropna=False).items():
+                        tf.summary.scalar(f'{summary_prefix}/problems/szs/{status}', count)
                     for col in ['elapsed', 'megainstructions', 'activations']:
                         if col in cur_df:
                             data = cur_df[col][cur_df.success & cur_df[col].notna()]
