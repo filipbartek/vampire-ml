@@ -1,9 +1,9 @@
 from collections import Counter
 
 from antlr4 import *
-from tptp_grammar.tptp_v7_0_0_0Lexer import tptp_v7_0_0_0Lexer as Lexer
-from tptp_grammar.tptp_v7_0_0_0Parser import tptp_v7_0_0_0Parser as Parser
-from tptp_grammar.tptp_v7_0_0_0Listener import tptp_v7_0_0_0Listener as Listener
+from tptp_grammar.cnf_formulaLexer import cnf_formulaLexer as Lexer
+from tptp_grammar.cnf_formulaParser import cnf_formulaParser as Parser
+from tptp_grammar.cnf_formulaListener import cnf_formulaListener as Listener
 
 
 def token_counts(c):
