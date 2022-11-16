@@ -353,6 +353,7 @@ def main(cfg):
                     tf.summary.scalar(f'{summary_prefix}/problems/total', len(cur_df))
                     if len(cur_df) == 0:
                         continue
+                    tf.summary.scalar(f'{summary_prefix}/problems/valid', cur_df.valid.sum())
                     tf.summary.scalar(f'{summary_prefix}/problems/success', cur_df.success.sum())
                     tf.summary.scalar(f'{summary_prefix}/problems/success_uns', cur_df.success_uns.sum())
                     tf.summary.scalar(f'{summary_prefix}/problems/success_sat', cur_df.success_sat.sum())
