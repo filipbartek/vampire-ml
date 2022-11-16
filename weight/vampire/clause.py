@@ -16,7 +16,7 @@ def token_counts(c):
     parser.addParseListener(listener)
     parser.cnf_formula()
     if parser.getNumberOfSyntaxErrors() > 0:
-        raise RuntimeError(f'{parser.getNumberOfSyntaxErrors()} syntax errors occurred while parsing \"{c}\".')
+        raise ValueError(f'{parser.getNumberOfSyntaxErrors()} syntax errors occurred while parsing \"{c}\".')
 
     res = {
         'literal': listener.literals,
