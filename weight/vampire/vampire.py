@@ -3,9 +3,8 @@ import json
 import logging
 import os
 import re
-from contextlib import suppress
 
-from . import szs
+from . import stats
 from utils import to_str
 from weight import runner
 
@@ -14,41 +13,20 @@ log = logging.getLogger(__name__)
 
 def run(problem_path, options, out_dir=None, **kwargs):
     result = run_bare(problem_path, options, **kwargs)
-    status_short = None
-    with suppress(KeyError):
-        terminationreason = result['terminationreason']
-        if terminationreason == 'failed':
-            raise RuntimeError('Failed to execute Vampire.')
-        if terminationreason in ['walltime', 'cputime', 'cputime-soft']:
-            status_short = 'TMO'
+    terminationreason = result.get('terminationreason')
+    if terminationreason == 'failed':
+        raise RuntimeError('Failed to execute Vampire.')
     output = result['stdout']
-    if status_short is None:
-        status_short = szs.from_output(output)
-    result['szs_status'] = status_short
-
-    with suppress(TypeError):
-        result['elapsed_vampire'] = float(re.search(r'^% Time elapsed: (\d+\.\d+) s$', output, re.MULTILINE)[1])
-    with suppress(TypeError):
-        result['megainstructions'] = int(re.search(r'^% Instructions burned: (\d+) \(million\)$', output, re.MULTILINE)[1])
-    with suppress(TypeError):
-        result['activations'] = int(re.search(r'^% Activations started: (\d+)$', output, re.MULTILINE)[1])
-    with suppress(TypeError):
-        result['passive'] = int(re.search(r'^% Passive clauses: (\d+)$', output, re.MULTILINE)[1])
-    with suppress(TypeError):
-        result['memory'] = int(re.search(r'^% Memory used \[KB\]: (\d+)$', output, re.MULTILINE)[1])
-
-    # 523837 Aborted by signal SIGHUP on /home/bartefil/TPTP-v7.5.0/Problems/SYN/SYN764-1.p
-    # Aborted by signal SIGTERM on /home/filip/TPTP-v7.5.0/Problems/SET/SET713+4.p
-    m = re.search(r'^(?:(?P<pid>\d+) )?Aborted by signal (?P<signal>\w+) on (?P<problem>.+)$', output, re.MULTILINE)
-    if m is not None:
-        result['signal'] = m['signal']
-        result['pid'] = m['pid']
-    result['cmd'] = ' '.join(result['args'])
-    save_result(out_dir, result)
-    result['out_dir'] = out_dir
     m = re.search('^User error: Cannot open problem file: (?P<problem>.*)$', output, re.MULTILINE)
     if m is not None:
         raise RuntimeError(f'Cannot open problem file: {problem_path}')
+    result.update({{'elapsed': 'vampire_elapsed'}.get(k, k): v for k, v in stats.from_output(output).items()})
+    if terminationreason in ['walltime', 'cputime', 'cputime-soft']:
+        assert result['szs_status'] in ['TMO', 'UNK']
+        result['szs_status'] = 'TMO'
+    result['cmd'] = ' '.join(result['args'])
+    save_result(out_dir, result)
+    result['out_dir'] = out_dir
     return result
 
 
