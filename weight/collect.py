@@ -36,7 +36,7 @@ def main(cfg):
                                    os.path.join(out_path, 'probe'),
                                    **cfg.probe_run_args)
         result_verbose = None
-        if result_probe['szs_status'] in ['THM', 'CAX', 'UNS', 'SAT', 'CSA']:
+        if result_probe['szs_status'] in ['THM', 'CAX', 'UNS']:
             # Second run: verbose, proof on
             result_verbose = vampire_run(problem_path,
                                          {**cfg.options.common, 'random_seed': seed, **cfg.options.verbose},
