@@ -162,7 +162,8 @@ def main(cfg):
                     'goal': t['clauses']['goal'].nnz
                 }
                 rec['clauses']['proof_x_nonproof'] = rec['clauses']['proof'] * rec['clauses']['nonproof']
-                rec['max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in enumerate(cfg.clause_features)}
+                rec['clause_max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in enumerate(cfg.clause_features)}
+                rec['clause_max']['symbols'] = t['clauses']['token_counts'][:, len(cfg.clause_features):].max()
                 rec['clause_features'] = t['clauses']['token_counts'].shape[1]
                 rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
                 rec['clauses_x_clause_features'] = rec['clauses']['total'] * rec['clause_features']
