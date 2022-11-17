@@ -86,8 +86,6 @@ def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
         'proof': df_samples.role_proof.to_numpy().nonzero()[0],
         'nonproof': np.logical_not(df_samples.role_proof.to_numpy()).nonzero()[0]
     }
-    if len(category_indices['nonproof']) == 0:
-        raise RuntimeError('The proof contains no active nonproof clauses.')
 
     if 'max_clauses' in cfg:
         rng = np.random.default_rng(seed)
