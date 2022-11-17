@@ -31,11 +31,11 @@ per_problem_stats: false
 
 proof:
   # Maximum proof output file size in bytes
-  max_size: 100000000
+  max_size: null
   max_clauses:
-    proof: 1000
-    nonproof: 1000
-  max_symbols: 1000
+    proof: null
+    nonproof: null
+  max_symbols: null
 
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
