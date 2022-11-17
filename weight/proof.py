@@ -147,6 +147,8 @@ def token_counts_to_feature_vector(token_counts, signature, features=None, dtype
         'variable_count': len(token_counts['variable']),
         'number': token_counts['number']
     }
+    if features is None:
+        features = all_features_dict.keys()
     common_features = [all_features_dict[k] for k in features]
     return construct_feature_vector(common_features, token_counts['symbol'], signature, dtype)
 
