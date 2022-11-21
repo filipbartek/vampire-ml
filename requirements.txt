@@ -1,5 +1,6 @@
 appdirs
 binpacking
+clogistic
 contexttimer
 dgl
 flatten-dict
