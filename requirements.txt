@@ -24,5 +24,4 @@ seaborn
 scikit-learn
 statsmodels
 tabulate
-tensorflow
 tqdm

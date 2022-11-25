@@ -4,6 +4,14 @@ Machine learning extensions for [Vampire](https://vprover.github.io/)
 
 Experiments in Neptune.ai: [filipbartek/vampire-ml](https://ui.neptune.ai/filipbartek/vampire-ml/)
 
+## Setup
+
+To install TensorFlow for GPU with compatible versions of its dependency `cudatoolkit`:
+
+```
+conda install tensorflow=*=gpu_*
+```
+
 ## Quick start
 
 Before running the experiments for the first time,
