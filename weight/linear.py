@@ -67,6 +67,7 @@ def analyze_clause_pair_classifier(X, y, **kwargs):
 
 
 def fit_all(X, y, sample_weight=None, **kwargs):
+    logging.debug('Fitting dataset of shape %s...' % str(X.shape))
     res = {}
     for penalty in ['none']:
         for name, (fit, normalize) in fits.items():
