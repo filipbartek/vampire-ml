@@ -59,10 +59,9 @@ def analyze_clause_pair_classifier(X, y, **kwargs):
     pair_y = np.ones(pair_X.shape[:-1], dtype=bool)
 
     # We train without intercept and we need two training classes.
-    # We augment the data with its mirror copy.
-    # TODO: We don't need two copies of the data. Flip the polarity of a half of the samples instead.
-    pair_X = np.concatenate([pair_X, -pair_X])
-    pair_y = np.concatenate([pair_y, ~pair_y])
+    # We adjust the data by flipping half of the samples.
+    pair_y[1::2] = False
+    pair_X *= np.expand_dims(np.where(pair_y, 1, -1), 1)
 
     return fit_all(pair_X, pair_y, fit_intercept=False, **kwargs)
 
