@@ -1,4 +1,5 @@
 import json
+import math
 import logging
 import os
 import sys
@@ -171,3 +172,37 @@ def construct_feature_vector(common_features, symbol_counts, signature, dtype):
     assert is_compatible(data, dtype)
     shape = (1, len(common_features) + len(signature))
     return scipy.sparse.csr_matrix((data, indices, indptr), shape=shape, dtype=dtype)
+
+
+def subsample_proof(token_counts, proof, max_sample_size, rng):
+    if max_sample_size is not None:
+        n_proof = proof.nnz
+        n_nonproof = proof.shape[0] - n_proof
+        n_features = token_counts.shape[1]
+        if n_proof * n_nonproof * n_features > max_sample_size:
+            max_clause_pairs = max_sample_size // n_features
+            if max_clause_pairs == 0:
+                raise ValueError(f'The signature is too large: {n_features} > {max_sample_size}.')
+            max_per_type = int(math.sqrt(max_clause_pairs))
+            assert max_per_type * max_per_type <= max_clause_pairs
+            assert 1 <= max_per_type
+            max_proof = min(max_per_type, n_proof)
+            max_nonproof = min(max_per_type, n_nonproof)
+            if n_proof <= max_per_type:
+                assert max_proof == n_proof
+                max_nonproof = min(max_clause_pairs // max_proof, n_nonproof)
+            elif n_nonproof <= max_per_type:
+                max_proof = min(max_clause_pairs // max_nonproof, n_proof)
+            assert 1 <= max_proof <= n_proof
+            assert 1 <= max_nonproof <= n_nonproof
+            assert max_proof * max_nonproof <= max_clause_pairs
+            proof_dense = proof.toarray().squeeze(1)
+            assert len(proof_dense.shape) == 1
+            clauses_proof = subsample(np.where(proof_dense)[0], max_proof, rng=rng)
+            clauses_nonproof = subsample(np.where(~proof_dense)[0], max_nonproof, rng=rng)
+            clauses_selected = np.concatenate([clauses_nonproof, clauses_proof])
+            token_counts = token_counts[clauses_selected]
+            proof = proof[clauses_selected]
+            log.debug(
+                f'Proof subsampled. Features: {n_features}. Original clauses: {n_proof}x{n_nonproof}. New clauses: {max_proof}x{max_nonproof}.')
+    return token_counts, proof

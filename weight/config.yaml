@@ -37,6 +37,10 @@ proof:
     nonproof: null
   max_symbols: null
 
+# Maximum size of the tensor that represents one training proof.
+# The size of the tensor is `proof_clauses * nonproof_clauses * symbols`.
+max_sample_size: null
+
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
   - variable_occurrence
