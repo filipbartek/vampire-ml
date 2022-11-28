@@ -148,9 +148,11 @@ def main(cfg):
                                          cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
 
         def analyze(samples_aggregated):
+            if samples_aggregated is None:
+                return None
             return linear.analyze(samples_aggregated, cfg.clause_features)
 
-        proof_analyses = parallel(joblib.delayed(analyze)(t['clauses']) for t in proof_traces)
+        proof_analyses = parallel(joblib.delayed(analyze)(t.get('clauses')) for t in proof_traces)
 
         proof_records = []
         for proof_path, t, pa in zip(proof_paths, proof_traces, proof_analyses):
@@ -173,8 +175,9 @@ def main(cfg):
                 rec['clause_features'] = t['clauses']['token_counts'].shape[1]
                 rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
                 rec['clauses_x_clause_features'] = rec['clauses']['total'] * rec['clause_features']
-            pa.set_index(['task', 'constraint'], inplace=True)
-            rec['lm'] = {'_'.join(k): {kk: vv for kk, vv in v.items() if kk not in ['penalty', 'fit_intercept', 'max_iter', 'intercept']} for k, v in pa.iterrows()}
+            if pa is not None:
+                pa.set_index(['task', 'constraint'], inplace=True)
+                rec['lm'] = {'_'.join(k): {kk: vv for kk, vv in v.items() if kk not in ['penalty', 'fit_intercept', 'max_iter', 'intercept']} for k, v in pa.iterrows()}
             proof_records.append(rec)
         proof_df = pd.json_normalize(proof_records, sep='_')
         proof_df.set_index('proof', inplace=True)
