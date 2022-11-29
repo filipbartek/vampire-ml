@@ -25,7 +25,6 @@ class BoundedLinearClassifier(sklearn.base.BaseEstimator):
             raise ValueError('Cannot fit to an empty dataset.')
         # Raises `cvxpy.error.SolverError` if the fitting fails.
         self.model.fit(X, y, *args, bounds=self.bounds(X.shape[1]), **kwargs)
-        assert self.valid()
         if self.normalize_coef:
             score_before = self.score(X, y)
             log.debug(f'Before normalization: score={score_before}, residual_min={self.residual_min()}')
@@ -33,7 +32,6 @@ class BoundedLinearClassifier(sklearn.base.BaseEstimator):
             score_after = self.score(X, y)
             log.debug(f'After normalization: score={score_after}, residual_min={self.residual_min()}')
             assert score_before == score_after
-        assert self.valid()
         return self
 
     def normalize(self):
