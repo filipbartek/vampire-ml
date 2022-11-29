@@ -25,7 +25,7 @@ def analyze_pair(model, samples_aggregated, common_clause_features=None):
     def feature_record(value):
         return {
             'value': value,
-            'pc': scipy.stats.percentileofscore(coef_symbol, value, kind='strict')
+            'pc': {kind: scipy.stats.percentileofscore(coef_symbol, value, kind=kind) for kind in ['strict', 'weak']}
         }
 
     return {
