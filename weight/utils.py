@@ -180,4 +180,7 @@ def to_str(value, precision=4):
 def subsample(a, size=None, rng=None):
     if size is None or size >= len(a):
         return a
+    if rng is None:
+        warnings.warn('Using the default NumPy random generator.')
+        rng = np.random.default_rng()
     return rng.choice(a, size, replace=False)
