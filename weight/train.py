@@ -189,7 +189,9 @@ def main(cfg):
             proof_records.append(rec)
         proof_df = pd.json_normalize(proof_records, sep='_')
         proof_df.set_index('proof', inplace=True)
-        proof_df = astype(proof_df, {k: pd.UInt32Dtype() for k in ['symbols', 'clauses_.*', 'max_.*']})
+        cols = ['symbols', 'clause_features', 'symbols_x_clauses', 'clauses_x_clause_features', 'clauses_.*',
+                'clause_max_*']
+        proof_df = astype(proof_df, {k: pd.UInt64Dtype() for k in cols})
         save_df(proof_df, 'proofs')
         print(proof_df.describe(include='all'))
 
