@@ -11,6 +11,8 @@ from collections import defaultdict
 from contextlib import suppress
 from itertools import count
 
+import clogistic
+import cvxpy
 import joblib
 import hydra
 import more_itertools
@@ -39,7 +41,8 @@ from utils import to_tensor
 from weight import empirical
 from weight import linear
 from weight import proof
-from weight import vampire
+from weight.bounded_linear_classifier import BoundedLinearClassifier
+from weight.constant_linear_classifier import ConstantLinearClassifier
 
 log = logging.getLogger(__name__)
 
@@ -155,10 +158,43 @@ def main(cfg):
             token_counts = samples_aggregated['token_counts']
             p = samples_aggregated['proof']
             rng = np.random.default_rng(seed)
-            samples_aggregated['token_counts'], samples_aggregated['proof'] = proof.subsample_proof(token_counts, p, cfg.max_sample_size, rng)
-            return linear.analyze(samples_aggregated, cfg.clause_features)
+            record = {
+                'features': token_counts.shape[1],
+                'clauses': {
+                    'original': {
+                        'total': p.shape[0],
+                        'proof': p.nnz,
+                        'nonproof': p.shape[0] - p.nnz
+                    }
+                }
+            }
+            samples_aggregated['token_counts'], samples_aggregated['proof'] = proof.subsample_proof(token_counts, p,
+                                                                                                    cfg.max_sample_size,
+                                                                                                    rng)
+            p = samples_aggregated['proof']
+            record['clauses']['subsampled'] = {
+                'total': p.shape[0],
+                'proof': p.nnz,
+                'nonproof': p.shape[0] - p.nnz
+            }
+            models = {
+                'bounded_1': BoundedLinearClassifier(
+                    clogistic.LogisticRegression(fit_intercept=False, max_iter=1000), coef_lb=1),
+                'bounded_0': BoundedLinearClassifier(
+                    clogistic.LogisticRegression(fit_intercept=False, max_iter=1000), coef_lb=0),
+                'const_1': ConstantLinearClassifier(coef=1)
+            }
+            for name, model in models.items():
+                try:
+                    # Raises `ValueError` if the solver gets data with only one class, that is if there is only one positive and one negative clause.
+                    record[name] = linear.analyze_pair(model, samples_aggregated, cfg.clause_features)
+                except (cvxpy.error.SolverError, ValueError) as e:
+                    log.warning(str(e))
+                    record[name] = {'error': {'type': type(e).__name__, 'message': str(e)}}
+            return record
 
-        proof_analyses = parallel(joblib.delayed(analyze)(t.get('clauses'), seed) for t, seed in zip(proof_traces, ss.spawn(len(proof_traces))))
+        proof_analyses = parallel(joblib.delayed(analyze)(t.get('clauses'), seed) for t, seed in
+                                  zip(proof_traces, ss.spawn(len(proof_traces))))
 
         proof_records = []
         for proof_path, t, pa in zip(proof_paths, proof_traces, proof_analyses):
@@ -181,19 +217,15 @@ def main(cfg):
                 rec['clause_features'] = t['clauses']['token_counts'].shape[1]
                 rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
                 rec['clauses_x_clause_features'] = rec['clauses']['total'] * rec['clause_features']
-            try:
-                pa.set_index('task', inplace=True)
-                rec['lm'] = {k: {kk: vv for kk, vv in v.items() if kk not in ['penalty', 'fit_intercept', 'max_iter', 'intercept']} for k, v in pa.iterrows()}
-            except (AttributeError, KeyError):
-                pass
+            if pa is not None:
+                rec['pa'] = pa
             proof_records.append(rec)
         proof_df = pd.json_normalize(proof_records, sep='_')
         proof_df.set_index('proof', inplace=True)
         cols = ['symbols', 'clause_features', 'symbols_x_clauses', 'clauses_x_clause_features', 'clauses_.*',
-                'clause_max_*']
+                'clause_max_*', 'pa_features', 'pa_clauses_*']
         proof_df = astype(proof_df, {k: pd.UInt64Dtype() for k in cols})
         save_df(proof_df, 'proofs')
-        print(proof_df.describe(include='all'))
 
         problem_samples = defaultdict(list)
         for res in proof_traces:
