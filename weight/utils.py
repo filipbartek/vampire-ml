@@ -29,7 +29,8 @@ def astype(df, dtype, **kwargs):
     for column_pattern, column_dtype in dtype.items():
         matching_columns = df.columns[df.columns.str.fullmatch(column_pattern)]
         for matching_column in matching_columns:
-            assert matching_column not in dtype_final
+            # If `matching_column` already is in `dtype_final`, we override it.
+            # The latter entries override the former ones.
             dtype_final[matching_column] = column_dtype
     assert all(is_compatible(df[col], t) for col, t in dtype_final.items())
     # Cast the dataframe columns to appropriate dtypes
