@@ -153,7 +153,7 @@ def main(cfg):
         proof_paths = list(generate_paths(active_problem_names))
         proof_traces = proof.load_proofs(proof_paths, clausifier,
                                          OmegaConf.to_container(cfg.clause_features),
-                                         cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
+                                         max_size=cfg.max_proof_file_size, parallel=parallel)
 
         def analyze(samples_aggregated, seed):
             if samples_aggregated is None:

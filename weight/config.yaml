@@ -29,13 +29,8 @@ empirical:
   step: 1
 per_problem_stats: false
 
-proof:
-  # Maximum proof output file size in bytes
-  max_size: null
-  max_clauses:
-    proof: null
-    nonproof: null
-  max_symbols: null
+# Maximum proof output file size in bytes
+max_proof_file_size: null
 
 # Maximum size of the tensor that represents one training proof.
 # The size of the tensor is `proof_clauses * nonproof_clauses * symbols`.
