@@ -84,7 +84,7 @@ def load_proof_samples(stdout_path, signature, clause_features):
         'active&selected': {
             'total': len(df_samples),
             'proof': df_samples.role_proof.sum(),
-            '~proof': df_samples.role_proof.sum()
+            '~proof': (~df_samples.role_proof).sum()
         }
     }, sort_keys=False))
 
