@@ -320,8 +320,9 @@ def main(cfg):
             clause_weights, problem_valid = model(x, training=training)
             # TODO: Allow two losses: 1. clause classifier, 2. clause pair classifier
             clause_pair_weights = model.clause_pair_weights(clause_weights, problem_valid, y)
-            clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights)
-            problem_loss = tf.reduce_mean(clause_pair_loss, axis=1)
+            with tf.name_scope('loss'):
+                clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights, name='clause_pair')
+                problem_loss = tf.reduce_mean(clause_pair_loss, axis=1, name='problem')
             if cfg.per_problem_stats:
                 for p, cw, cpw, cpl, pl, nonproof in zip(x['problem'], clause_weights, clause_pair_weights,
                                                          clause_pair_loss, problem_loss, y):
@@ -335,17 +336,19 @@ def main(cfg):
             return {
                 'problem': x['problem'],
                 'loss': problem_loss,
-                'accuracy': tf.math.reduce_mean(tf.cast(clause_pair_weights > 0, tf.float64), 1)
+                'accuracy': tf.math.reduce_mean(tf.cast(clause_pair_weights > 0, tf.float64), 1, name='accuracy')
             }
 
         def train_step(model, x, y):
             with tf.GradientTape() as tape:
                 stats = test_step(model, x, y, training=True)
                 problem_loss = stats['loss']
-                # https://stackoverflow.com/a/50165189/4054250
-                problem_loss_without_nans = tf.where(tf.math.is_nan(problem_loss), tf.zeros_like(problem_loss),
-                                                     problem_loss)
-                loss_value = tf.reduce_sum(problem_loss_without_nans)
+                with tf.name_scope('loss'):
+                    # https://stackoverflow.com/a/50165189/4054250
+                    problem_loss_without_nans = tf.where(tf.math.is_nan(problem_loss, name='is_nan'),
+                                                         tf.zeros_like(problem_loss),
+                                                         problem_loss, name='without_nans')
+                    loss_value = tf.reduce_sum(problem_loss_without_nans, name='sum')
             minimize(optimizer, loss_value, model.trainable_weights, tape)
             return stats
 
