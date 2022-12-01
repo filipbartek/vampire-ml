@@ -131,8 +131,6 @@ def main(cfg):
 
         clausifier = Solver()
 
-        active_problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
-
         eval_problem_names = []
         # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
         rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
@@ -151,7 +149,8 @@ def main(cfg):
             return
 
         # We sort the problem names because `load_proofs` is cached.
-        proof_paths = list(generate_paths(sorted(active_problem_names)))
+        active_problem_names = sorted(set(itertools.chain.from_iterable(problem_name_datasets.values())))
+        proof_paths = list(generate_paths(active_problem_names))
         proof_traces = proof.load_proofs(proof_paths, clausifier,
                                          OmegaConf.to_container(cfg.clause_features),
                                          cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
