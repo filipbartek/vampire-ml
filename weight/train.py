@@ -213,7 +213,8 @@ def main(cfg):
                     'goal': t['clauses']['goal'].nnz
                 }
                 rec['clauses']['proof_x_nonproof'] = rec['clauses']['proof'] * rec['clauses']['nonproof']
-                rec['clause_max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in enumerate(cfg.clause_features)}
+                rec['clause_max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in
+                                     enumerate(cfg.clause_features)}
                 rec['clause_max']['symbols'] = t['clauses']['token_counts'][:, len(cfg.clause_features):].max()
                 rec['clause_features'] = t['clauses']['token_counts'].shape[1]
                 rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
@@ -283,7 +284,8 @@ def main(cfg):
         datasets_batched = {
             dataset_name: dict_to_batches(
                 {problem_name: problem_samples[problem_name] for problem_name in problem_names},
-                cfg.batch.size, cfg.proof_sample_weight, max_sample_size=cfg.max_sample_size, rng=np.random.default_rng(ss.spawn(1)[0])).cache() for
+                cfg.batch.size, cfg.proof_sample_weight, max_sample_size=cfg.max_sample_size,
+                rng=np.random.default_rng(ss.spawn(1)[0])).cache() for
             dataset_name, problem_names in
             problems_with_proofs.items()}
 
