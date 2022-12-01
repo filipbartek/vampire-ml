@@ -384,7 +384,8 @@ def main(cfg):
                     res[dataset_name] = evaluate_proxy_one(model, dataset, step_fn)
             return res
 
-        evaluate_empirical = functools.partial(empirical.evaluate, clausifier=clausifier, cfg=cfg, parallel=parallel)
+        evaluate_empirical = functools.partial(empirical.evaluate, clausifier=clausifier, cfg=cfg, parallel=parallel,
+                                               writers=writers)
 
         baseline_df = None
         if cfg.eval.baseline:
