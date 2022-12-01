@@ -42,6 +42,7 @@ def load_proofs(paths, clausifier=None, clause_features=None, max_size=None, par
         result = {k: meta[k] for k in ['problem', 'szs_status', 'activations', 'passive'] if k in meta}
         if meta['szs_status'] in ['THM', 'CAX', 'UNS']:
             # We only care about successful refutation proofs.
+            # Only such runs output the proof in the supported format (list of useful activated clauses).
             stdout_path = os.path.join(path, 'stdout.txt')
             actual_size = os.path.getsize(stdout_path)
             log.debug(f'{stdout_path}: Proof file size: {actual_size}')
@@ -104,7 +105,10 @@ def load_proof_samples(stdout_path, signature, clause_features):
 
 def df_to_samples(df_samples, signature, clause_features):
     def row_to_sample(row):
+        # Note: We assume that failing to parse one clause makes all the remaining clauses useless.
+        # For this reason we allow exception to propagate up from the parallel call.
         return {
+            # May raise an exception
             'token_counts': clause_feature_vector(row.string, signature, features=clause_features),
             'proof': row.role_proof,
             'goal': row.extra_goal
