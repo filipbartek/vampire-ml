@@ -62,7 +62,7 @@ def load_proofs(paths, clausifier=None, clause_features=None, max_size=None, par
                     result['clauses'] = load_proof_samples(stdout_path, signature, clause_features)
                 except (RuntimeError, ValueError) as e:
                     log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
-                    result['error'] = str(e)
+                    result['error'] = {'type': type(e).__name__, 'message': str(e)}
             result['time_load'] = t.elapsed
         return result
 
