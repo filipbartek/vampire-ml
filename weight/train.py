@@ -5,8 +5,6 @@ import logging
 import os
 import random
 import sys
-import tempfile
-import warnings
 from collections import defaultdict
 from contextlib import suppress
 from itertools import count
