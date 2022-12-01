@@ -36,7 +36,7 @@ from questions.utils import py_str
 from utils import astype
 from utils import save_df
 from utils import subsample
-from utils import to_str
+from utils import to_absolute_path
 from utils import to_tensor
 from weight import empirical
 from weight import linear
@@ -86,14 +86,14 @@ def main(cfg):
         }
 
         log.info(f'Working directory: {os.getcwd()}')
-        log.info(f'Workspace directory: {hydra.utils.to_absolute_path(cfg.workspace_dir)}')
+        log.info(f'Workspace directory: {to_absolute_path(cfg.workspace_dir)}')
         log.info(f'Cache directory: {memory.location}')
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
 
         with writers['train'].as_default():
             tf.summary.text('path/cwd', os.getcwd())
-            tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
+            with suppress(ValueError): tf.summary.text('path/workspace', to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
 
         if isinstance(cfg.problem.names, str):
@@ -145,6 +145,10 @@ def main(cfg):
                 # We automatically omit problems that do not have any proof.
                 for path in generate_verbose_paths(problem_name):
                     yield path
+
+        if cfg.workspace_dir is None:
+            log.info('Workspace dir not specified. No proofs to load. Quitting.')
+            return
 
         # We sort the problem names because `load_proofs` is cached.
         proof_paths = list(generate_paths(sorted(active_problem_names)))

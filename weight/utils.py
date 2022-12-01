@@ -6,6 +6,7 @@ from contextlib import suppress
 from decimal import Decimal
 from enum import Enum
 
+import hydra
 import numpy as np
 import pandas as pd
 import scipy
@@ -185,3 +186,9 @@ def subsample(a, size=None, rng=None):
         warnings.warn('Using the default NumPy random generator.')
         rng = np.random.default_rng()
     return rng.choice(a, size, replace=False)
+
+
+def to_absolute_path(path):
+    if path is None:
+        return None
+    return hydra.utils.to_absolute_path(path)
