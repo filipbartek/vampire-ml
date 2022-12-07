@@ -35,7 +35,7 @@ def analyze_pair(model, samples_aggregated, common_clause_features=None):
         },
         'coef': {
             'feature': {k: feature_record(v) for k, v in zip(common_clause_features, coef)},
-            'symbol': {k: getattr(np, k)(coef_symbol) for k in ['mean', 'min', 'max', 'median']}
+            'symbol': {k: getattr(np, k)(coef_symbol) for k in ['mean', 'std', 'min', 'max', 'median']}
         },
         'time_fit': t_fit.elapsed
     }
