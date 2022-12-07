@@ -75,35 +75,7 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
         result = {'problem': problem, 'valid': valid}
         if not valid:
             return result
-        if cost is not None:
-            weight = cost
-            signature = clausifier.signature(problem)
-            assert len(weight) == len(cfg.clause_features) + len(signature)
-            weights_common = dict(zip(cfg.clause_features, weight))
-            weights = {
-                **weights_common,
-                'symbol': dict(zip(signature, weight[len(cfg.clause_features):]))
-            }
-            assert len(weights['symbol']) == len(signature)
-            if cfg.per_problem_stats:
-                result['weight'] = weights
-            else:
-                result['weight'] = weights_common
-        else:
-            weights = None
-        # result['weights'] = weights
-        problem_path = questions.config.full_problem_path(problem)
-        vampire_out_dir = os.path.join(out_dir, 'problems', problem)
-        try:
-            run_result = vampire_run(problem_path, options, weights, vampire=cfg.vampire_cmd,
-                                     weights_filename=os.path.join(vampire_out_dir, 'functor_weight.properties'),
-                                     out_dir=vampire_out_dir, **cfg.probe_run_args)
-        except RuntimeError as e:
-            warnings.warn(str(e))
-            return None
-        selected_properties = ['szs_status', 'terminationreason', 'returncode', 'elapsed', 'out_dir',
-                               'stdout_len', 'stderr_len', 'megainstructions', 'activations']
-        result.update({k: run_result[k] for k in selected_properties if k in run_result})
+        result.update(evaluate_one(problem, cost, clausifier, options, cfg, out_dir))
         log.debug(f'Attempt result:\n{yaml.dump(result)}')
         return result
 
@@ -141,6 +113,42 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
               'activations': pd.UInt64Dtype()}
     df = astype(df, dtypes)
     return df
+
+
+def evaluate_one(problem, cost, clausifier, options, cfg, out_dir):
+    log.debug(f'Attempting problem {problem}')
+    result = {}
+    if cost is not None:
+        weight = cost
+        signature = clausifier.signature(problem)
+        assert len(weight) == len(cfg.clause_features) + len(signature)
+        weights_common = dict(zip(cfg.clause_features, weight))
+        weights = {
+            **weights_common,
+            'symbol': dict(zip(signature, weight[len(cfg.clause_features):]))
+        }
+        assert len(weights['symbol']) == len(signature)
+        if cfg.per_problem_stats:
+            result['weight'] = weights
+        else:
+            result['weight'] = weights_common
+    else:
+        weights = None
+    # result['weights'] = weights
+    problem_path = questions.config.full_problem_path(problem)
+    vampire_out_dir = os.path.join(out_dir, 'problems', problem.replace('/', '_'))
+    try:
+        run_result = vampire_run(problem_path, options, weights, vampire=cfg.vampire_cmd,
+                                 weights_filename=os.path.join(vampire_out_dir, 'functor_weight.properties'),
+                                 out_dir=vampire_out_dir, **cfg.probe_run_args)
+    except RuntimeError as e:
+        warnings.warn(str(e))
+        result['error'] = {'type': type(e), 'message': str(e)}
+        return result
+    selected_properties = ['szs_status', 'terminationreason', 'returncode', 'elapsed', 'out_dir',
+                           'stdout_len', 'stderr_len', 'megainstructions', 'activations']
+    result.update({k: run_result[k] for k in selected_properties if k in run_result})
+    return result
 
 
 def vampire_run(problem_path, options, weights, *args, weights_filename=None, **kwargs):
