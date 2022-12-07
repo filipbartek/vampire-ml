@@ -202,6 +202,7 @@ def main(cfg):
                     record[name] = {'error': {'type': type(e).__name__, 'message': str(e)}}
             return record
 
+        print(f'Analyzing {len(proof_traces)} proofs...', file=sys.stderr)
         proof_analyses = parallel(joblib.delayed(analyze)(t['problem'], t.get('clauses'), seed) for t, seed in
                                   zip(proof_traces, ss.spawn(len(proof_traces))))
 
