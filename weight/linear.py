@@ -9,7 +9,7 @@ from questions.utils import timer
 log = logging.getLogger(__name__)
 
 
-def analyze_pair(model, samples_aggregated, common_clause_features=None):
+def analyze_pair(model, samples_aggregated, common_clause_features=None, evaluate_weights=None):
     X = samples_aggregated['token_counts'].toarray()
     y = samples_aggregated['proof'].toarray().squeeze(axis=1)
 
@@ -21,6 +21,10 @@ def analyze_pair(model, samples_aggregated, common_clause_features=None):
 
     coef = model.coef_.squeeze(axis=0)
     coef_symbol = coef[len(common_clause_features):]
+
+    eval_res = []
+    if evaluate_weights is not None:
+        eval_res = evaluate_weights(coef)
 
     def feature_record(value):
         return {
@@ -37,7 +41,8 @@ def analyze_pair(model, samples_aggregated, common_clause_features=None):
             'feature': {k: feature_record(v) for k, v in zip(common_clause_features, coef)},
             'symbol': {k: getattr(np, k)(coef_symbol) for k in ['mean', 'std', 'min', 'max', 'median']}
         },
-        'time_fit': t_fit.elapsed
+        'time_fit': t_fit.elapsed,
+        'empirical': eval_res
     }
 
 

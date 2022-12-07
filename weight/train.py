@@ -153,7 +153,7 @@ def main(cfg):
                                          OmegaConf.to_container(cfg.clause_features),
                                          max_size=cfg.max_proof_file_size, parallel=parallel)
 
-        def analyze(samples_aggregated, seed):
+        def analyze(problem, samples_aggregated, seed):
             if samples_aggregated is None:
                 return None
             token_counts = samples_aggregated['token_counts']
@@ -186,15 +186,22 @@ def main(cfg):
                 'const_1': ConstantLinearClassifier(coef=1)
             }
             for name, model in models.items():
+                out_dir = os.path.join('linear', name)
+
+                def evaluate_weights(weights):
+                    return empirical.evaluate_one(problem, weights, clausifier,
+                                                  OmegaConf.to_container(cfg.options.evaluation.default), cfg, out_dir)
+
                 try:
                     # Raises `ValueError` if the solver gets data with only one class, that is if there is only one positive and one negative clause.
-                    record[name] = linear.analyze_pair(model, samples_aggregated, cfg.clause_features)
+                    record[name] = linear.analyze_pair(model, samples_aggregated, cfg.clause_features,
+                                                       evaluate_weights=evaluate_weights)
                 except (cvxpy.error.SolverError, ValueError) as e:
                     log.warning(str(e))
                     record[name] = {'error': {'type': type(e).__name__, 'message': str(e)}}
             return record
 
-        proof_analyses = parallel(joblib.delayed(analyze)(t.get('clauses'), seed) for t, seed in
+        proof_analyses = parallel(joblib.delayed(analyze)(t['problem'], t.get('clauses'), seed) for t, seed in
                                   zip(proof_traces, ss.spawn(len(proof_traces))))
 
         proof_records = []
