@@ -17,6 +17,7 @@ import more_itertools
 import numpy as np
 import pandas as pd
 import scipy
+import sklearn
 import tensorflow as tf
 import yaml
 from omegaconf import OmegaConf
@@ -178,11 +179,11 @@ def main(cfg):
                 'proof': p.nnz,
                 'nonproof': p.shape[0] - p.nnz
             }
+            lr_kwargs = {'penalty': 'none', 'fit_intercept': False, 'max_iter': 1000}
             models = {
-                'bounded_1': BoundedLinearClassifier(
-                    clogistic.LogisticRegression(fit_intercept=False, max_iter=1000), coef_lb=1),
-                'bounded_0': BoundedLinearClassifier(
-                    clogistic.LogisticRegression(fit_intercept=False, max_iter=1000), coef_lb=0),
+                'bounded_1': BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs), coef_lb=1),
+                'bounded_0': BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs), coef_lb=0),
+                'unbounded': sklearn.linear_model.LogisticRegression(**lr_kwargs),
                 'const_1': ConstantLinearClassifier(coef=1)
             }
             for name, model in models.items():
