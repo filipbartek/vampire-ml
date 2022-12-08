@@ -190,8 +190,8 @@ def main(cfg):
                 out_dir = os.path.join('linear', name)
 
                 def evaluate_weights(weights):
-                    return empirical.evaluate_one(problem, weights, clausifier,
-                                                  OmegaConf.to_container(cfg.options.evaluation.default), cfg, out_dir)
+                    options = {**cfg.options.common, **cfg.options.probe, **cfg.options.evaluation.default}
+                    return empirical.evaluate_one(problem, weights, clausifier, options, cfg, out_dir)
 
                 try:
                     # Raises `ValueError` if the solver gets data with only one class, that is if there is only one positive and one negative clause.
