@@ -312,12 +312,12 @@ def main(cfg):
                 'initial': {
                     'total': cfg.initial_searches,
                     'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches]),
-                    'uns': sum(szs.is_uns(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches])
+                    'uns': sum(szs.is_unsat(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches])
                 },
                 'trained': {
                     'total': len(iterations) - cfg.initial_searches,
                     'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:]),
-                    'uns': sum(szs.is_uns(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:])
+                    'uns': sum(szs.is_unsat(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:])
                 },
             }
             records.append(record)
