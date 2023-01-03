@@ -2,6 +2,8 @@ import itertools
 import logging
 import os
 import sys
+import warnings
+from contextlib import contextmanager
 from contextlib import suppress
 from decimal import Decimal
 from enum import Enum
@@ -180,8 +182,12 @@ def to_str(value, precision=4):
 
 
 def subsample(a, size=None, rng=None):
-    if size is None or size >= len(a):
-        return a
+    if isinstance(a, int):
+        if size >= a:
+            return range(a)
+    else:
+        if size >= len(a):
+            return a
     if rng is None:
         warnings.warn('Using the default NumPy random generator.')
         rng = np.random.default_rng()
@@ -192,3 +198,32 @@ def to_absolute_path(path):
     if path is None:
         return None
     return hydra.utils.to_absolute_path(path)
+
+
+@contextmanager
+def tf_trace(name, disable=False, **kwargs):
+    if not disable:
+        log.info(f'Starting trace {name}')
+        tf.summary.trace_on(**kwargs)
+    try:
+        yield
+    finally:
+        if not disable:
+            log.info(f'Exporting trace {name}')
+            tf.summary.trace_export(name)
+
+
+def error_record(e):
+    return {'type': type(e).__name__, 'message': str(e)}
+
+
+def path_join(*paths):
+    try:
+        return os.path.join(*paths)
+    except TypeError:
+        return None
+
+
+def sparse_equal(l, r):
+    return l.shape == r.shape and l.format == r.format and np.array_equal(l.indices, r.indices) and np.array_equal(
+        l.indptr, r.indptr) and np.array_equal(l.data, r.data)

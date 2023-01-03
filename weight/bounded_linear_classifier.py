@@ -35,12 +35,12 @@ class BoundedLinearClassifier(sklearn.base.BaseEstimator):
         return self
 
     def normalize(self):
-        if self.coef_lb > 0:
-            log.debug('Normalizing by minimum.')
-            factor = self.coef_lb / self.coef_.min()
-        elif self.coef_lb is None or self.coef_lb == 0:
+        if self.coef_lb is None or self.coef_lb == 0:
             log.debug('Normalizing by sum.')
             factor = self.n_features / np.abs(self.coef_).sum()
+        elif self.coef_lb > 0:
+            log.debug('Normalizing by minimum.')
+            factor = self.coef_lb / self.coef_.min()
         else:
             log.debug(f'Skipping normalization for coef_lb={self.coef_lb}.')
             return

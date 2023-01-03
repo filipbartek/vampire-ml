@@ -1,3 +1,4 @@
+import logging
 from collections import Counter
 
 from antlr4 import *
@@ -5,19 +6,24 @@ from tptp_grammar.cnf_formulaLexer import cnf_formulaLexer as Lexer
 from tptp_grammar.cnf_formulaParser import cnf_formulaParser as Parser
 from tptp_grammar.cnf_formulaListener import cnf_formulaListener as Listener
 
+from questions.utils import timer
 
-def token_counts(c):
+log = logging.getLogger(__name__)
+
+
+def token_counts(c, max_terminals=None):
     input_stream = InputStream(c)
     lexer = Lexer(input_stream)
     stream = CommonTokenStream(lexer)
     parser = Parser(stream)
     parser.buildParseTrees = False
-    listener = MyListener()
+    listener = MyListener(max_terminals=max_terminals)
     parser.addParseListener(listener)
-    parser.cnf_formula()
+    with timer() as t:
+        parser.cnf_formula()
     if parser.getNumberOfSyntaxErrors() > 0:
         raise ValueError(f'{parser.getNumberOfSyntaxErrors()} syntax errors occurred while parsing \"{c}\".')
-
+    assert stream.index == stream.getNumberOfOnChannelTokens() - 1 == listener.all_terminals
     res = {
         'literal': listener.literals,
         'not': listener.terminals[Parser.Not],
@@ -25,19 +31,23 @@ def token_counts(c):
         'inequality': listener.terminals[Parser.Infix_inequality],
         'variable': sorted(listener.variables.values(), reverse=True),
         'number': listener.numbers,
-        'symbol': listener.functors
+        'symbol': listener.functors,
+        'terminals': stream.index,
+        'time': t.elapsed
     }
     return res
 
 
 class MyListener(Listener):
-    def __init__(self):
+    def __init__(self, max_terminals=None):
         super().__init__()
+        self.max_terminals = max_terminals
         self.terminals = Counter()
         self.functors = Counter()
         self.variables = Counter()
         self.literals = 0
         self.numbers = 0
+        self.all_terminals = 0
 
     tracked_terminal_types = [
         Parser.Not,
@@ -46,6 +56,9 @@ class MyListener(Listener):
     ]
 
     def visitTerminal(self, node:TerminalNode):
+        self.all_terminals += 1
+        if self.max_terminals is not None and self.all_terminals > self.max_terminals:
+            raise MaxTerminalsError(self.max_terminals)
         symbol_type = node.symbol.type
         if symbol_type in self.tracked_terminal_types:
             self.terminals[symbol_type] += 1
@@ -67,3 +80,8 @@ class MyListener(Listener):
 
     def enterNumber(self, ctx):
         self.numbers += 1
+
+
+class MaxTerminalsError(ValueError):
+    def __init__(self, max_terminals):
+        super().__init__(f'The formula has more than {max_terminals} terminals.')

@@ -1,10 +1,11 @@
 import functools
-import glob
 import itertools
 import logging
 import os
 import random
 import sys
+import warnings
+from collections import Counter
 from collections import defaultdict
 from contextlib import suppress
 from itertools import count
@@ -26,18 +27,21 @@ from tqdm import tqdm
 import classifier
 import questions
 from dense import Dense
-from questions import models
 from questions.callbacks import TensorBoard
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
 from questions.utils import py_str
+from questions.utils import timer
 from utils import astype
 from utils import save_df
-from utils import subsample
+from utils import sparse_equal
 from utils import to_absolute_path
 from utils import to_tensor
+from vampire import szs
+from weight import dataset
 from weight import empirical
+from weight import evaluator
 from weight import linear
 from weight import proof
 from weight.bounded_linear_classifier import BoundedLinearClassifier
@@ -65,6 +69,7 @@ def random_integers(rng, dtype=np.int64, **kwargs):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
+    logging.getLogger('matplotlib').setLevel(logging.INFO)
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs), tf.device(cfg.tf.device):
         ss = np.random.SeedSequence(cfg.seed)
 
@@ -110,12 +115,6 @@ def main(cfg):
         with writers['train'].as_default():
             tf.summary.scalar('problems/grand_total', len(problem_names))
 
-        problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
-
-        def generate_verbose_paths(problem='*'):
-            return glob.glob(
-                os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose'))
-
         train_count = int(len(problem_names) * cfg.train_ratio)
         problem_name_datasets = {
             'train': problem_names[:train_count],
@@ -126,33 +125,239 @@ def main(cfg):
             with writers[dataset_name].as_default():
                 tf.summary.scalar('problems/total', len(dataset_problems))
 
-        parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
+        problem_path_datasets = {k: [questions.config.full_problem_path(p) for p in v] for k, v in
+                                 problem_name_datasets.items()}
 
         clausifier = Solver()
-
-        eval_problem_names = []
-        # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
-        rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
-        for k, v in problem_name_datasets.items():
-            eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
-        eval_problem_names = sorted(eval_problem_names)
-
-        def generate_paths(problem_names):
-            for problem_name in problem_names:
-                # We automatically omit problems that do not have any proof.
-                for path in generate_verbose_paths(problem_name):
-                    yield path
 
         if cfg.workspace_dir is None:
             log.info('Workspace dir not specified. No proofs to load. Quitting.')
             return
 
-        # We sort the problem names because `load_proofs` is cached.
-        active_problem_names = sorted(set(itertools.chain.from_iterable(problem_name_datasets.values())))
-        proof_paths = list(generate_paths(active_problem_names))
-        proof_traces = proof.load_proofs(proof_paths, clausifier,
-                                         OmegaConf.to_container(cfg.clause_features),
-                                         max_size=cfg.max_proof_file_size, parallel=parallel)
+        def sample_weight(problem, samples, dist, seed):
+            rng = np.random.default_rng(seed)
+            signature = clausifier.signature(problem)
+            size = (samples, len(cfg.clause_features) + len(signature))
+            return dist.rvs(size=size, random_state=rng)
+
+        problem_paths_all = sorted(set(itertools.chain.from_iterable(problem_path_datasets.values())))
+
+        dist = {
+            '1': scipy.stats.uniform(loc=1, scale=0),
+            'expon': scipy.stats.expon(),
+            'lognorm': scipy.stats.lognorm(1),
+            'norm': scipy.stats.norm()
+        }['lognorm']
+        log.info(f'Random weight distribution: mean={dist.mean()}, std={dist.std()}')
+        runner_probe = evaluator.VampireRunner(
+            options={**cfg.options.common, **cfg.options.probe, **cfg.options.evaluation.default},
+            run_kwargs={**cfg.probe_run_args, 'vampire': cfg.vampire_cmd})
+        runner_verbose = evaluator.VampireRunner(
+            options={**cfg.options.common, **cfg.options.verbose, **cfg.options.evaluation.default},
+            run_kwargs={**cfg.probe_run_args, 'vampire': cfg.vampire_cmd})
+        eval_empirical = evaluator.Empirical(runner_probe, runner_verbose=runner_verbose, clausifier=clausifier,
+                                             clause_features=OmegaConf.to_container(cfg.clause_features),
+                                             clause_max_len=cfg.clause_max_len)
+
+        lr_kwargs = {'penalty': 'none', 'fit_intercept': False, 'max_iter': 1000}
+        models = {
+            #'bounded_1': lambda: BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs), coef_lb=1),
+            # 'bounded_0': lambda: BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs), coef_lb=0),
+            # 'unbounded': lambda: BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs)),
+            # 'unbounded': lambda: BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs)),
+            'unbounded': lambda: sklearn.linear_model.LogisticRegression(**lr_kwargs),
+            # 'const_1': ConstantLinearClassifier(coef=1)
+        }
+
+        def fit_proofs(feature_vectors, proof_searches, seed):
+            try:
+                ds = dataset.proofs_to_samples(feature_vectors, proof_searches, max_sample_size=cfg.max_sample_size,
+                                               rng=np.random.default_rng(seed), join_searches=cfg.join_searches)
+            except dataset.NoClausePairsError as e:
+                warnings.warn(str(e))
+                return None
+
+            def fit_one_model(model):
+                result = {}
+                with timer() as t_fit:
+                    try:
+                        model.fit(**ds)
+                    except (ValueError, cvxpy.error.SolverError) as e:
+                        result['error'] = {'type': type(e).__name__, 'message': str(e)}
+                result['time_fit'] = t_fit.elapsed
+                if 'error' not in result:
+                    result['model'] = model
+                    result['score'] = model.score(**ds)
+                return result
+
+            result = {
+                'features': ds['X'].shape[1],
+                'clause_feature_vectors': len(feature_vectors),
+                'clause_pairs': ds['X'].shape[0],
+                'model': {name: fit_one_model(model()) for name, model in models.items()}
+            }
+
+            return result
+
+        def result_to_weight(result):
+            if result is None or 'model' not in result:
+                return None
+            coefs = [model_res['model'].coef_ for model_res in result['model'].values() if 'model' in model_res]
+            if len(coefs) == 0:
+                return None
+            return np.concatenate(coefs)
+
+        def result_to_record(result):
+            if result is None:
+                return {}
+            record = {k: v for k, v in result.items() if k in ['weight_idx', 'out_dir', 'plot_time', 'probe']}
+            if 'verbose' in result:
+                record['verbose'] = {k: v for k, v in result['verbose'].items() if k != 'clause_feature_vectors'}
+                clauses = {role: sum(fv['role_proof'][role] for fv in result['verbose']['clause_feature_vectors'].values()) for role in [False, True]}
+                record['verbose']['clauses'] = {
+                    'total': sum(clauses.values()),
+                    'nonproof': clauses[False],
+                    'proof': clauses[True],
+                    'unique_feature_vectors': len(result['verbose']['clause_feature_vectors'])
+                }
+            return record
+
+        problem_common_path = os.path.commonpath(problem_paths_all)
+
+        def loop_on_problem(problem, seed):
+            rng = np.random.default_rng(seed)
+            feature_vectors = {}
+            feature_vector_hashes = []
+            proof_searches = []
+            proof_feature_vector_hashes = set()
+            records = []
+            all_weights = []
+            problem_name = os.path.relpath(problem, problem_common_path)
+            problem_dir = os.path.join('problem', problem_name.replace('/', '_'))
+            for i in tqdm(range(cfg.loop_iterations), desc=problem_name):
+                iteration_dir = os.path.join(problem_dir, 'iteration', str(i))
+                if i == 0:
+                    fit_result = None
+                    problem_weights = sample_weight(problem, cfg.initial_searches, dist, rng)
+                else:
+                    def process(proof_search):
+                        # TODO: Allow copying all positive clauses to all proofs.
+                        false_negatives = {k: v for k, v in proof_search[False].items() if k in proof_feature_vector_hashes}
+                        if len(false_negatives) == 0:
+                            return proof_search
+                        result = {k: v.copy() for k, v in proof_search.items()}
+                        result[False].subtract(false_negatives)
+                        result[True].update(false_negatives)
+                        result[False] = Counter({k: v for k, v in result[False].items() if v > 0})
+                        return result
+
+                    proof_searches_processed = [process(v) for v in proof_searches]
+                    fit_result = fit_proofs(feature_vectors, proof_searches_processed, rng)
+                    problem_weights = result_to_weight(fit_result)
+                all_weights.append(problem_weights)
+                added = False
+                if problem_weights is not None:
+                    eval_results = eval_empirical.evaluate({problem: problem_weights}, out_dir=iteration_dir,
+                                                           iteration=str(i))
+                    for j, result in enumerate(eval_results):
+                        record = {'iteration': i, **result_to_record(result)}
+                        if fit_result is not None:
+                            record['fit'] = {k: v for k, v in fit_result.items() if k != 'model'}
+                            model_name = list(fit_result['model'].keys())[j]
+                            record['fit']['model'] = {
+                                'name': model_name,
+                                'score': fit_result['model'][model_name]['score']
+                            }
+                        records.append(record)
+                        assert result['problem'] == problem
+                        if 'verbose' in result:
+                            p = result['verbose']['clause_feature_vectors']
+                            if len(p) == 0:
+                                warnings.warn('Empty proof search.')
+                                continue
+                            added = True
+                            proof_search = {role_proof: Counter() for role_proof in [False, True]}
+                            for feature_vector_hash, v in p.items():
+                                assert all(vv >= 0 for vv in v['role_proof'].values())
+                                assert any(vv > 0 for vv in v['role_proof'].values())
+                                if feature_vector_hash not in feature_vectors:
+                                    assert len(feature_vectors) == len(feature_vector_hashes)
+                                    feature_vectors[feature_vector_hash] = v['feature_vector']
+                                    feature_vector_hashes.append(feature_vector_hash)
+                                assert sparse_equal(feature_vectors[feature_vector_hash], v['feature_vector'])
+                                feature_vector_index = feature_vector_hashes.index(feature_vector_hash)
+                                for role_proof in [False, True]:
+                                    if v['role_proof'][role_proof] == 0:
+                                        continue
+                                    proof_search[role_proof][feature_vector_index] += v['role_proof'][role_proof]
+                            proof_searches.append(proof_search)
+                            proof_feature_vector_hashes.update(proof_search[True])
+                df = pd.json_normalize(records, sep='_')
+                df.set_index(['iteration', 'weight_idx'], inplace=True)
+                save_df(df, os.path.join(problem_dir, 'iterations'))
+                if problem_weights is not None:
+                    weight_dict = eval_empirical.weight_vector_to_dict(problem, problem_weights[0])[0]
+                    header = ','.join([k for k in weight_dict.keys() if k != 'symbol'] + list(weight_dict['symbol'].keys())[1:])
+                    np.savetxt(os.path.join(problem_dir, 'weights.csv'), np.concatenate(all_weights), delimiter=',', header=header, comments='')
+                if not added:
+                    break
+            return records
+
+        results = joblib.Parallel(verbose=cfg.parallel.verbose)(joblib.delayed(loop_on_problem)(p, seed) for p, seed in zip(problem_paths_all, ss.spawn(len(problem_paths_all))))
+        records = []
+        for problem, iterations in zip(problem_paths_all, results):
+            record = {
+                'problem': problem,
+                'iterations': iterations[-1]['iteration'] + 1,
+                'initial': {
+                    'total': cfg.initial_searches,
+                    'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches]),
+                    'uns': sum(szs.is_uns(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches])
+                },
+                'trained': {
+                    'total': len(iterations) - cfg.initial_searches,
+                    'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:]),
+                    'uns': sum(szs.is_uns(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:])
+                },
+            }
+            records.append(record)
+        df = pd.json_normalize(records)
+        save_df(df, 'problems')
+        return
+
+        proofs = defaultdict(dict)
+        problem_weights = random_weights
+        for i in range(100):
+            out_dir = os.path.join('loop', str(i))
+            # eval_plot.evaluate(problem_weights, out_dir=out_dir)
+            eval_results = eval_empirical.evaluate(problem_weights, out_dir=out_dir, iteration=str(i),
+                                                   parallel=parallel)
+            for result in eval_results:
+                problem = result['problem']
+                if 'verbose' in result:
+                    p = result['verbose']['clause_feature_vectors']
+                    if len(p) == 0:
+                        warnings.warn('Empty proof search.')
+                        del proofs[problem]
+                        continue
+                    for role_proof in [False, True]:
+                        n_clauses = sum(v['role_proof'][role_proof] for v in p.values())
+                        if n_clauses == 0:
+                            continue
+                        for feature_vector_hash, v in p.items():
+                            if feature_vector_hash not in proofs[problem]:
+                                proofs[problem][feature_vector_hash] = {
+                                    'feature_vector': v['feature_vector'],
+                                    'role_proof': {role_proof: 0 for role_proof in [False, True]}
+                                }
+                            proofs[problem][feature_vector_hash]['role_proof'][role_proof] += v['role_proof'][
+                                                                                                  role_proof] / n_clauses
+            results = parallel(
+                joblib.delayed(fit_proofs)(p, seed) for p, seed in zip(proofs.values(), ss.spawn(len(proofs))))
+            problem_weights = {problem: result_to_weight(result) for problem, result in
+                               zip(proofs, results) if result is not None}
+            problem_weights = {k: v for k, v in problem_weights.items() if v is not None}
+            proofs = {k: v for k, v in proofs.items() if k in problem_weights}
 
         def analyze(problem, samples_aggregated, seed):
             if samples_aggregated is None:

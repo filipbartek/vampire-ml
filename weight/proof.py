@@ -8,12 +8,12 @@ import joblib
 import numpy as np
 import pandas as pd
 import scipy
-import yaml
 
 from questions.memory import memory
 from questions.solver import Solver
 from questions.utils import timer
 from utils import is_compatible
+from utils import sparse_equal
 from utils import subsample
 from weight import vampire
 

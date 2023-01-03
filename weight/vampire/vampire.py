@@ -52,11 +52,11 @@ def save_result(out_dir, result):
     with open(os.path.join(out_dir, 'meta.json'), 'w') as f:
         json.dump({k: v for k, v in result.items() if k not in ['stdout', 'stderr']}, f, indent=4, default=str)
         log.debug(f'{f.name} saved.')
-    if 'stdout' in result:
+    if 'stdout' in result and result['stdout'] is not None:
         with open(os.path.join(out_dir, 'stdout.txt'), 'w') as f:
             f.write(result['stdout'])
             log.debug(f'{f.name} saved.')
-    if 'stderr' in result:
+    if 'stderr' in result and result['stderr'] is not None:
         with open(os.path.join(out_dir, 'stderr.txt'), 'w') as f:
             f.write(result['stderr'])
             log.debug(f'{f.name} saved.')

@@ -1,5 +1,6 @@
 import itertools
 import re
+from contextlib import suppress
 
 import numpy as np
 import pandas as pd
@@ -82,7 +83,7 @@ def extract(output, roles=None):
     return formulas, operations
 
 
-formula_pattern = r'(?P<formula_id>\d+)\. (?P<formula>.+) \[(?P<inference_rule>[a-z ]*)(?: (?P<inference_parents>[\d,]+))?\](?: \{(?P<extra>[\w,:-]*)\})?'
+formula_pattern = r'(?P<formula_id>\d+)\. (?P<formula>.+) \[(?P<inference_rule>[a-z ]*)(?: (?P<inference_parents>[\d,]+))?\](?: \{(?P<extra>[\w,:\-\.]*)\})?'
 operation_pattern = fr'\[(?P<phase>\w+)\] (?P<operation>[\w ]+): {formula_pattern}'
 
 
@@ -96,8 +97,10 @@ def extract_operations_nonproof(output, roles=None):
 
 
 def extract_operations_proof(output):
-    return extract_operations(fr'^{formula_pattern}$', output, default_role='proof',
-                              pos=extract_proof_start(output), endpos=extract_proof_end(output))
+    with suppress(ValueError):
+        return extract_operations(fr'^{formula_pattern}$', output, default_role='proof',
+                                  pos=extract_proof_start(output), endpos=extract_proof_end(output))
+    return []
 
 
 def extract_proof_start(output):
@@ -154,4 +157,10 @@ def extract_extra(extra_str):
         return {}
     pair_strings = (p.strip() for p in extra_str.split(','))
     string_pairs = (p.split(':', 1) for p in pair_strings)
-    return {k: int(v) for k, v in string_pairs}
+    return {k: cast_extra_value(k, v) for k, v in string_pairs}
+
+
+def cast_extra_value(k, v):
+    if k == 'wCS':
+        return float(v)
+    return int(v)

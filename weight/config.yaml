@@ -12,6 +12,7 @@ hydra:
       RECURSIONLIMIT: 10000
       # TF_NUM_INTEROP_THREADS: 0
       # TF_NUM_INTRAOP_THREADS: 0
+  verbose: false
 
 seed: 0
 epochs: null
@@ -28,6 +29,9 @@ empirical:
   start: -1
   step: 1
 per_problem_stats: false
+join_searches: false
+initial_searches: 10
+loop_iterations: 10
 
 # Maximum proof output file size in bytes
 max_proof_file_size: null
@@ -41,12 +45,15 @@ clause_features:
   - variable_occurrence
   - equality
 
+# Maximum length (in characters) of clauses to be included in training data.
+clause_max_len: 10000
+
 workspace_dir: null
 vampire_cmd: vampire
 problem:
   list_file: null
   names: []
-tptp_path: null
+tptp_path: ${oc.env:TPTP}
 
 evaluation_problems:
   train: null
@@ -61,6 +68,7 @@ options:
     saturation_algorithm: discount
     age_weight_ratio: "1:5"
     statistics: full
+    time_limit: 0
   probe:
     proof: "off"
     instruction_limit: 50000

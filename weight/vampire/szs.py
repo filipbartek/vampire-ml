@@ -69,3 +69,15 @@ def termination_reason(stdout):
     if m is not None:
         return m[1]
     return None
+
+
+def is_unsat(status):
+    return status in ['THM', 'CAX', 'UNS']
+
+
+def is_sat(status):
+    return status in ['SAT', 'CSA']
+
+
+def is_solved(status):
+    return is_unsat(status) or is_sat(status)
