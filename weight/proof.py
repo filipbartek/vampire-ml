@@ -74,54 +74,72 @@ def load_proofs(paths, clausifier=None, clause_features=None, max_size=None, par
 def load_proof_samples(stdout_path, signature, clause_features):
     with open(stdout_path) as f:
         stdout = f.read()
+    return stdout_to_proof_samples(stdout, signature, clause_features)
+
+
+def stdout_to_proof_samples(stdout, signature, clause_features, clause_max_len=None, clause_max_terminals=None):
     # Raises `ValueError` if no proof is found.
     df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
     df_samples = df_formulas.loc[df_formulas.role_active.notna(), ['string', 'role_proof', 'extra_goal']]
     df_samples = pd.concat([df_samples.loc[:, ['string', 'extra_goal']], df_samples.role_proof.notna()], axis='columns')
 
-    log.debug('Clause count:\n%s' % yaml.dump({
-        'total': len(df_formulas),
-        'proof': df_formulas.role_proof.count(),
-        'active&selected': {
-            'total': len(df_samples),
-            'proof': df_samples.role_proof.sum(),
-            '~proof': (~df_samples.role_proof).sum()
-        }
-    }, sort_keys=False))
-
-    log.debug(f'{stdout_path}: Parsing {len(df_samples)} clauses...')
-    with timer() as t:
-        samples_list = df_to_samples(df_samples, signature, clause_features)
-    log.debug(f'{stdout_path}: {len(df_samples)} clauses parsed in {t.elapsed} s.')
-    if len(samples_list) == 0:
-        raise RuntimeError(f'{stdout_path}: No proof samples were extracted.')
-    samples_aggregated = {
-        'token_counts': scipy.sparse.vstack(s['token_counts'] for s in samples_list),
-        'proof': scipy.sparse.csc_matrix([[s['proof']] for s in samples_list], dtype=bool),
-        'goal': scipy.sparse.csc_matrix([[s['goal']] for s in samples_list], dtype=bool),
-    }
-    return samples_aggregated
+    log.debug(f'Parsing {len(df_samples)} clauses...')
+    feature_vectors = df_to_samples(df_samples, signature, clause_features, clause_max_len=clause_max_len,
+                                    clause_max_terminals=clause_max_terminals)
+    log.debug(f'{len(df_samples)} clauses parsed. Unique feature vectors: {len(feature_vectors)}.')
+    return feature_vectors
 
 
-def df_to_samples(df_samples, signature, clause_features):
-    def row_to_sample(row):
-        # Note: We assume that failing to parse one clause makes all the remaining clauses useless.
-        # For this reason we allow exception to propagate up from the parallel call.
-        return {
-            # May raise an exception
-            'token_counts': clause_feature_vector(row.string, signature, features=clause_features),
-            'proof': row.role_proof,
-            'goal': row.extra_goal
-        }
+def df_to_samples(df_samples, signature, clause_features, clause_max_len=None, clause_max_terminals=None,
+                  parallel=None):
+    if parallel is None:
+        parallel = joblib.Parallel(verbose=1)
 
-    parallel = joblib.Parallel()
-    return parallel(joblib.delayed(row_to_sample)(row) for index, row in df_samples.iterrows())
+    def formula_to_feature_vector(formula):
+        with timer() as t:
+            try:
+                # Note: We assume that failing to parse one clause makes all the remaining clauses useless.
+                # For this reason we allow exception to propagate up from the parallel call.
+                return clause_feature_vector(formula, signature, features=clause_features,
+                                             max_terminals=clause_max_terminals)
+            except vampire.clause.MaxTerminalsError as e:
+                # We ignore clauses that are too large.
+                log.debug(f'{e} Characters: {len(formula)}. Time: {t.elapsed}')
+                return None
+
+    if clause_max_len is not None:
+        selected = df_samples.string.str.len() <= clause_max_len
+        if selected.sum() < len(selected):
+            log.debug(f'{(~selected).sum()}/{len(selected)} clauses have more than {clause_max_len} characters.')
+            df_samples = df_samples[selected]
+
+    print(f'Converting {len(df_samples)} clauses to feature vectors. Signature size: {len(signature)}.',
+          file=sys.stderr)
+    feature_vectors = parallel(joblib.delayed(formula_to_feature_vector)(formula) for formula in df_samples.string)
+
+    result = {}
+    for feature_vector, role_proof in zip(feature_vectors, df_samples.role_proof):
+        if feature_vector is None:
+            continue
+        h = joblib.hash(feature_vector)
+        if h not in result:
+            result[h] = {
+                'feature_vector': feature_vector,
+                'role_proof': {
+                    False: 0,
+                    True: 0
+                }
+            }
+        assert sparse_equal(result[h]['feature_vector'], feature_vector)
+        result[h]['role_proof'][role_proof] += 1
+    return result
 
 
-def clause_feature_vector(formula, signature, **kwargs):
+def clause_feature_vector(formula, signature, max_terminals=None, **kwargs):
     # Raises `pyparsing.ParseException` if parsing of the formula fails.
     # Raises `RecursionError` if the formula is too deep.
-    token_counts = vampire.clause.token_counts(formula)
+    # Raises `ValueError` if a parse error occurs or if the formula is too large.
+    token_counts = vampire.clause.token_counts(formula, max_terminals=max_terminals)
     return token_counts_to_feature_vector(token_counts, signature, **kwargs)
 
 
