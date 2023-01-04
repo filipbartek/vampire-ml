@@ -138,17 +138,16 @@ def main(cfg):
             rng = np.random.default_rng(seed)
             signature = clausifier.signature(problem)
             size = (samples, len(cfg.clause_features) + len(signature))
+            log.debug(f'{problem}: Sampling {samples} random weight vectors of length {size[1]}.')
             return dist.rvs(size=size, random_state=rng)
 
         problem_paths_all = sorted(set(itertools.chain.from_iterable(problem_path_datasets.values())))
 
-        dist = {
-            '1': scipy.stats.uniform(loc=1, scale=0),
-            'expon': scipy.stats.expon(),
-            'lognorm': scipy.stats.lognorm(1),
-            'norm': scipy.stats.norm()
-        }['lognorm']
-        log.info(f'Random weight distribution: mean={dist.mean()}, std={dist.std()}')
+        def get_distribution(cfg):
+            return getattr(scipy.stats, cfg.name)(**{k: v for k, v in cfg.items() if k != 'name'})
+
+        dist = get_distribution(cfg.initial.distribution)
+        log.info(f'Random weight distribution ({cfg.initial.distribution}): mean={dist.mean()}, std={dist.std()}')
         runner_probe = evaluator.VampireRunner(
             options={**cfg.options.common, **cfg.options.probe, **cfg.options.evaluation.default},
             run_kwargs={**cfg.probe_run_args, 'vampire': cfg.vampire_cmd})
@@ -238,7 +237,7 @@ def main(cfg):
                 iteration_dir = os.path.join(problem_dir, 'iteration', str(i))
                 if i == 0:
                     fit_result = None
-                    problem_weights = sample_weight(problem, cfg.initial_searches, dist, rng)
+                    problem_weights = sample_weight(problem, cfg.initial.size, dist, rng)
                 else:
                     def process(proof_search):
                         # TODO: Allow copying all positive clauses to all proofs.
