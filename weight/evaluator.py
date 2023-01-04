@@ -111,12 +111,12 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
     with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
         result['probe'] = evaluator.result_to_record(
             evaluator.runner_probe.run(problem, options, out_dir=path_join(out_dir, 'probe')))
-        if evaluator.runner_verbose is not None and may_be_saturation_based_search(result['probe']['szs_status']):
+        assert 'activations' in result['probe'] and result['probe']['activations'] is not None
+        if evaluator.runner_verbose is not None and may_be_saturation_based_search(result['probe']['szs_status']) and result['probe']['activations'] > 0:
             options_verbose = options.copy()
-            if 'activations' in result['probe'] and result['probe']['activations'] is not None:
-                options_verbose['activation_limit'] = result['probe']['activations']
-                if szs.is_unsat(result['probe']['szs_status']):
-                    options_verbose['activation_limit'] += 1
+            options_verbose['activation_limit'] = result['probe']['activations']
+            if szs.is_unsat(result['probe']['szs_status']):
+                options_verbose['activation_limit'] += 1
             result['verbose'] = evaluator.result_to_record(
                 evaluator.runner_verbose.run(problem, options_verbose, out_dir=path_join(out_dir, 'verbose')),
                 signature)
