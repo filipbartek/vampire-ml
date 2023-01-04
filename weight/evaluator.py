@@ -147,24 +147,25 @@ class Empirical(Evaluator):
                 symbols['weight'] = [weights_dict['equality']] + list(weights_dict['symbol'].values())[1:]
                 features = symbols.copy()
                 features.reset_index(inplace=True)
-                var_record = {'name': '$var', 'weight': weights_dict['variable_occurrence'], 'isFunction': True,
-                              'arity': 0}
-                features = pd.concat([features, pd.DataFrame.from_records([var_record])])
-                features['name_arity'] = ['%s_%u' % (r['name'], r.arity) for i, r in features.iterrows()]
+                features = features.astype({'id': pd.UInt64Dtype()}, copy=False)
 
-                def row_to_category(row):
-                    if row['name'] == '=':
-                        return '$eq'
-                    if row['name'] == '$var':
-                        return '$var'
-                    cat = {False: 'predicate', True: 'function'}[row.isFunction]
-                    if row.introduced:
+                def symbol_to_category(symbol):
+                    if symbol.name == '=':
+                        return 'equality'
+                    cat = {False: 'predicate', True: 'function'}[symbol.isFunction]
+                    if symbol.introduced:
                         cat += '_introduced'
                     return cat
 
-                cats = ['$var', '$eq', 'predicate', 'predicate_introduced', 'function', 'function_introduced']
-                features['category'] = pd.Series([row_to_category(r) for i, r in features.iterrows()],
+                cats = ['variable', 'equality', 'predicate', 'predicate_introduced', 'function', 'function_introduced']
+                features['category'] = pd.Series([symbol_to_category(s) for s in features.itertuples(index=False)],
                                                  dtype=pd.CategoricalDtype(cats))
+
+                var_record = {'name': '$var', 'weight': weights_dict['variable_occurrence'], 'isFunction': True,
+                              'arity': 0, 'category': 'variable'}
+                features = pd.concat([features, pd.DataFrame.from_records([var_record])])
+                features['name_arity'] = ['%s_%u' % (f.name, f.arity) for f in features.itertuples(index=False)]
+
                 features.sort_values('weight', inplace=True)
                 plt.figure(figsize=(16, 12))
                 sns.scatterplot(data=features, y='name_arity', x='weight', hue='category', palette='Paired')
