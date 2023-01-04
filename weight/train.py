@@ -309,14 +309,14 @@ def main(cfg):
                 'problem': problem,
                 'iterations': iterations[-1]['iteration'] + 1,
                 'initial': {
-                    'total': cfg.initial_searches,
-                    'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches]),
-                    'uns': sum(szs.is_unsat(r['probe']['szs_status']) for r in iterations[:cfg.initial_searches])
+                    'total': cfg.initial.size,
+                    'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[:cfg.initial.size]),
+                    'uns': sum(szs.is_unsat(r['probe']['szs_status']) for r in iterations[:cfg.initial.size])
                 },
                 'trained': {
-                    'total': len(iterations) - cfg.initial_searches,
-                    'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:]),
-                    'uns': sum(szs.is_unsat(r['probe']['szs_status']) for r in iterations[cfg.initial_searches:])
+                    'total': len(iterations) - cfg.initial.size,
+                    'solved': sum(szs.is_solved(r['probe']['szs_status']) for r in iterations[cfg.initial.size:]),
+                    'uns': sum(szs.is_unsat(r['probe']['szs_status']) for r in iterations[cfg.initial.size:])
                 },
             }
             records.append(record)
