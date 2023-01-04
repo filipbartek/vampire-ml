@@ -130,17 +130,18 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
 
 class Empirical(Evaluator):
     def __init__(self, runner_probe, clausifier, clause_features, clause_max_len=None, clause_max_terminals=None,
-                 runner_verbose=None):
+                 runner_verbose=None, plot_max_features=1000):
         self.runner_probe = runner_probe
         self.runner_verbose = runner_verbose
         self.clausifier = clausifier
         self.clause_features = clause_features
         self.clause_max_len = clause_max_len
         self.clause_max_terminals = clause_max_terminals
+        self.plot_max_features = plot_max_features
 
     def evaluate_one(self, problem, weight, out_dir=None, iteration=None):
         result = {}
-        if iteration is not None:
+        if iteration is not None and len(weight) <= self.plot_max_features:
             weights_dict, symbols = self.weight_vector_to_dict(problem, weight)
             with timer() as t:
                 # weights_dict['symbol']['='] = weights_dict['equality']
