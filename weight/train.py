@@ -80,6 +80,8 @@ def main(cfg):
         np.random.seed(random_integers(rng_seeds, dtype=np.uint32))
         tf.random.set_seed(random_integers(rng_seeds))
 
+        rng = np.random.default_rng(ss.spawn(1)[0])
+
         tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
         tf.debugging.set_log_device_placement(cfg.tf.log_device_placement)
         tf.summary.experimental.set_step(-1)
@@ -107,7 +109,7 @@ def main(cfg):
             problem_name_lists.append(
                 pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem)
         problem_names = list(itertools.chain.from_iterable(problem_name_lists))
-        problem_names = np.random.default_rng(ss.spawn(1)[0]).permutation(problem_names)
+        problem_names = rng.permutation(problem_names)
         if cfg.max_problem_count is not None:
             problem_names = problem_names[:cfg.max_problem_count]
 
@@ -141,7 +143,7 @@ def main(cfg):
             log.debug(f'{problem}: Sampling {samples} random weight vectors of length {size[1]}.')
             return dist.rvs(size=size, random_state=rng)
 
-        problem_paths_all = sorted(set(itertools.chain.from_iterable(problem_path_datasets.values())))
+        problem_paths_all = rng.permutation(sorted(set(itertools.chain.from_iterable(problem_path_datasets.values()))))
 
         def get_distribution(cfg):
             return getattr(scipy.stats, cfg.name)(**{k: v for k, v in cfg.items() if k != 'name'})
