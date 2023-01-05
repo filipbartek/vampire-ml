@@ -130,7 +130,7 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
 
 class Empirical(Evaluator):
     def __init__(self, runner_probe, clausifier, clause_features, clause_max_len=None, clause_max_terminals=None,
-                 runner_verbose=None, plot_max_features=1000):
+                 runner_verbose=None, plot_max_features=0):
         self.runner_probe = runner_probe
         self.runner_verbose = runner_verbose
         self.clausifier = clausifier
