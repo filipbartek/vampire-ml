@@ -110,10 +110,10 @@ def df_to_samples(df_samples, signature, clause_features, clause_max_len=None, c
     if clause_max_len is not None:
         selected = df_samples.string.str.len() <= clause_max_len
         if selected.sum() < len(selected):
-            log.debug(f'{(~selected).sum()}/{len(selected)} clauses have more than {clause_max_len} characters.')
+            log.debug(f'{(~selected).sum()}/{len(selected)} clauses are excluded because they have more than {clause_max_len} characters.')
             df_samples = df_samples[selected]
 
-    print(f'Converting {len(df_samples)} clauses to feature vectors. Signature size: {len(signature)}.',
+    print(f'Converting {len(df_samples)} clauses to feature vectors. Signature size: {len(signature)}. Maximum clause length: {df_samples.string.str.len().max()} characters.',
           file=sys.stderr)
     feature_vectors = parallel(joblib.delayed(formula_to_feature_vector)(formula) for formula in df_samples.string)
 
