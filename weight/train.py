@@ -143,7 +143,7 @@ def main(cfg):
             log.debug(f'{problem}: Sampling {samples} random weight vectors of length {size[1]}.')
             return dist.rvs(size=size, random_state=rng)
 
-        problem_paths_all = rng.permutation(sorted(set(itertools.chain.from_iterable(problem_path_datasets.values()))))
+        problem_paths_all = list(rng.permutation(sorted(set(itertools.chain.from_iterable(problem_path_datasets.values())))))
 
         def get_distribution(cfg):
             return getattr(scipy.stats, cfg.name)(**{k: v for k, v in cfg.items() if k != 'name'})
