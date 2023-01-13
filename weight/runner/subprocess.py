@@ -40,7 +40,7 @@ def run(args, capture_stdout=True, capture_stderr=True, input='', **kwargs):
 
 def bytes_to_str(b):
     if b is None:
-        return None
+        return ''
     if isinstance(b, bytes):
         return b.decode('utf-8')
     return str(b)
