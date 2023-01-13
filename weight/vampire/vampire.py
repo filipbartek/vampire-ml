@@ -30,6 +30,7 @@ def run(problem_path, options, out_dir=None, **kwargs):
         result['error'] = 'Instruction limiting is disabled.'
     save_result(out_dir, result)
     result['out_dir'] = out_dir
+    log.debug(f'Result on problem {problem_path}: %s' % {k: result.get(k) for k in ['szs_status', 'elapsed', 'megainstructions', 'activations', 'error']})
     return result
 
 
