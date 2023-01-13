@@ -41,10 +41,6 @@ def run_bare(problem, options, vampire='vampire', **kwargs):
         'vampire': vampire,
         'options': options
     }
-    if 'stdout' in result and result['stdout'] is not None:
-        result['stdout_len'] = len(result['stdout'])
-    if 'stderr' in result and result['stderr'] is not None:
-        result['stderr_len'] = len(result['stderr'])
     return result
 
 
