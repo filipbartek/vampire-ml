@@ -251,7 +251,4 @@ class VampireRunner:
         if options is not None:
             cur_options = cur_options.copy()
             cur_options.update(options)
-        try:
-            return vampire.run(problem, cur_options, out_dir=out_dir, **self.run_kwargs)
-        except RuntimeError as e:
-            return {'error': error_record(e)}
+        return vampire.run(problem, cur_options, out_dir=out_dir, **self.run_kwargs)

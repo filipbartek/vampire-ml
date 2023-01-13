@@ -13,18 +13,21 @@ log = logging.getLogger(__name__)
 
 def run(problem_path, options, out_dir=None, **kwargs):
     result = run_bare(problem_path, options, **kwargs)
+    result['cmd'] = ' '.join(result['args'])
     terminationreason = result.get('terminationreason')
     if terminationreason == 'failed':
-        raise RuntimeError('Failed to execute Vampire.')
-    output = result['stdout']
-    m = re.search('^User error: Cannot open problem file: (?P<problem>.*)$', output, re.MULTILINE)
-    if m is not None:
-        raise RuntimeError(f'Cannot open problem file: {problem_path}')
-    result.update({{'elapsed': 'vampire_elapsed'}.get(k, k): v for k, v in stats.from_output(output).items()})
+        result['szs_status'] = 'ERR'
+        result['error'] = 'Failed to execute Vampire.'
+    result.update({{'elapsed': 'vampire_elapsed'}.get(k, k): v for k, v in stats.from_output(result['stdout']).items()})
+    if result['szs_status'] == 'INE':
+        result['error'] = 'Problem file not found.'
+    m = re.search('^perf_event_open failed \(instruction limiting will be disabled\): Permission denied$', result['stderr'], re.MULTILINE)
     if terminationreason in ['walltime', 'cputime', 'cputime-soft']:
         assert result['szs_status'] in ['TMO', 'UNK']
         result['szs_status'] = 'TMO'
-    result['cmd'] = ' '.join(result['args'])
+    if m is not None:
+        result['szs_status'] = 'OSE'
+        result['error'] = 'Instruction limiting is disabled.'
     save_result(out_dir, result)
     result['out_dir'] = out_dir
     return result

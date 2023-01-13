@@ -45,6 +45,9 @@ def from_output(output):
     try:
         return long_to_short[status_long]
     except KeyError:
+        m = re.search('^User error: Cannot open problem file: (?P<problem>.*)$', output, re.MULTILINE)
+        if m is not None:
+            return 'INE'
         term_reason = termination_reason(output)
         if term_reason == 'Unknown':
             if re.search(r'% Instruction limit reached!$', output, re.MULTILINE):
