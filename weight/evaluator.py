@@ -176,6 +176,8 @@ class Empirical(Evaluator):
                 plt.close()
             result['plot_time'] = t.elapsed
         result.update(empirical_evaluate_one(self, problem, weight, out_dir))
+        if result['probe']['szs_status'] == 'OSE':
+            raise RuntimeError(result['probe']['error'])
         return result
 
     def weight_vector_to_dict(self, problem, weight):
