@@ -30,7 +30,7 @@ def from_output(output):
     with suppress(TypeError):
         result['termination']['reason'] = re.search(r'^% Termination reason: (\w+)$', output, re.MULTILINE)[1]
     with suppress(TypeError):
-        result['termination']['phase'] = re.search(r'^% Termination phase: (\w+)$', output, re.MULTILINE)[1]
+        result['termination']['phase'] = re.search(r'^% Termination phase: ([\w ]+)$', output, re.MULTILINE)[1]
 
     # 523837 Aborted by signal SIGHUP on /home/bartefil/TPTP-v7.5.0/Problems/SYN/SYN764-1.p
     # Aborted by signal SIGTERM on /home/filip/TPTP-v7.5.0/Problems/SET/SET713+4.p
