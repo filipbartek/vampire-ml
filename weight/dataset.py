@@ -2,12 +2,9 @@ import itertools
 import logging
 from contextlib import suppress
 
-import joblib
 import numpy as np
 import pandas as pd
 import scipy
-
-from utils import sparse_equal
 
 log = logging.getLogger(__name__)
 roles = [False, True]
@@ -18,21 +15,9 @@ class NoClausePairsError(ValueError):
         super().__init__('No nonproof-proof clause pairs were found.')
 
 
-def proofs_to_samples(feature_vectors, proof_searches, max_sample_size=None, rng=None, flip_odd=True, **kwargs):
+def proofs_to_samples(feature_vectors, proof_searches, flip_odd=True, **kwargs):
     result = get_all_samples(feature_vectors, proof_searches, **kwargs)
-
-    # By default, each pair is used once.
-    n_samples, n_features = result['X'].shape
-    if max_sample_size is not None and n_samples * n_features > max_sample_size:
-        max_pairs = max_sample_size // n_features
-        log.debug(f'Subsampling clause pairs. Before: {n_samples}. After: {max_pairs}.')
-        # We sample with replacement to ensure that the final distribution respects `sample_weight`.
-        new_indices = rng.choice(n_samples, size=max_pairs, p=result['sample_weight'])
-        result['X'] = result['X'][new_indices]
-        del result['sample_weight']
-        n_samples = max_pairs
-
-    y = np.ones(n_samples, dtype=bool)
+    y = np.ones(result['X'].shape[0], dtype=bool)
     if flip_odd:
         # Flip odd samples
         y[1::2] = False
@@ -46,20 +31,8 @@ def get_all_samples(feature_vectors, proof_searches, dtype=np.int32, **kwargs):
     df = get_pair_indices(proof_searches, n_clauses, **kwargs)
     clauses = scipy.sparse.vstack(feature_vectors.values(), format='csr', dtype=dtype)
 
-    samples = {}
-    for i_false, i_true, weight in df.itertuples(index=False):
-        # nonproof - proof
-        feature_difference = clauses[i_false] - clauses[i_true]
-        h = joblib.hash(feature_difference)
-        if h not in samples:
-            samples[h] = {
-                'feature_difference': feature_difference,
-                'weight': 0
-            }
-        assert sparse_equal(samples[h]['feature_difference'], feature_difference)
-        samples[h]['weight'] += weight
-    X = scipy.sparse.vstack(sample['feature_difference'] for sample in samples.values())
-    sample_weight = np.fromiter((sample['weight'] for sample in samples.values()), float, len(samples))
+    X = clauses[df[False]] - clauses[df[True]]
+    sample_weight = df.weight
 
     assert np.isclose(1, sample_weight.sum())
     return {'X': X, 'sample_weight': sample_weight}

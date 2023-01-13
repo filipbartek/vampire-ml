@@ -158,8 +158,7 @@ def main(cfg):
             options={**cfg.options.common, **cfg.options.verbose, **cfg.options.evaluation.default},
             run_kwargs={**cfg.probe_run_args, 'vampire': cfg.vampire_cmd})
         eval_empirical = evaluator.Empirical(runner_probe, runner_verbose=runner_verbose, clausifier=clausifier,
-                                             clause_features=OmegaConf.to_container(cfg.clause_features),
-                                             clause_max_len=cfg.clause_max_len)
+                                             clause_features=OmegaConf.to_container(cfg.clause_features))
 
         lr_kwargs = {'penalty': 'none', 'fit_intercept': False}
         models = {
@@ -173,29 +172,54 @@ def main(cfg):
 
         def fit_proofs(feature_vectors, proof_searches, seed):
             try:
-                ds = dataset.proofs_to_samples(feature_vectors, proof_searches, max_sample_size=cfg.max_sample_size,
-                                               rng=np.random.default_rng(seed), join_searches=cfg.join_searches)
+                ds = dataset.proofs_to_samples(feature_vectors, proof_searches, join_searches=cfg.join_searches)
             except dataset.NoClausePairsError as e:
                 warnings.warn(str(e))
                 return None
 
+            ds_train = ds
+            max_pairs = cfg.max_clause_pairs
+            n_samples, n_features = ds['X'].shape
+            if cfg.max_sample_size is not None:
+                new_max_pairs = cfg.max_sample_size // n_features
+                if max_pairs is None:
+                    max_pairs = new_max_pairs
+                else:
+                    max_pairs = min(max_pairs, new_max_pairs)
+            if max_pairs is not None and n_samples > max_pairs:
+                log.debug(f'Subsampling training clause pairs. Before: {n_samples}. After: {max_pairs}.')
+                train_X, train_y = sklearn.utils.resample(ds['X'], ds['y'], n_samples=max_pairs,
+                                                          random_state=random_integers(seed, dtype=np.uint32))
+                ds_train = {
+                    'X': train_X,
+                    'y': train_y
+                }
+
             def fit_one_model(model):
                 result = {}
+                log.debug('Fitting a dataset of %d samples with %d features...' % ds_train['X'].shape)
                 with timer() as t_fit:
                     try:
-                        model.fit(**ds)
+                        model.fit(**ds_train)
                     except (ValueError, cvxpy.error.SolverError) as e:
                         result['error'] = {'type': type(e).__name__, 'message': str(e)}
                 result['time_fit'] = t_fit.elapsed
                 if 'error' not in result:
                     result['model'] = model
-                    result['score'] = model.score(**ds)
+                    result['score'] = {
+                        'all': model.score(**ds),
+                        'train': model.score(**ds_train)
+                    }
+                log.debug(f'Fitted in {t_fit.elapsed} s. Score: %s' % result.get('score'))
                 return result
 
             result = {
                 'features': ds['X'].shape[1],
                 'clause_feature_vectors': len(feature_vectors),
-                'clause_pairs': ds['X'].shape[0],
+                'clause_pairs': {
+                    'all': ds['X'].shape[0],
+                    'train': ds_train['X'].shape[0]
+                },
                 'model': {name: fit_one_model(model()) for name, model in models.items()}
             }
 

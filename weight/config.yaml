@@ -48,13 +48,12 @@ max_proof_file_size: null
 # The size of the tensor is `proof_clauses * nonproof_clauses * symbols`.
 max_sample_size: null
 
+max_clause_pairs: 10000
+
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
   - variable_occurrence
   - equality
-
-# Maximum length (in characters) of clauses to be included in training data.
-clause_max_len: 10000
 
 workspace_dir: null
 vampire_cmd: vampire
@@ -84,6 +83,7 @@ options:
     #show_everything: "on"
     show_active: "on"
     proof_extra: free
+    show_clause_features: "on"
   evaluation:
     default: {}
     #awr_0_1:

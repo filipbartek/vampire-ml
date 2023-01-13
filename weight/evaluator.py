@@ -13,7 +13,6 @@ import sklearn
 
 from questions.memory import memory
 from questions.utils import timer
-from utils import error_record
 from utils import path_join
 from utils import to_str
 from vampire import szs
@@ -106,7 +105,7 @@ def may_be_saturation_based_search(status):
 @memory.cache(ignore=['out_dir'])
 def empirical_evaluate_one(evaluator, problem, weight, out_dir):
     weights_dict, symbols = evaluator.weight_vector_to_dict(problem, weight)
-    signature = symbols.name.tolist()
+    signature = symbols.name
     result = {}
     with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
         result['probe'] = evaluator.result_to_record(
@@ -129,21 +128,18 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
 
 
 class Empirical(Evaluator):
-    def __init__(self, runner_probe, clausifier, clause_features, clause_max_len=None, clause_max_terminals=None,
-                 runner_verbose=None, plot_max_features=0):
+    def __init__(self, runner_probe, clausifier, clause_features, runner_verbose=None, plot_max_features=0):
         self.runner_probe = runner_probe
         self.runner_verbose = runner_verbose
         self.clausifier = clausifier
         self.clause_features = clause_features
-        self.clause_max_len = clause_max_len
-        self.clause_max_terminals = clause_max_terminals
         self.plot_max_features = plot_max_features
 
     def evaluate_one(self, problem, weight, out_dir=None, iteration=None):
         result = {}
         if iteration is not None and len(weight) <= self.plot_max_features:
-            weights_dict, symbols = self.weight_vector_to_dict(problem, weight)
             with timer() as t:
+                weights_dict, symbols = self.weight_vector_to_dict(problem, weight)
                 # weights_dict['symbol']['='] = weights_dict['equality']
                 symbols['weight'] = [weights_dict['equality']] + list(weights_dict['symbol'].values())[1:]
                 features = symbols.copy()
@@ -192,13 +188,11 @@ class Empirical(Evaluator):
         return weights, symbols
 
     def result_to_record(self, result, signature=None):
-        record = {k: result.get(k) for k in ['elapsed', 'szs_status', 'megainstructions', 'activations', 'memory']}
+        record = {k: result.get(k) for k in ['elapsed', 'szs_status', 'megainstructions', 'activations', 'memory', 'error']}
         if signature is not None:
             with timer() as t:
                 record['clause_feature_vectors'] = proof.stdout_to_proof_samples(result['stdout'], signature,
-                                                                                 self.clause_features,
-                                                                                 clause_max_len=self.clause_max_len,
-                                                                                 clause_max_terminals=self.clause_max_terminals)
+                                                                                 self.clause_features)
             record['time_featurize'] = t.elapsed
         return record
 
