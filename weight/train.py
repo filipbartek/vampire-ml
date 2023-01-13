@@ -160,7 +160,7 @@ def main(cfg):
                                              clause_features=OmegaConf.to_container(cfg.clause_features),
                                              clause_max_len=cfg.clause_max_len)
 
-        lr_kwargs = {'penalty': 'none', 'fit_intercept': False, 'max_iter': 1000}
+        lr_kwargs = {'penalty': 'none', 'fit_intercept': False}
         models = {
             #'bounded_1': lambda: BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs), coef_lb=1),
             # 'bounded_0': lambda: BoundedLinearClassifier(clogistic.LogisticRegression(**lr_kwargs), coef_lb=0),
