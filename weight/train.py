@@ -23,6 +23,7 @@ import tensorflow as tf
 import yaml
 from omegaconf import OmegaConf
 from tqdm import tqdm
+from tqdm import trange
 
 import classifier
 import questions
@@ -250,83 +251,83 @@ def main(cfg):
 
         problem_common_path = os.path.commonpath(problem_paths_all)
 
-        def loop_on_problem(problem, seed):
-            rng = np.random.default_rng(seed)
+        def loop_on_problem(problem, ss):
             feature_vectors = {}
-            feature_vector_hashes = []
+            feature_vector_hash_to_index = {}
             proof_searches = []
-            proof_feature_vector_hashes = set()
+            proof_feature_vector_indices = set()
             records = []
             all_weights = []
             problem_name = os.path.relpath(problem, problem_common_path)
             problem_dir = os.path.join('problem', problem_name.replace('/', '_'))
-            for i in tqdm(range(cfg.loop_iterations), desc=problem_name):
-                iteration_dir = os.path.join(problem_dir, 'iteration', str(i))
-                if i == 0:
-                    fit_result = None
-                    problem_weights = sample_weight(problem, cfg.initial.size, dist, rng)
-                else:
-                    def process(proof_search):
-                        # TODO: Allow copying all positive clauses to all proofs.
-                        false_negatives = {k: v for k, v in proof_search[False].items() if k in proof_feature_vector_hashes}
-                        if len(false_negatives) == 0:
-                            return proof_search
-                        result = {k: v.copy() for k, v in proof_search.items()}
-                        result[False].subtract(false_negatives)
-                        result[True].update(false_negatives)
-                        result[False] = Counter({k: v for k, v in result[False].items() if v > 0})
-                        return result
-
-                    proof_searches_processed = [process(v) for v in proof_searches]
-                    fit_result = fit_proofs(feature_vectors, proof_searches_processed, rng)
-                    problem_weights = result_to_weight(fit_result)
-                all_weights.append(problem_weights)
-                added = False
-                if problem_weights is not None:
-                    eval_results = eval_empirical.evaluate({problem: problem_weights}, out_dir=iteration_dir,
-                                                           iteration=str(i))
-                    for j, result in enumerate(eval_results):
-                        record = {'iteration': i, **result_to_record(result)}
-                        if fit_result is not None:
-                            record['fit'] = {k: v for k, v in fit_result.items() if k != 'model'}
-                            model_name = list(fit_result['model'].keys())[j]
-                            record['fit']['model'] = {
-                                'name': model_name,
-                                'score': fit_result['model'][model_name]['score']
-                            }
-                        records.append(record)
-                        assert result['problem'] == problem
-                        if 'verbose' in result:
-                            p = result['verbose']['clause_feature_vectors']
-                            if len(p) == 0:
-                                warnings.warn('Empty proof search.')
-                                continue
-                            added = True
-                            proof_search = {role_proof: Counter() for role_proof in [False, True]}
-                            for feature_vector_hash, v in p.items():
-                                assert all(vv >= 0 for vv in v['role_proof'].values())
-                                assert any(vv > 0 for vv in v['role_proof'].values())
-                                if feature_vector_hash not in feature_vectors:
-                                    assert len(feature_vectors) == len(feature_vector_hashes)
-                                    feature_vectors[feature_vector_hash] = v['feature_vector']
-                                    feature_vector_hashes.append(feature_vector_hash)
-                                assert sparse_equal(feature_vectors[feature_vector_hash], v['feature_vector'])
-                                feature_vector_index = feature_vector_hashes.index(feature_vector_hash)
-                                for role_proof in [False, True]:
-                                    if v['role_proof'][role_proof] == 0:
-                                        continue
-                                    proof_search[role_proof][feature_vector_index] += v['role_proof'][role_proof]
-                            proof_searches.append(proof_search)
-                            proof_feature_vector_hashes.update(proof_search[True])
-                df = pd.json_normalize(records, sep='_')
-                df.set_index(['iteration', 'weight_idx'], inplace=True)
-                save_df(df, os.path.join(problem_dir, 'iterations'))
-                if problem_weights is not None:
-                    weight_dict = eval_empirical.weight_vector_to_dict(problem, problem_weights[0])[0]
-                    header = ','.join([k for k in weight_dict.keys() if k != 'symbol'] + list(weight_dict['symbol'].keys())[1:])
-                    np.savetxt(os.path.join(problem_dir, 'weights.csv'), np.concatenate(all_weights), delimiter=',', header=header, comments='')
-                if not added:
-                    break
+            with trange(cfg.loop_iterations, desc=problem_name) as t:
+                for i in t:
+                    iteration_dir = os.path.join(problem_dir, 'iteration', str(i))
+                    if i == 0:
+                        fit_result = None
+                        problem_weights = sample_weight(problem, cfg.initial.size, dist, ss.spawn(1)[0])
+                    else:
+                        def process(proof_search):
+                            # TODO: Allow copying all positive clauses to all proofs.
+                            false_negatives = {k: v for k, v in proof_search[False].items() if k in proof_feature_vector_indices}
+                            if len(false_negatives) == 0:
+                                return proof_search
+                            result = {k: v.copy() for k, v in proof_search.items()}
+                            result[False].subtract(false_negatives)
+                            result[True].update(false_negatives)
+                            result[False] = Counter({k: v for k, v in result[False].items() if v > 0})
+                            return result
+                        proof_searches_processed = [process(v) for v in proof_searches]
+                        fit_result = fit_proofs(feature_vectors, proof_searches_processed, ss.spawn(1)[0])
+                        problem_weights = result_to_weight(fit_result)
+                    all_weights.append(problem_weights)
+                    added = False
+                    if problem_weights is not None:
+                        eval_results = eval_empirical.evaluate({problem: problem_weights}, out_dir=iteration_dir,
+                                                               iteration=str(i))
+                        for j, result in enumerate(eval_results):
+                            record = {'iteration': i, **result_to_record(result)}
+                            if fit_result is not None:
+                                record['fit'] = {k: v for k, v in fit_result.items() if k != 'model'}
+                                model_name = list(fit_result['model'].keys())[j]
+                                record['fit']['model'] = {
+                                    'name': model_name,
+                                    'score': fit_result['model'][model_name]['score']
+                                }
+                            records.append(record)
+                            assert result['problem'] == problem
+                            if 'verbose' in result:
+                                p = result['verbose']['clause_feature_vectors']
+                                if len(p) == 0:
+                                    warnings.warn('Empty proof search.')
+                                    continue
+                                added = True
+                                proof_search = {role_proof: Counter() for role_proof in [False, True]}
+                                for feature_vector_hash, v in p.items():
+                                    assert all(vv >= 0 for vv in v['role_proof'].values())
+                                    assert any(vv > 0 for vv in v['role_proof'].values())
+                                    if feature_vector_hash not in feature_vectors:
+                                        feature_vector_hash_to_index[feature_vector_hash] = len(feature_vectors)
+                                        feature_vectors[feature_vector_hash] = v['feature_vector']
+                                    assert sparse_equal(feature_vectors[feature_vector_hash], v['feature_vector'])
+                                    feature_vector_index = feature_vector_hash_to_index[feature_vector_hash]
+                                    for role_proof in [False, True]:
+                                        if v['role_proof'][role_proof] == 0:
+                                            continue
+                                        proof_search[role_proof][feature_vector_index] += v['role_proof'][role_proof]
+                                proof_searches.append(proof_search)
+                                proof_feature_vector_indices.update(proof_search[True])
+                    log.debug(f'Total unique clause feature vectors: {len(feature_vectors)}')
+                    t.set_postfix({'unique_feature_vectors': len(feature_vectors)})
+                    df = pd.json_normalize(records, sep='_')
+                    df.set_index(['iteration', 'weight_idx'], inplace=True)
+                    save_df(df, os.path.join(problem_dir, 'iterations'))
+                    if problem_weights is not None:
+                        weight_dict = eval_empirical.weight_vector_to_dict(problem, problem_weights[0])[0]
+                        header = ','.join([k for k in weight_dict.keys() if k != 'symbol'] + list(weight_dict['symbol'].keys())[1:])
+                        np.savetxt(os.path.join(problem_dir, 'weights.csv'), np.concatenate(all_weights), delimiter=',', header=header, comments='')
+                    if not added:
+                        break
             return records
 
         results = joblib.Parallel(verbose=cfg.parallel.verbose)(joblib.delayed(loop_on_problem)(p, seed) for p, seed in zip(problem_paths_all, ss.spawn(len(problem_paths_all))))
