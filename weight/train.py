@@ -62,6 +62,7 @@ def path_to_problem(path):
 
 
 def random_integers(rng, dtype=np.int64, **kwargs):
+    rng = np.random.default_rng(rng)
     # Sample integers uniformly from the whole domain of `dtype`.
     ii = np.iinfo(dtype)
     return rng.integers(low=ii.min, high=ii.max, dtype=dtype, endpoint=True, **kwargs)
