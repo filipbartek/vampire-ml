@@ -13,6 +13,8 @@ short_to_long = {
     # Unsolved
     'UNK': 'Unknown',
     'ERR': 'Error',
+    'INE': 'InputError',
+    'OSE': 'OSError',
     'TMO': 'Timeout',
     'MMO': 'MemoryOut',
     'GUP': 'GaveUp',
