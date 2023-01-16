@@ -251,7 +251,10 @@ def main(cfg):
                 }
             return record
 
-        problem_common_path = os.path.commonpath(problem_paths_all)
+        if len(problem_paths_all) > 1:
+            problem_common_path = os.path.commonpath(problem_paths_all)
+        else:
+            problem_common_path = os.path.dirname(problem_paths_all[0])
 
         def loop_on_problem(problem, ss):
             records = []
