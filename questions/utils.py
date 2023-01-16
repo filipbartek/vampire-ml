@@ -135,7 +135,7 @@ def recursion_limit(limit=None):
 def set_env(**environ):
     # Source: https://stackoverflow.com/a/34333710/4054250
     old_environ = os.environ.copy()
-    os.environ.update(environ)
+    os.environ.update({k: str(v) for k, v in environ.items()})
     try:
         yield
     finally:
