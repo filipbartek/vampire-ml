@@ -14,6 +14,7 @@ from tqdm import tqdm
 from questions.memory import memory
 from questions.solver import Solver
 from questions.utils import timer
+from utils import get_verbose
 from utils import is_compatible
 from utils import sparse_equal
 from utils import subsample
@@ -99,7 +100,7 @@ def df_to_samples(df_samples, signature, clause_features):
     result = {}
     stats = {'proof': 0, 'nonproof': 0, 'duplicate': 0, 'unique': 0}
     with tqdm(df_samples.itertuples(index=False), total=len(df_samples), unit='clause',
-              desc='Extracting clause feature vectors', postfix=stats) as t:
+              desc='Extracting clause feature vectors', postfix=stats, disable=not get_verbose()) as t:
         for i, row in enumerate(t):
             if i % 100 == 0:
                 t.set_postfix(stats)

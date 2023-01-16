@@ -9,10 +9,13 @@ from decimal import Decimal
 from enum import Enum
 
 import hydra
+import joblib
 import numpy as np
 import pandas as pd
 import scipy
 import tensorflow as tf
+
+from questions.utils import set_env
 
 log = logging.getLogger(__name__)
 
@@ -227,3 +230,25 @@ def path_join(*paths):
 def sparse_equal(l, r):
     return l.shape == r.shape and l.format == r.format and np.array_equal(l.indices, r.indices) and np.array_equal(
         l.indptr, r.indptr) and np.array_equal(l.data, r.data)
+
+
+def get_verbose():
+    return int(os.environ.get('VERBOSE', '1'))
+
+
+@contextmanager
+def set_verbose(verbose):
+    with set_env(VERBOSE=int(verbose)):
+        yield
+
+
+@contextmanager
+def get_parallel(n_tasks, **kwargs):
+    n_jobs = None
+    if n_tasks < (joblib.parallel.get_active_backend()[1] or 1):
+        n_jobs = n_tasks
+    verbose = get_verbose()
+    parallel = joblib.Parallel(n_jobs=n_jobs, verbose=verbose, **kwargs)
+    new_verbose = verbose and parallel.n_jobs == 1
+    with set_verbose(new_verbose):
+        yield parallel

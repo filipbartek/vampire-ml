@@ -13,6 +13,8 @@ import sklearn
 
 from questions.memory import memory
 from questions.utils import timer
+from utils import get_parallel
+from utils import get_verbose
 from utils import path_join
 from utils import to_str
 from vampire import szs
@@ -22,10 +24,7 @@ from weight import vampire
 
 
 class Evaluator:
-    def evaluate(self, problem_weights, out_dir=None, iteration=None, parallel=None):
-        if parallel is None:
-            parallel = joblib.Parallel()
-
+    def evaluate(self, problem_weights, out_dir=None, iteration=None):
         def evaluate_one(problem, i, weight):
             cur_out_dir = out_dir
             if cur_out_dir is not None:
@@ -53,8 +52,10 @@ class Evaluator:
 
         cases = list(gen_cases())
 
-        print(f'Evaluating {len(cases)} weight vectors on {len(problem_weights)} problems', file=sys.stderr)
-        return parallel(joblib.delayed(evaluate_one)(problem, i, weight) for problem, i, weight in cases)
+        if get_verbose():
+            print(f'Evaluating {len(cases)} weight vectors on {len(problem_weights)} problems', file=sys.stderr)
+        with get_parallel(len(cases)) as parallel:
+            return parallel(joblib.delayed(evaluate_one)(problem, i, weight) for problem, i, weight in cases)
 
     def evaluate_one(self, problem, weight, out_dir=None, iteration=None):
         raise NotImplemented
