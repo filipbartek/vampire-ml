@@ -91,8 +91,8 @@ def stdout_to_proof_samples(stdout, signature, clause_features):
 
 def df_to_samples(df_samples, signature, clause_features):
     symbol_type_counts = signature.groupby(level='isFunction').size()
-    n_predicate = symbol_type_counts[False]
-    n_function = symbol_type_counts[True]
+    n_predicate = symbol_type_counts.get(False, 0)
+    n_function = symbol_type_counts.get(True, 0)
     assert np.array_equal(signature.index.get_level_values('isFunction'), [False] * n_predicate + [True] * n_function)
 
     log.debug(
