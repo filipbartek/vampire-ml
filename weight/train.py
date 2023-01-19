@@ -341,7 +341,8 @@ def main(cfg):
                         if not added:
                             break
             except Exception as e:
-                raise RuntimeError(f'Problem: {problem}') from e
+                warnings.warn(f'{problem}: {e}')
+                return None
             return records
 
         if get_verbose():
