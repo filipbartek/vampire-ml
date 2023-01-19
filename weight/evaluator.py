@@ -2,7 +2,9 @@ import json
 import os
 import sys
 import tempfile
+import warnings
 from contextlib import contextmanager
+from contextlib import suppress
 
 import joblib
 import matplotlib.pyplot as plt
