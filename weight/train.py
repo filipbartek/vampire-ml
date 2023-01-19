@@ -134,7 +134,7 @@ def main(cfg):
         problem_path_datasets = {k: [questions.config.full_problem_path(p) for p in v] for k, v in
                                  problem_name_datasets.items()}
 
-        clausifier = Solver()
+        clausifier = Solver(options={**cfg.options.common, **cfg.options.clausify}, timeout=cfg.clausify_timeout)
 
         if cfg.workspace_dir is None:
             log.info('Workspace dir not specified. No proofs to load. Quitting.')

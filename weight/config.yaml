@@ -91,6 +91,9 @@ options:
     #  age_weight_ratio: "0:1"
     #awr_1_9:
     #  age_weight_ratio: "1:9"
+  clausify: {}
+
+clausify_timeout: 300
 
 probe_run_args:
   # Choices: subprocess, benchexec
