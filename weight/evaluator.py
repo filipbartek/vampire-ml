@@ -105,7 +105,11 @@ def may_be_saturation_based_search(status):
 
 @memory.cache(ignore=['out_dir'])
 def empirical_evaluate_one(evaluator, problem, weight, out_dir):
-    weights_dict, symbols = evaluator.weight_vector_to_dict(problem, weight)
+    try:
+        weights_dict, symbols = evaluator.weight_vector_to_dict(problem, weight)
+    except RuntimeError as e:
+        warnings.warn(f'{problem}: {e}')
+        return {'error': str(e)}
     signature = symbols.name
     result = {}
     with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
@@ -173,12 +177,15 @@ class Empirical(Evaluator):
                 plt.close()
             result['plot_time'] = t.elapsed
         result.update(empirical_evaluate_one(self, problem, weight, out_dir))
-        if result['probe']['szs_status'] == 'OSE':
-            raise RuntimeError(result['probe']['error'])
+        with suppress(KeyError):
+            if result['probe']['szs_status'] == 'OSE':
+                raise RuntimeError(result['probe']['error'])
         return result
 
     def weight_vector_to_dict(self, problem, weight):
         symbols = self.clausifier.clausify(problem, get_clauses=False).symbols
+        if symbols is None:
+            raise RuntimeError('Failed to extract signature.')
         signature = symbols.name
         assert len(weight) == len(self.clause_features) + len(signature)
         weights = {
