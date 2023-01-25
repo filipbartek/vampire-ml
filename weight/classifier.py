@@ -146,13 +146,13 @@ class Classifier(tf.keras.Model):
         self.compiled_metrics.update_state(flat_y, flat_y_pred, flat_sample_weight)
         return {m.name: m.result() for m in self.metrics}
 
-    def call(self, x, training=False):
+    def call(self, x, training=False, expensive=True):
         """
         :param x: problem names and clause feature values
         :return: clause weights
         """
         try:
-            clause_feature_weight_decorated = self.symbol_weight_model(x['problem'], training=training)
+            clause_feature_weight_decorated = self.symbol_weight_model(x['problem'], training=training, expensive=expensive)
             clause_features = x['occurrence_count']
             clause_weights = self.costs_decorated_to_logits(clause_feature_weight_decorated, clause_features)
             return clause_weights, clause_feature_weight_decorated['valid']
