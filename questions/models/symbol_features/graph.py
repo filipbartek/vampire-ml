@@ -1,4 +1,5 @@
 import dgl
+import math
 import tensorflow as tf
 
 from questions.utils import py_str
@@ -6,10 +7,11 @@ from .symbol_features import SymbolFeatures
 
 
 class Graph(SymbolFeatures):
-    def __init__(self, graphifier, gcn):
+    def __init__(self, graphifier, gcn, readout_op='sum'):
         SymbolFeatures.__init__(self, dynamic=True)
         self.gcn = gcn
         self.graphifier = graphifier
+        self.readout_op = readout_op
 
     def call(self, problems, training=False, cache=True):
         batch_graph, valid = self.problems_to_batch_graph(problems, cache=cache)
@@ -46,7 +48,13 @@ class Graph(SymbolFeatures):
         assert set(readout_ntypes) <= set(values)
         with batch_graph.local_scope():
             batch_graph.ndata['h'] = {k: values[k] for k in readout_ntypes}
-            readouts = {ntype: dgl.readout_nodes(batch_graph, 'h', ntype=ntype) for ntype in readout_ntypes}
+            readouts = {ntype: dgl.readout_nodes(batch_graph, 'h', ntype=ntype, op=self.readout_op) for ntype in
+                        readout_ntypes}
+
+        for ntype in readouts:
+            num_nodes = batch_graph._batch_num_nodes[ntype]
+            mask_nan = tf.tile(tf.expand_dims(num_nodes == 0, 1), (1, 16))
+            readouts[ntype] = tf.where(mask_nan, math.nan, readouts[ntype])
 
         res = {
             **readouts,
