@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import sklearn
+import tensorflow as tf
 
 from questions.memory import memory
 from questions.utils import timer
@@ -26,7 +27,7 @@ from weight import vampire
 
 
 class Evaluator:
-    def evaluate(self, problem_weights, out_dir=None, iteration=None):
+    def evaluate(self, problem_weights, out_dir=None):
         def evaluate_one(problem, i, weight):
             cur_out_dir = out_dir
             if cur_out_dir is not None:
@@ -39,16 +40,20 @@ class Evaluator:
                 'weight_idx': i,
                 'weight': weight,
                 'out_dir': cur_out_dir,
-                **self.evaluate_one(problem, weight, out_dir=cur_out_dir,
-                                    iteration=os.path.join(self.get_problem_basename(problem), iteration))
+                **self.evaluate_one(problem, weight, out_dir=cur_out_dir)
             }
 
         def gen_cases():
             for problem, weight_matrix in problem_weights.items():
+                if weight_matrix is None:
+                    continue
                 if isinstance(weight_matrix, dict):
                     weight_arrays = weight_matrix.items()
                 else:
-                    weight_arrays = enumerate(weight_matrix)
+                    if len(weight_matrix.shape) == 1:
+                        weight_arrays = enumerate([weight_matrix])
+                    else:
+                        weight_arrays = enumerate(weight_matrix)
                 for i, weight_array in weight_arrays:
                     yield problem, i, weight_array
 
@@ -117,6 +122,8 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
     with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
         result['probe'] = evaluator.result_to_record(
             evaluator.runner_probe.run(problem, options, out_dir=path_join(out_dir, 'probe')))
+        if result['probe']['szs_status'] == 'OSE':
+            raise RuntimeError('OS error encountered: %s' % result['probe'].get('error'))
         assert 'activations' in result['probe'] and result['probe']['activations'] is not None
         if evaluator.runner_verbose is not None and may_be_saturation_based_search(result['probe']['szs_status']) and result['probe']['activations'] > 0:
             options_verbose = options.copy()
@@ -216,8 +223,10 @@ def weight_options(weights=None, functor_weight_filename=None):
         'variable_occurrence': 'variable_weight',
         'equality': 'equality_weight'
     }
+    # If any of the weights is nan, we omit the respective option, effectively reverting to the default weight.
+    # This happens when the respective weight has no meaning in the given problem because there are 0 occurrences of the given element.
     options = {weight_name_to_option_name[weight_name]: v for weight_name, v in weights.items() if
-               weight_name != 'symbol'}
+               weight_name != 'symbol' and not tf.math.is_nan(v)}
     with functor_weight_file(weights['symbol'], functor_weight_filename) as weights_file:
         options['functor_weight'] = weights_file.name
         yield options

@@ -15,21 +15,20 @@ class NoClausePairsError(ValueError):
         super().__init__('No nonproof-proof clause pairs were found.')
 
 
-def proofs_to_samples(feature_vectors, proof_searches, flip_odd=True, **kwargs):
-    result = get_all_samples(feature_vectors, proof_searches, **kwargs)
-    y = np.ones(result['X'].shape[0], dtype=bool)
-    if flip_odd:
-        # Flip odd samples
-        y[1::2] = False
-        result['X'] = result['X'].multiply(np.expand_dims(np.where(y, 1, -1), 1))
-    result['y'] = y
-    return result
+def proofs_to_samples(feature_vectors, proof_searches, **kwargs):
+    return get_all_samples(feature_vectors, proof_searches, **kwargs)
 
 
 def get_all_samples(feature_vectors, proof_searches, dtype=np.int32, **kwargs):
     n_clauses = len(feature_vectors)
-    df = get_pair_indices(proof_searches, n_clauses, **kwargs)
-    clauses = scipy.sparse.vstack(feature_vectors.values(), format='csr', dtype=dtype)
+    try:
+        df = get_pair_indices(proof_searches, n_clauses, **kwargs)
+    except NoClausePairsError:
+        n_features = 0
+        if len(feature_vectors) >= 1:
+            n_features = feature_vectors[0].shape[1]
+        return {'X': scipy.sparse.csr_matrix((0, n_features), dtype=dtype)}
+    clauses = scipy.sparse.vstack(feature_vectors, format='csr', dtype=dtype)
 
     X = clauses[df[False]] - clauses[df[True]]
     sample_weight = df.weight

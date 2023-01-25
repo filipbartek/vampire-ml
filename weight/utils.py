@@ -86,10 +86,12 @@ assert list(flatten([[0, [1]], [2, 3]])) == [0, [1], 2, 3]
 
 def is_compatible(data, dtype):
     # Pandas categorical
-    if dtype in ['string', 'category']:
+    if dtype in [None, 'string', 'category']:
         return True
     if isinstance(data, list):
         return all(is_compatible(d, dtype) for d in data)
+    if any(s == 0 for s in data.shape):
+        return True
     # Pandas
     if pd.api.types.is_bool_dtype(dtype):
         return data.isin([0, 1]).all()
@@ -126,8 +128,13 @@ def to_tensor(rows, dtype, flatten_ragged=False, **kwargs):
     # `tf.ragged.constant` expects a list.
     rows = list(rows)
     assert is_compatible(rows, dtype)
-    if isinstance(rows[0], scipy.sparse.spmatrix):
-        rows = [row.toarray() for row in rows]
+
+    def densify(matrix):
+        if isinstance(matrix, scipy.sparse.spmatrix):
+            return matrix.toarray()
+        return matrix
+
+    rows = [densify(row) for row in rows]
     res = tf.ragged.constant(rows, dtype=dtype, **kwargs)
     if flatten_ragged and isinstance(res, tf.RaggedTensor):
         res = {k: getattr(res, k) for k in ['flat_values', 'nested_row_splits']}
@@ -179,7 +186,8 @@ def train_test_split(array, test_size=None, train_size=None, random_state=None):
 
 
 def to_str(value, precision=4):
-    if isinstance(value, float) or isinstance(value, np.floating):
+    if isinstance(value, float) or isinstance(value, np.floating) or (
+            isinstance(value, tf.Tensor) and value.dtype.is_floating):
         return f'%.{precision}f' % value
     return str(value)
 
@@ -246,9 +254,15 @@ def set_verbose(verbose):
 def get_parallel(n_tasks, **kwargs):
     n_jobs = None
     if n_tasks < (joblib.parallel.get_active_backend()[1] or 1):
-        n_jobs = n_tasks
+        n_jobs = max(n_tasks, 1)
     verbose = get_verbose()
     parallel = joblib.Parallel(n_jobs=n_jobs, verbose=verbose, **kwargs)
     new_verbose = verbose and parallel.n_jobs == 1
     with set_verbose(new_verbose):
         yield parallel
+
+
+def range_count(stop, *args, **kwargs):
+    if stop is None:
+        return itertools.count(*args, **kwargs)
+    return range(stop, *args, **kwargs)

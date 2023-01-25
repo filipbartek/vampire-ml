@@ -33,6 +33,11 @@ per_problem_stats: false
 join_searches: false
 loop_iterations: 10
 
+steps_per_epoch: 10
+train_batch_size: 64
+predict_batch_size: 128
+
+
 initial:
   distribution:
     # Choices: lognorm, norm, expon, uniform
