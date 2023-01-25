@@ -20,9 +20,9 @@ from questions.utils import set_env
 from questions.utils import timer
 
 
-@memory.cache(verbose=1)
-def problems_to_graphs_list(graphifier, problems):
-    return graphifier.compute_graphs(problems)
+@memory.cache(verbose=1, ignore=['expensive'])
+def problems_to_graphs_list(graphifier, problems, expensive=True):
+    return graphifier.compute_graphs(problems, expensive=expensive)
 
 
 class Graphifier:
@@ -50,11 +50,12 @@ class Graphifier:
         logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def get_graphs(self, problems, cache=True, get_df=True):
-        if cache:
-            graphs_records = problems_to_graphs_list(self, problems)
+    def get_graphs(self, problems, expensive=True, get_df=True):
+        if expensive:
+            # Cache the result
+            graphs_records = problems_to_graphs_list(self, problems, expensive=expensive)
         else:
-            graphs_records = self.compute_graphs(problems, cache=cache)
+            graphs_records = self.compute_graphs(problems, expensive=expensive)
         graphs, records = zip(*graphs_records)
         if get_df:
             df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
@@ -74,19 +75,20 @@ class Graphifier:
             'graph_edges': pd.UInt32Dtype()
         }
 
-    def compute_graphs(self, problems, cache=True):
-        if len(problems) > 1:
+    def compute_graphs(self, problems, expensive=True):
+        if expensive and len(problems) > 1:
             print(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...',
                   file=sys.stderr)
+            n_jobs = None
             verbose = 10
         else:
+            n_jobs = 1
             verbose = 0
         with set_env(CUDA_VISIBLE_DEVICES='-1'):
             # We disable CUDA for the subprocesses so that they do not crash due to the exclusivity of access to a GPU.
             # https://github.com/tensorflow/tensorflow/issues/30594
-            os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
-            return Parallel(verbose=verbose)(
-                delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
+            return Parallel(n_jobs=n_jobs, verbose=verbose)(
+                delayed(self.problem_to_graph)(problem) for problem in problems)
 
     def problem_to_graph(self, problem_name, cache=True):
         graph = None

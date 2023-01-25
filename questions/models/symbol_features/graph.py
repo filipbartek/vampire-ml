@@ -13,15 +13,15 @@ class Graph(SymbolFeatures):
         self.graphifier = graphifier
         self.readout_op = readout_op
 
-    def call(self, problems, training=False, cache=True):
-        batch_graph, valid = self.problems_to_batch_graph(problems, cache=cache)
+    def call(self, problems, training=False, expensive=True):
+        batch_graph, valid = self.problems_to_batch_graph(problems, expensive=expensive)
         res = self.resolve_batch_graph(batch_graph, training=training)
         return {'embeddings': res, 'valid': valid}
 
-    def problems_to_batch_graph(self, problems, cache):
+    def problems_to_batch_graph(self, problems, expensive):
         with tf.device('/cpu'):
             problems = list(map(py_str, problems))
-            graphs = self.graphifier.get_graphs(problems, cache=cache, get_df=False)
+            graphs = self.graphifier.get_graphs(problems, expensive=expensive, get_df=False)
 
             def convert(g):
                 if g is None:

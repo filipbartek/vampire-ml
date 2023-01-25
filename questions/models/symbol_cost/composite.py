@@ -11,11 +11,11 @@ class Composite(SymbolCostModel):
         self.l2 = l2
         self.symbol_cost_metrics = []
 
-    def call(self, problems, training=False, cache=True):
+    def call(self, problems, training=False, expensive=True):
         # `Model.test_step` pads `problems` with a length 1 axis.
         if len(problems.shape) == 2:
             problems = tf.squeeze(problems, axis=1)
-        embeddings = self.problem_to_embedding(problems, training=training, cache=cache)
+        embeddings = self.problem_to_embedding(problems, training=training, expensive=expensive)
 
         clause_feature_to_node_type = {
             'symbol': 'symbol',
