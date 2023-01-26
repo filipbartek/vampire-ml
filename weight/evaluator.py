@@ -29,19 +29,22 @@ from weight import vampire
 class Evaluator:
     def evaluate(self, problem_weights, out_dir=None):
         def evaluate_one(problem, i, weight):
-            cur_out_dir = out_dir
-            if cur_out_dir is not None:
-                if len(problem_weights) > 1:
-                    cur_out_dir = os.path.join(cur_out_dir, problem.replace('/', '_'))
-                if len(problem_weights[problem]) > 1:
-                    cur_out_dir = os.path.join(cur_out_dir, str(i))
-            return {
-                'problem': problem,
-                'weight_idx': i,
-                'weight': weight,
-                'out_dir': cur_out_dir,
-                **self.evaluate_one(problem, weight, out_dir=cur_out_dir)
-            }
+            try:
+                cur_out_dir = out_dir
+                if cur_out_dir is not None:
+                    if len(problem_weights) > 1:
+                        cur_out_dir = os.path.join(cur_out_dir, problem.replace('/', '_'))
+                    if len(problem_weights[problem]) > 1:
+                        cur_out_dir = os.path.join(cur_out_dir, str(i))
+                return {
+                    'problem': problem,
+                    'weight_idx': i,
+                    'weight': weight,
+                    'out_dir': cur_out_dir,
+                    **self.evaluate_one(problem, weight, out_dir=cur_out_dir)
+                }
+            except Exception as e:
+                raise RuntimeError(f'Problem: {problem}. Weight index: {i}.') from e
 
         def gen_cases():
             for problem, weight_matrix in problem_weights.items():
