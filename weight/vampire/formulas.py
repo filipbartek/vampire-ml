@@ -163,4 +163,7 @@ def extract_extra(extra_str):
 def cast_extra_value(k, v):
     if k == 'wCS':
         return float(v)
-    return int(v)
+    try:
+        return int(v)
+    except ValueError:
+        return float(v)
