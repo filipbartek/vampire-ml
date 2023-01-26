@@ -72,14 +72,12 @@ def main(cfg):
         }
 
         log.info(f'Working directory: {os.getcwd()}')
-        log.info(f'Workspace directory: {to_absolute_path(cfg.workspace_dir)}')
         log.info(f'Cache directory: {memory.location}')
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
 
         with writers['train'].as_default():
             tf.summary.text('path/cwd', os.getcwd())
-            with suppress(ValueError): tf.summary.text('path/workspace', to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
 
         if isinstance(cfg.problem.names, str):
@@ -108,10 +106,6 @@ def main(cfg):
                 tf.summary.scalar('problems/total', len(dataset_problems))
 
         clausifier = Solver(options={**cfg.options.common, **cfg.options.clausify}, timeout=cfg.clausify_timeout)
-
-        if cfg.workspace_dir is None:
-            log.info('Workspace dir not specified. No proofs to load. Quitting.')
-            return
 
         def get_distribution(cfg):
             return getattr(scipy.stats, cfg.name)(**{k: v for k, v in cfg.items() if k != 'name'})
