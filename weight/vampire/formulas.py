@@ -46,8 +46,10 @@ def extract_df(output, roles=None):
         'w': pd.UInt64Dtype(),
         'nSel': pd.UInt8Dtype(),
         'thAx': pd.UInt64Dtype(),
-        'allAx': pd.UInt64Dtype(),
-        'thDist': pd.Int64Dtype(),
+        # Seems to be positive integer with one exception: INT_MIN.
+        'allAx': pd.Int64Dtype(),
+        # Seems to be negative integer with one exception: -inf.
+        'thDist': float,
         'goal': bool
     }.items()}
     dtype.update({f'role_{role}': pd.UInt64Dtype() for role in roles})
