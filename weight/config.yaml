@@ -63,7 +63,7 @@ clause_features:
 
 vampire_cmd: vampire
 problem:
-  list_file: null
+  lists: []
   names: []
 tptp_path: ${oc.env:TPTP}
 

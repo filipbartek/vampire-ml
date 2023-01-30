@@ -82,28 +82,20 @@ def main(cfg):
 
         if isinstance(cfg.problem.names, str):
             raise RuntimeError('The option problem.names should be a list, not a string.')
-        problem_name_lists = [cfg.problem.names]
-        if cfg.problem.list_file is not None:
-            problem_name_lists.append(
-                pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem)
-        problem_names = sorted(set(itertools.chain.from_iterable(problem_name_lists)))
-        problem_names = rng.permutation(problem_names)
+        problem_name_lists = [(questions.config.full_problem_path(p) for p in cfg.problem.names)]
+        for list_file in cfg.problem.lists:
+            dir = os.path.dirname(list_file)
+            list = pd.read_csv(hydra.utils.to_absolute_path(list_file), names=['problem']).problem
+            abs_paths = (questions.config.full_problem_path(p, [dir]) for p in list)
+            problem_name_lists.append(abs_paths)
+        problem_paths = sorted(set(itertools.chain.from_iterable(problem_name_lists)))
+        problem_paths = rng.permutation(problem_paths)
         if cfg.max_problem_count is not None:
-            problem_names = problem_names[:cfg.max_problem_count]
+            problem_paths = problem_paths[:cfg.max_problem_count]
 
-        log.info(f'Number of problems: {len(problem_names)}')
+        log.info(f'Number of problems: {len(problem_paths)}')
         with writers['train'].as_default():
-            tf.summary.scalar('problems/grand_total', len(problem_names))
-
-        train_count = int(len(problem_names) * cfg.train_ratio)
-        problem_name_datasets = {
-            'train': problem_names[:train_count],
-            'val': problem_names[train_count:]
-        }
-        log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
-        for dataset_name, dataset_problems in problem_name_datasets.items():
-            with writers[dataset_name].as_default():
-                tf.summary.scalar('problems/total', len(dataset_problems))
+            tf.summary.scalar('problems/grand_total', len(problem_paths))
 
         clausifier = Solver(options={**cfg.options.common, **cfg.options.clausify}, timeout=cfg.clausify_timeout)
 
@@ -157,7 +149,6 @@ def main(cfg):
 
         model_logit.compile(optimizer=optimizer)
 
-        problem_paths = [questions.config.full_problem_path(p) for p in problem_names]
         train_count = int(len(problem_paths) * cfg.train_ratio)
         subsets = {
             'train': problem_paths[:train_count],

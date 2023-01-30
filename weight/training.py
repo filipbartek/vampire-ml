@@ -324,7 +324,7 @@ class Dataset:
 
         if problems is None:
             problems = self.problem_datasets
-        return [problem for problem in problems if is_relevant(problem)]
+        return [str(problem) for problem in problems if is_relevant(problem)]
 
     def problem_stats(self, problems=None):
         if problems is None:
