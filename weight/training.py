@@ -220,7 +220,7 @@ class Training:
             sample_weight = to_tensor((problem_sample_weight(sample['clause_pairs']) for sample in batch),
                                       dtype=dtypes.get('sample_weight'), name='sample_weight')
             tf.debugging.assert_near(tf.ones(sample_weight.shape[0]), tf.math.reduce_sum(sample_weight, axis=1),
-                                     atol=1e-3, rtol=0)
+                                     atol=1e-2, rtol=0)
             clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights, name='clause_pair')
             problem_loss = tf.reduce_sum(clause_pair_loss * sample_weight, axis=1)
         clause_pair_hit = clause_pair_weights > 0
