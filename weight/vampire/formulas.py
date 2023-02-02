@@ -1,5 +1,6 @@
 import itertools
 import re
+import warnings
 from contextlib import suppress
 
 import numpy as np
@@ -75,7 +76,9 @@ def extract(output, roles=None):
             for k in extra:
                 if k not in formulas[formula_id]['extra']:
                     formulas[formula_id]['extra'][k] = extra[k]
-                assert extra[k] == formulas[formula_id]['extra'][k]
+                expected = formulas[formula_id]['extra'][k]
+                if extra[k] != expected:
+                    warnings.warn(f'Clause extra information mismatch: formula={formula_id}, key={k}, expected={expected}, actual={extra[k]}')
         assert op['role'] not in formulas[formula_id]['role']
         formulas[formula_id]['role'][op['role']] = op['span']['start']
         operations.append({
