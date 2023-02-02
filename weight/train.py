@@ -162,7 +162,8 @@ def main(cfg):
 
 
 if __name__ == '__main__':
-    with pd.option_context('display.max_columns', sys.maxsize,
+    with pd.option_context('display.max_columns', None,
+                           'display.max_rows', None,
                            'display.width', None,
                            'display.float_format', '{:.2f}'.format):
         main()

@@ -57,8 +57,9 @@ class Graphifier:
         else:
             graphs_records = self.compute_graphs(problems, expensive=expensive)
         graphs, records = zip(*graphs_records)
+        df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
+        logging.debug(f'Graphs generated:\n%s' % df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']])
         if get_df:
-            df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
             return graphs, df
         else:
             return graphs

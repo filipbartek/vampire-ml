@@ -200,6 +200,15 @@ class Training:
         # We assume that they are almost always retrieved.
         with joblib.parallel_backend('threading', n_jobs=1):
             # We do not cache graphs because the problem set is sampled randomly.
+            log.debug(f'Calling model on a batch. Number of problems: %u. Total size of the feature tensor: %u.' % (
+                x['problem'].shape[0], tf.size(x['occurrence_count'], out_type=tf.uint32)))
+            log.debug('Calling model on a batch:\n%s' % pd.DataFrame.from_records(
+                {
+                    'problem': py_str(problem),
+                    'clause_pairs': feature_matrix.shape[0],
+                    'features': feature_matrix.row_lengths()[0].numpy(),
+                    'size': tf.size(feature_matrix, out_type=tf.uint32).numpy()
+                } for problem, feature_matrix in zip(x['problem'], x['occurrence_count'])))
             clause_pair_weights, problem_valid = self.model(x, training=training, expensive=False)
         # Each row of `clause_pair_weights` is a difference of weights of a nonproof and a proof clause.
         # Nonproof clause weight should be large. Proof clause weight should be small.
