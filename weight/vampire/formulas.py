@@ -77,7 +77,7 @@ def extract(output, roles=None):
                 if k not in formulas[formula_id]['extra']:
                     formulas[formula_id]['extra'][k] = extra[k]
                 expected = formulas[formula_id]['extra'][k]
-                if extra[k] != expected:
+                if not np.array_equal(extra[k], expected, equal_nan=True):
                     warnings.warn(f'Clause extra information mismatch: formula={formula_id}, key={k}, expected={expected}, actual={extra[k]}')
         assert op['role'] not in formulas[formula_id]['role']
         formulas[formula_id]['role'][op['role']] = op['span']['start']
