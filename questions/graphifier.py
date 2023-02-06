@@ -8,6 +8,7 @@ import sys
 
 import joblib
 import pandas as pd
+import yaml
 from joblib import Parallel, delayed
 
 from questions import config
@@ -18,6 +19,7 @@ from questions.utils import dataframe_from_records
 from questions.utils import py_str
 from questions.utils import set_env
 from questions.utils import timer
+from weight import yaml_utils
 
 
 @memory.cache(verbose=1, ignore=['expensive'])
@@ -58,7 +60,14 @@ class Graphifier:
             graphs_records = self.compute_graphs(problems, expensive=expensive)
         graphs, records = zip(*graphs_records)
         df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
-        logging.debug(f'Graphs generated:\n%s' % df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']])
+        stats = {
+            'attempts': len(df),
+            'total': df[['graph_nodes', 'graph_edges']].sum(),
+            'error': df['error'].value_counts(dropna=False),
+            'clausify_cached': df['clausify_cached'].value_counts()
+        }
+        logging.debug(f'Problems converted to graphs. Global statistics:\n%s' % yaml.dump(stats))
+        logging.debug(f'Problems converted to graphs. Graph statistics:\n%s' % df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']])
         if get_df:
             return graphs, df
         else:
