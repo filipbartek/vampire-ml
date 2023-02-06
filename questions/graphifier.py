@@ -66,8 +66,7 @@ class Graphifier:
             'error': df['error'].value_counts(dropna=False),
             'clausify_cached': df['clausify_cached'].value_counts()
         }
-        logging.debug(f'Problems converted to graphs. Global statistics:\n%s' % yaml.dump(stats))
-        logging.debug(f'Problems converted to graphs. Graph statistics:\n%s' % df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']])
+        logging.debug(f'Problems converted to graphs.\n%s\n%s' % (yaml.dump(stats), df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']]))
         if get_df:
             return graphs, df
         else:
@@ -130,7 +129,6 @@ class Graphifier:
                         'graph_nodes'] <= self.max_number_of_nodes
                     # Raises EOFError or ValueError if reading reaches an unexpected EOF.
                     graph = joblib.load(filename_graph)
-                    logging.debug(f'Graph of {problem_name} loaded.')
                     assert graph.num_nodes() == record['graph_nodes']
                 graph_instantiated = True
             except (FileNotFoundError, RuntimeError, ValueError, EOFError, KeyError):
