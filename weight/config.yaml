@@ -34,8 +34,6 @@ join_searches: false
 loop_iterations: 10
 
 steps_per_epoch: 10
-train_batch_size: 64
-predict_batch_size: 128
 
 
 initial:
@@ -50,11 +48,20 @@ initial:
 # Maximum proof output file size in bytes
 max_proof_file_size: null
 
-# Maximum size of the tensor that represents one training proof.
-# The size of the tensor is `proof_clauses * nonproof_clauses * symbols`.
-max_sample_size: null
-
-max_clause_pairs: 10000
+limits:
+  train:
+    # Maximum number of proof searches in a batch.
+    max_batch_samples: 64
+    # Maximum size of the tensors that represent proof searches in one batch.
+    max_batch_size: 1000000
+    # Maximum size of the tensor that represents one training proof search.
+    # The size of the tensor is `proof_clauses * nonproof_clauses * symbols`.
+    # Proof searches are subsampled to meet this limit.
+    max_sample_size: null
+  predict:
+    max_batch_samples: 64
+    max_batch_size: 1000000
+    max_sample_size: null
 
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:

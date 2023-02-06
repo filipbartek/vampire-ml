@@ -9,7 +9,6 @@ import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
-from more_itertools import chunked
 from tqdm import tqdm
 
 from questions.utils import flatten_dict
@@ -27,7 +26,7 @@ log = logging.getLogger(__name__)
 
 class Training:
     def __init__(self, dataset, model, optimizer=None, initial_design=None, evaluator=None, writers=None, epochs=None,
-                 steps_per_epoch=10, train_batch_size=4, predict_batch_size=32):
+                 steps_per_epoch=10, limits=None):
         self.data = dataset
         self.model = model
         self.optimizer = optimizer
@@ -36,8 +35,7 @@ class Training:
         self.writers = writers
         self.epochs = epochs
         self.steps_per_epoch = steps_per_epoch
-        self.train_batch_size = train_batch_size
-        self.predict_batch_size = predict_batch_size
+        self.limits = limits
 
     def run(self):
         tf.summary.experimental.set_step(-1)
@@ -52,7 +50,7 @@ class Training:
                 t.set_postfix(evaluation_stats)
 
     def train_epoch(self, epoch):
-        batches = islice(self.data.generate_batches(subset='train', nonempty=True, size=self.train_batch_size),
+        batches = islice(self.data.generate_batches(subset='train', nonempty=True, **self.limits.train),
                          self.steps_per_epoch)
         with tqdm(batches, unit='step', total=self.steps_per_epoch, desc=f'Epoch {epoch}',
                   disable=not get_verbose()) as t, self.writers['train'].as_default():
@@ -104,7 +102,8 @@ class Training:
             problem_weights = self.initial_design.sample_weights(problems)
         else:
             print(f'Empirical evaluation: Predicting clause feature weights for {len(problems)} problems...')
-            model_result = self.model.symbol_weight_model.predict(problems, batch_size=self.predict_batch_size)
+            model_result = self.model.symbol_weight_model.predict(problems,
+                                                                  batch_size=self.limits.predict.max_batch_samples)
             # Contains two entries: valid, costs
             problem_weights = {}
             for problem, cost, valid in zip(problems, model_result['costs'], model_result['valid']):
@@ -153,8 +152,7 @@ class Training:
         return df
 
     def evaluate_proxy(self, problems):
-        batches = self.data.generate_batches(problems=problems, nonempty=True, size=self.predict_batch_size,
-                                             exhaustive=True)
+        batches = self.data.generate_batches(problems=problems, nonempty=True, exhaustive=True, **self.limits.predict)
         batch_stats = defaultdict(list)
         with tqdm(batches, unit='batch', desc='Proxy evaluation', disable=not get_verbose()) as t:
             for batch in t:
@@ -303,26 +301,42 @@ class Dataset:
                 problem = result['problem']
                 self.problem_datasets[problem].update(result['verbose']['clause_feature_vectors'])
 
-    def generate_batches(self, problems=None, size=None, **kwargs):
-        if size is None:
-            while True:
-                yield list(self.generate_samples(problems, **kwargs, exhaustive=True))
-        else:
-            for batch in chunked(self.generate_samples(problems, **kwargs), size):
+    def generate_batches(self, problems=None, max_batch_samples=None, max_batch_size=None, exhaustive=False,
+                         max_sample_size=None, **kwargs):
+        if max_batch_samples is None and max_batch_size is None:
+            # If the batch size is unlimited, it doesn't make sense to sample indefinitely.
+            exhaustive = True
+        if max_sample_size is None or (max_batch_size is not None and max_sample_size > max_batch_size):
+            max_sample_size = max_batch_size
+        samples = self.generate_samples(problems, exhaustive=exhaustive, max_size=max_sample_size, **kwargs)
+        batch = []
+        batch_size = 0
+        for sample in samples:
+            sample_size = np.prod(sample['clause_pairs']['X'].shape)
+            if sample_size == 0:
+                continue
+            if (max_batch_samples is not None and len(batch) + 1 > max_batch_samples) or (
+                    max_batch_size is not None and batch_size + sample_size > max_batch_size):
                 yield batch
+                batch = []
+                batch_size = 0
+            batch.append(sample)
+            batch_size += sample_size
+        if len(batch) > 0:
+            yield batch
 
-    def generate_samples(self, problems=None, exhaustive=False, **kwargs):
+    def generate_samples(self, problems=None, exhaustive=False, max_size=None, **kwargs):
         problems = self.problems(problems=problems, **kwargs)
         if not exhaustive:
             problems = self.sample_problems(problems)
-        return (self.generate_sample(problem) for problem in problems)
+        return (self.generate_sample(problem, max_size=max_size) for problem in problems)
 
     def sample_problems(self, problems):
         while True:
             yield self.rng.choice(problems)
 
-    def generate_sample(self, problem):
-        return {'problem': problem, 'clause_pairs': self.problem_datasets[problem].generate_batch()}
+    def generate_sample(self, problem, **kwargs):
+        return {'problem': problem, 'clause_pairs': self.problem_datasets[problem].generate_batch(**kwargs)}
 
     def problems(self, problems=None, subset=None, nonempty=False):
         def is_relevant(problem):
@@ -409,19 +423,19 @@ class ProblemDataset:
         self.proof_searches.append(proof_search)
         self.proof_feature_vector_indices.update(proof_search[True])
 
-    def generate_batch(self, max_pairs=None, max_sample_size=None):
+    def generate_batch(self, max_pairs=None, max_size=None):
         # TODO: Fix negatives in failed proof searches.
         ds = dataset.proofs_to_samples(self.feature_vectors, self.proof_searches)
-        n_samples, n_features = ds['X'].shape
-        if max_sample_size is not None:
-            new_max_pairs = max_sample_size // n_features
+        n_pairs, n_features = ds['X'].shape
+        if max_size is not None:
+            max_pairs_from_size = max_size // n_features
             if max_pairs is None:
-                max_pairs = new_max_pairs
+                max_pairs = max_pairs_from_size
             else:
-                max_pairs = min(max_pairs, new_max_pairs)
-        if max_pairs is not None and n_samples > max_pairs:
-            log.debug(f'Subsampling clause pairs. Before: {n_samples}. After: {max_pairs}.')
-            chosen_indices = self.rng.choice(n_samples, size=max_pairs, p=ds['sample_weight'])
+                max_pairs = min(max_pairs, max_pairs_from_size)
+        if max_pairs is not None and n_pairs > max_pairs:
+            log.debug(f'Subsampling clause pairs. Before: {n_pairs}. After: {max_pairs}.')
+            chosen_indices = self.rng.choice(n_pairs, size=max_pairs, p=ds['sample_weight'])
             ds['X'] = ds['X'][chosen_indices]
             del ds['sample_weight']
         return ds

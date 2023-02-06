@@ -149,8 +149,7 @@ def main(cfg):
         }
         data = training.Dataset(problem_paths, ss.spawn(1)[0], subsets=subsets)
         tr = Training(data, model=model_logit, evaluator=eval_empirical, optimizer=optimizer, writers=writers,
-                      steps_per_epoch=cfg.steps_per_epoch, train_batch_size=cfg.train_batch_size,
-                      predict_batch_size=cfg.predict_batch_size)
+                      steps_per_epoch=cfg.steps_per_epoch, limits=cfg.limits)
         tr.run()
 
 
