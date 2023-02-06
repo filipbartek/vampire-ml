@@ -223,8 +223,10 @@ class Training:
                     return clause_pairs['sample_weight']
                 n = clause_pairs['X'].shape[0]
                 if n > 0:
-                    return tf.fill((n,), 1 / n, name='sample_weight_uniform')
-                return tf.zeros((n,), name='sample_weight_empty')
+                    value = 1 / n
+                else:
+                    value = np.nan
+                return np.full(n, value, dtype=dtypes['sample_weight'].as_numpy_dtype)
 
             sample_weight = to_tensor((problem_sample_weight(sample['clause_pairs']) for sample in batch),
                                       dtype=dtypes.get('sample_weight'), name='sample_weight')
