@@ -2,8 +2,6 @@ import itertools
 import logging
 import os
 import random
-import sys
-from contextlib import suppress
 
 import joblib
 import hydra
@@ -23,7 +21,6 @@ from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
 from training import Training
-from utils import to_absolute_path
 from weight import evaluator
 
 log = logging.getLogger(__name__)
