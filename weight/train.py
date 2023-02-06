@@ -28,10 +28,6 @@ from weight import evaluator
 
 log = logging.getLogger(__name__)
 
-yaml.add_representer(np.ndarray, yaml.representer.SafeRepresenter.represent_list)
-yaml.add_representer(np.int64, yaml.representer.SafeRepresenter.represent_int)
-yaml.add_representer(np.uint64, yaml.representer.SafeRepresenter.represent_int)
-
 
 def path_to_problem(path):
     # Path format: runs/{problem}/{seed}/verbose
