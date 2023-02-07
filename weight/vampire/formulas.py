@@ -79,8 +79,10 @@ def extract(output, roles=None):
                 expected = formulas[formula_id]['extra'][k]
                 if not np.array_equal(extra[k], expected, equal_nan=True):
                     warnings.warn(f'Clause extra information mismatch: formula={formula_id}, key={k}, expected={expected}, actual={extra[k]}')
-        assert op['role'] not in formulas[formula_id]['role']
-        formulas[formula_id]['role'][op['role']] = op['span']['start']
+        role = op['role']
+        if role in formulas[formula_id]['role']:
+            raise RuntimeError(f'Formula {formula_id} encountered in role {role} more than once.')
+        formulas[formula_id]['role'][role] = op['span']['start']
         operations.append({
             'formula_id': formula_id,
             **{k: v for k, v in op.items() if k != 'formula'}
