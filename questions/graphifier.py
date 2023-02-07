@@ -16,6 +16,7 @@ from questions import tptp
 from questions.formula_visitor import FormulaVisitor
 from questions.memory import memory
 from questions.utils import dataframe_from_records
+from questions.utils import CsvDictWriter
 from questions.utils import py_str
 from questions.utils import set_env
 from questions.utils import timer
@@ -30,6 +31,8 @@ def problems_to_graphs_list(graphifier, problems, expensive=True):
 class Graphifier:
     """Stateless. Can be reused to create multiple graphs."""
 
+    ignore = ['writer']
+
     def __init__(self, clausifier, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
                  output_ntypes=('predicate', 'function')):
         self.clausifier = clausifier
@@ -39,6 +42,17 @@ class Graphifier:
         self.max_number_of_nodes = max_number_of_nodes
         self.output_ntypes = output_ntypes
         self.version = 1
+        fieldnames = {'attempts': None,
+                      'total': {k: None for k in ['graph_nodes', 'graph_edges']},
+                      'error': {k: None for k in [None, 'node_count', 'nodes_from_tptp_header']},
+                      'clausify_cached': {k: None for k in [False, True]},
+                      'training': None,
+                      'expensive': None}
+        self.writer = CsvDictWriter(open('graphifier.csv', 'w'), fieldnames, sep='/')
+        self.writer.writeheader()
+
+    def __getstate__(self):
+        return {k: v for k, v in self.__dict__.items() if k not in self.ignore}
 
     @property
     def canonical_etypes(self):
@@ -52,7 +66,7 @@ class Graphifier:
         logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def get_graphs(self, problems, expensive=True, get_df=True):
+    def get_graphs(self, problems, training=False, expensive=True, get_df=True):
         if expensive:
             # Cache the result
             graphs_records = problems_to_graphs_list(self, problems, expensive=expensive)
@@ -62,10 +76,13 @@ class Graphifier:
         df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
         stats = {
             'attempts': len(df),
-            'total': df[['graph_nodes', 'graph_edges']].sum(),
-            'error': df['error'].value_counts(dropna=False),
-            'clausify_cached': df['clausify_cached'].value_counts()
+            'total': df[['graph_nodes', 'graph_edges']].sum().to_dict(),
+            'error': df['error'].value_counts(dropna=False).to_dict(),
+            'clausify_cached': df['clausify_cached'].value_counts().to_dict(),
+            'training': training,
+            'expensive': expensive
         }
+        self.writer.writerow(stats)
         logging.debug(f'Problems converted to graphs.\n%s\n%s' % (yaml.dump(stats), df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']]))
         if get_df:
             return graphs, df

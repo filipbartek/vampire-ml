@@ -1,4 +1,5 @@
 import collections
+import csv
 import itertools
 import os
 import sys
@@ -141,3 +142,19 @@ def set_env(**environ):
     finally:
         os.environ.clear()
         os.environ.update(old_environ)
+
+
+class CsvDictWriter(csv.DictWriter):
+    def __init__(self, f, fieldnames, *args, flush=True, sep='.', **kwargs):
+        self.sep = sep
+        super().__init__(f, self.flatten_dict(fieldnames).keys(), *args, **kwargs)
+        self.f = f
+        self.flush = flush
+
+    def writerow(self, row):
+        super().writerow(self.flatten_dict(row))
+        if self.flush:
+            self.f.flush()
+
+    def flatten_dict(self, d):
+        return flatten_dict(d, sep=self.sep)
