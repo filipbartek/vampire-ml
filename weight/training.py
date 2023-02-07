@@ -253,11 +253,7 @@ class Training:
 
         def problem_sample_weight(clause_pairs):
             with suppress(KeyError):
-                df = clause_pairs['sample_weight']
-                assert np.allclose(1, df.sum(), rtol=0, atol=weight_sum_tol)
-                if isinstance(df, pd.Series):
-                    return df
-                return df.mean(axis=1)
+                return aggregate_sample_weight(clause_pairs['sample_weight'], atol=weight_sum_tol)
             n = clause_pairs['X'].shape[0]
             if n > 0:
                 value = 1 / n
