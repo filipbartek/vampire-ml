@@ -486,7 +486,6 @@ class ProblemDataset:
         self.proof_feature_vector_indices.update(proof_search[True])
 
     def generate_batch(self, max_pairs=None, max_size=None, **kwargs):
-        # TODO: Fix negatives in failed proof searches.
         ds = dataset.proofs_to_samples(self.feature_vectors, self.proof_searches, **kwargs)
         n_pairs, n_features = ds['X'].shape
         if max_size is not None:
