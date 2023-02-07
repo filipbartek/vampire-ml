@@ -26,14 +26,16 @@ eval:
   initial: true
 proof_sample_weight: 0.5
 baseline_files: {}
-empirical:
-  start: -1
-  step: 1
+evaluation:
+  empirical:
+    start: -1
+    step: 1
+  proxy:
+    start: -1
+    step: 1
 per_problem_stats: false
 join_searches: false
 loop_iterations: 10
-
-steps_per_epoch: 10
 
 
 initial:

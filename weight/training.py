@@ -1,9 +1,9 @@
 import logging
+import os
 import warnings
 from collections import Counter
 from collections import defaultdict
 from contextlib import suppress
-from itertools import islice
 
 import joblib
 import numpy as np
@@ -15,7 +15,7 @@ from questions.utils import flatten_dict
 from questions.utils import py_str
 from utils import astype
 from utils import get_verbose
-from utils import range_count
+from utils import save_df
 from utils import sparse_equal
 from utils import to_tensor
 from vampire import szs
@@ -24,9 +24,19 @@ from weight import dataset
 log = logging.getLogger(__name__)
 
 
+class StepTimer:
+    def __init__(self, start=-1, step=1):
+        self.start = start
+        self.step = step
+
+    def is_triggered(self, step):
+        step_rel = step - self.start
+        return step_rel >= 0 and step_rel % self.step == 0
+
+
 class Training:
     def __init__(self, dataset, model, optimizer=None, initial_design=None, evaluator=None, writers=None, epochs=None,
-                 steps_per_epoch=10, limits=None):
+                 empirical=None, proxy=None, limits=None):
         self.data = dataset
         self.model = model
         self.optimizer = optimizer
@@ -34,56 +44,65 @@ class Training:
         self.evaluator = evaluator
         self.writers = writers
         self.epochs = epochs
-        self.steps_per_epoch = steps_per_epoch
+        self.empirical = empirical or StepTimer()
+        self.proxy = proxy or StepTimer()
         self.limits = limits
 
     def run(self):
         tf.summary.experimental.set_step(-1)
-        epochs = range_count(self.epochs)
-        with tqdm(epochs, unit='epoch', desc='Training', disable=not get_verbose()) as t:
-            evaluation_stats = self.evaluate(initial=True)
-            t.set_postfix(evaluation_stats)
-            for step, epoch in enumerate(t):
-                tf.summary.experimental.set_step(step)
-                self.train_epoch(epoch)
-                evaluation_stats = self.evaluate()
-                t.set_postfix(evaluation_stats)
-
-    def train_epoch(self, epoch):
-        batches = islice(self.data.generate_batches(subset='train', nonempty=True, **self.limits.train),
-                         self.steps_per_epoch)
-        with tqdm(batches, unit='step', total=self.steps_per_epoch, desc=f'Epoch {epoch}',
-                  disable=not get_verbose()) as t, self.writers['train'].as_default():
+        batches = self.data.generate_batches(subset='train', nonempty=True, **self.limits.train)
+        with tqdm(batches, unit='step', desc='Training', disable=not get_verbose()) as t:
+            evaluation_stats = self.evaluate(initial=True, step=-1)
+            #t.set_postfix(evaluation_stats)
             for step, batch in enumerate(t):
+                tf.summary.experimental.set_step(step)
                 if len(batch) == 0:
                     warnings.warn('Empty batch generated for training.')
-                stats = self.train_step(batch)
-                if stats is not None:
-                    stats_public = {k: tf.experimental.numpy.nanmean(stats[k]) for k in ['loss', 'accuracy']}
-                    for k, v in stats_public.items():
-                        tf.summary.scalar(f'batch/{k}', v, step=epoch * self.steps_per_epoch + step)
-                    t.set_postfix({k: v.numpy() for k, v in stats_public.items()})
+                with self.writers['train'].as_default():
+                    stats = self.train_step(batch)
+                    if stats is not None:
+                        stats_public = {k: tf.experimental.numpy.nanmean(stats[k]) for k in ['loss', 'accuracy']}
+                        for k, v in stats_public.items():
+                            tf.summary.scalar(f'batch/{k}', v)
+                        t.set_postfix({k: v.numpy() for k, v in stats_public.items()})
+                evaluation_stats = self.evaluate(step=step)
+                #t.set_postfix(evaluation_stats)
 
-    def evaluate(self, problems=None, initial=False):
+    def evaluate(self, problems=None, initial=False, step=None):
+        eval_empirical = self.empirical.is_triggered(step)
+        eval_proxy = self.proxy.is_triggered(step)
+        if not (eval_empirical or eval_proxy):
+            return None
         if problems is None:
             problems = self.problems()
-        dfs = [self.data.problem_stats(problems),
-               self.evaluate_proxy(problems),
-               self.evaluate_empirical(problems, initial=initial)]
+        dfs = [self.data.problem_stats(problems)]
+        if eval_empirical:
+            dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
+        if eval_proxy:
+            df_problem, df_proof_search = self.evaluate_proxy(problems)
+            if step is not None:
+                save_df(df_proof_search, os.path.join('evaluation', 'proof_search', str(step)))
+            dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean().add_prefix('proxy_all_'))
+            with suppress(TypeError):
+                data_past = df_proof_search.loc[(slice(None), slice(None, step - 1)), :]
+                dfs.append(data_past[['loss', 'accuracy']].groupby('problem').mean().add_prefix('proxy_past_'))
         df = pd.concat(dfs, axis='columns', copy=False)
         for col in ['feature_weight_predicted', 'probe_solved', 'probe_unsat', 'verbose_solved', 'verbose_unsat']:
             if col in df:
                 df[col].fillna(False, inplace=True)
+        if step is not None:
+            save_df(df, os.path.join('evaluation', 'problem', str(step)))
         stats = {}
         for subset, problems in self.data.subsets.items():
             cur_df = df[df.index.isin(problems)]
             with self.writers[subset].as_default():
                 problem_stats = {
-                    'solved': cur_df.probe_solved.mean(),
-                    'attempted': cur_df.feature_weight_predicted.mean(),
                     'with_proof_clauses': (cur_df.proof_feature_vectors > 0).mean(),
                     'with_clauses': (cur_df.feature_vectors > 0).mean(),
                 }
+                if eval_empirical:
+                    problem_stats['attempted'] = cur_df.feature_weight_predicted.mean()
+                    problem_stats['solved'] = cur_df.probe_solved.mean()
                 for k, v in problem_stats.items():
                     tf.summary.scalar(f'problems/{k}', v)
                 record = {}
@@ -93,11 +112,13 @@ class Training:
                     record['accuracy'] = cur_df.accuracy.mean()
                 for k, v in record.items():
                     tf.summary.scalar(k, v)
-                record['solved'] = problem_stats['solved']
+                if 'solved' in problem_stats:
+                    record['solved'] = problem_stats['solved']
                 stats[subset] = record
+        log.info(f'Evaluation result: {stats}')
         return flatten_dict(stats, sep='_')
 
-    def evaluate_empirical(self, problems=None, initial=False):
+    def evaluate_empirical(self, problems=None, initial=False, step=None):
         if initial and self.initial_design is not None:
             problem_weights = self.initial_design.sample_weights(problems)
         else:
@@ -111,8 +132,9 @@ class Training:
                     problem_weights[problem] = cost
                 else:
                     problem_weights[problem] = None
-        empirical_results = self.evaluator.evaluate(problem_weights)
-        self.data.update(empirical_results)
+        out_dir = os.path.join('evaluation', 'empirical', str(step))
+        empirical_results = self.evaluator.evaluate(problem_weights, out_dir=out_dir)
+        self.data.update(empirical_results, step=step)
 
         def empirical_result_to_record(empirical_result):
             def run_result_to_record(run_result):
@@ -163,6 +185,8 @@ class Training:
                     batch_stats[k].append(v)
         data = {}
         for k, v in batch_stats.items():
+            if k == 'proof_search':
+                continue
             values = tf.concat(v, 0)
             if k == 'problem':
                 data[k] = list(map(py_str, values))
@@ -171,7 +195,21 @@ class Training:
         df = pd.DataFrame(data=data)
         if len(df) > 0:
             df.set_index('problem', inplace=True)
-        return df
+        records = []
+        for pp, ps_stats in zip(batch_stats['problem'], batch_stats['proof_search']):
+            for p, ps in zip(pp, ps_stats):
+                for k, v in ps.items():
+                    record = {
+                        'problem': py_str(p),
+                        'proof_search': k,
+                        **{kk: v[kk].numpy() for kk in ['loss', 'accuracy']},
+                    }
+                    with suppress(KeyError):
+                        record.update({'clauses_nonproof': v['clauses'][False], 'clauses_proof': v['clauses'][True]})
+                    records.append(record)
+        df_ps = pd.DataFrame.from_records(records, index=['problem', 'proof_search'])
+        df_ps.sort_index(inplace=True)
+        return df, df_ps
 
     def train_step(self, batch):
         with tf.GradientTape() as tape:
@@ -198,48 +236,72 @@ class Training:
         # We assume that they are almost always retrieved.
         with joblib.parallel_backend('threading', n_jobs=1):
             # We do not cache graphs because the problem set is sampled randomly.
-            log.debug(f'Calling model on a batch. Number of problems: %u. Total size of the feature tensor: %u.' % (
-                x['problem'].shape[0], tf.size(x['occurrence_count'], out_type=tf.uint32)))
-            log.debug('Calling model on a batch:\n%s' % pd.DataFrame.from_records(
+            log.debug(f'Calling model on a batch. Number of problems: %u. Total size of the feature tensor: %u.\n%s' % (
+                x['problem'].shape[0], tf.size(x['occurrence_count'], out_type=tf.uint32), pd.DataFrame.from_records(
                 {
                     'problem': py_str(problem),
                     'clause_pairs': feature_matrix.shape[0],
                     'features': feature_matrix.row_lengths()[0].numpy(),
                     'size': tf.size(feature_matrix, out_type=tf.uint32).numpy()
-                } for problem, feature_matrix in zip(x['problem'], x['occurrence_count'])))
+                } for problem, feature_matrix in zip(x['problem'], x['occurrence_count']))))
             clause_pair_weights, problem_valid = self.model(x, training=training, expensive=False)
+
+        weight_sum_tol = 1e-1
+
+        def problem_sample_weight(clause_pairs):
+            with suppress(KeyError):
+                df = clause_pairs['sample_weight']
+                assert np.allclose(1, df.sum(), rtol=0, atol=weight_sum_tol)
+                if isinstance(df, pd.Series):
+                    return df
+                return df.mean(axis=1)
+            n = clause_pairs['X'].shape[0]
+            if n > 0:
+                value = 1 / n
+            else:
+                value = np.nan
+            return np.full(n, value, dtype=dtypes['sample_weight'].as_numpy_dtype)
+
+        sample_weight = to_tensor((problem_sample_weight(sample['clause_pairs']) for sample in batch),
+                                  dtype=dtypes.get('sample_weight'), name='sample_weight')
+        tf.debugging.assert_near(tf.ones(sample_weight.shape[0], dtype=sample_weight.dtype),
+                                 tf.math.reduce_sum(sample_weight, axis=1),
+                                 rtol=0, atol=weight_sum_tol)
+
         # Each row of `clause_pair_weights` is a difference of weights of a nonproof and a proof clause.
-        # Nonproof clause weight should be large. Proof clause weight should be small.
+        # Nonproof clause weight should be large. Proof clause weight should b8e small.
         # "nonproof - proof" difference should be positive.
         with tf.name_scope('loss'):
-            assert all(
-                'sample_weight' not in s['clause_pairs'] or np.isclose(1, s['clause_pairs']['sample_weight'].sum()) for
-                s in batch)
-
-            def problem_sample_weight(clause_pairs):
-                with suppress(KeyError):
-                    return clause_pairs['sample_weight']
-                n = clause_pairs['X'].shape[0]
-                if n > 0:
-                    value = 1 / n
-                else:
-                    value = np.nan
-                return np.full(n, value, dtype=dtypes['sample_weight'].as_numpy_dtype)
-
-            sample_weight = to_tensor((problem_sample_weight(sample['clause_pairs']) for sample in batch),
-                                      dtype=dtypes.get('sample_weight'), name='sample_weight')
-            tf.debugging.assert_near(tf.ones(sample_weight.shape[0]), tf.math.reduce_sum(sample_weight, axis=1),
-                                     atol=0.5, rtol=0)
             clause_pair_loss = -tf.math.log_sigmoid(clause_pair_weights, name='clause_pair')
-            problem_loss = tf.reduce_sum(clause_pair_loss * sample_weight, axis=1)
+            problem_loss = tf.reduce_sum(clause_pair_loss * tf.cast(sample_weight, clause_pair_loss.dtype), axis=1)
         clause_pair_hit = clause_pair_weights > 0
         problem_accuracy = tf.math.reduce_sum(tf.cast(clause_pair_hit, sample_weight.dtype) * sample_weight, axis=1,
                                               name='problem_accuracy')
-        return {
+
+        stats = {
             'problem': x['problem'],
             'loss': problem_loss,
-            'accuracy': problem_accuracy
+            'accuracy': problem_accuracy,
+            'valid': problem_valid
         }
+
+        if not training:
+            proof_search_stats = []
+            for s, cpw, cpl in zip(batch, clause_pair_weights, clause_pair_loss):
+                result = {}
+                sample_weight = s['clause_pairs']['sample_weight']
+                for k, col in sample_weight.items():
+                    assert np.isclose(1, col.sum(), rtol=0, atol=weight_sum_tol)
+                    result[k] = {
+                        'loss': tf.math.reduce_sum(cpl * col, name='proof_search_loss'),
+                        'accuracy': tf.math.reduce_sum(tf.cast(cpw > 0, dtypes['sample_weight']) * col)
+                    }
+                    if k in s['clause_pairs']['proof_search']:
+                        result[k].update(s['clause_pairs']['proof_search'][k])
+                proof_search_stats.append(result)
+            stats['proof_search'] = proof_search_stats
+
+        return stats
 
     def minimize(self, loss, tape):
         grads_and_vars = self.optimizer._compute_gradients(loss, var_list=self.model.trainable_weights, tape=tape)
@@ -295,11 +357,11 @@ class Dataset:
             'proof_searches': sum(len(p.proof_searches) for p in self.problem_datasets.values())
         }
 
-    def update(self, results):
+    def update(self, results, **kwargs):
         for result in results:
             if 'verbose' in result:
                 problem = result['problem']
-                self.problem_datasets[problem].update(result['verbose']['clause_feature_vectors'])
+                self.problem_datasets[problem].update(result['verbose']['clause_feature_vectors'], **kwargs)
 
     def generate_batches(self, problems=None, max_batch_samples=None, max_batch_size=None, exhaustive=False,
                          max_sample_size=None, **kwargs):
@@ -370,7 +432,7 @@ class ProblemDataset:
         self.rng = rng
         self.feature_vector_hash_to_index = {}
         self.feature_vectors = []
-        self.proof_searches = []
+        self.proof_searches = {}
         self.proof_feature_vector_indices = set()
 
     def __len__(self):
@@ -380,7 +442,7 @@ class ProblemDataset:
     def has_clause_pairs(self):
         return any(
             any(v > 0 for v in proof_search[False].values()) and any(v > 0 for v in proof_search[True]) for proof_search
-            in self.proof_searches)
+            in self.proof_searches.values())
 
     def __repr__(self):
         return str(self._asdict())
@@ -398,12 +460,12 @@ class ProblemDataset:
             'proof_feature_vectors': len(self.proof_feature_vector_indices),
             'proof_searches': {
                 'total': len(self.proof_searches),
-                'with_proof_clauses': sum(len(ps[True]) > 0 for ps in self.proof_searches),
-                'with_nonproof_clauses': sum(len(ps[False]) > 0 for ps in self.proof_searches)
+                'with_proof_clauses': sum(len(ps[True]) > 0 for ps in self.proof_searches.values()),
+                'with_nonproof_clauses': sum(len(ps[False]) > 0 for ps in self.proof_searches.values())
             }
         }
 
-    def update(self, p):
+    def update(self, p, step):
         if len(p) == 0:
             raise ValueError('Empty proof search.')
         proof_search = {role_proof: Counter() for role_proof in [False, True]}
@@ -420,7 +482,8 @@ class ProblemDataset:
                     continue
                 proof_search[role_proof][feature_vector_index] += v['role_proof'][role_proof]
         assert len(self.feature_vector_hash_to_index) == len(self.feature_vectors)
-        self.proof_searches.append(proof_search)
+        assert step not in self.proof_searches
+        self.proof_searches[step] = proof_search
         self.proof_feature_vector_indices.update(proof_search[True])
 
     def generate_batch(self, max_pairs=None, max_size=None):

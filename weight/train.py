@@ -20,6 +20,7 @@ from questions import models
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
+from training import StepTimer
 from training import Training
 from weight import evaluator
 
@@ -149,7 +150,8 @@ def main(cfg):
         }
         data = training.Dataset(problem_paths, ss.spawn(1)[0], subsets=subsets)
         tr = Training(data, model=model_logit, evaluator=eval_empirical, optimizer=optimizer, writers=writers,
-                      steps_per_epoch=cfg.steps_per_epoch, limits=cfg.limits)
+                      empirical=StepTimer(**cfg.evaluation.empirical), proxy=StepTimer(**cfg.evaluation.proxy),
+                      limits=cfg.limits)
         tr.run()
 
 
