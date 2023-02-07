@@ -253,7 +253,7 @@ class Training:
 
         def problem_sample_weight(clause_pairs):
             with suppress(KeyError):
-                return aggregate_sample_weight(clause_pairs['sample_weight'], atol=weight_sum_tol)
+                return aggregate_sample_weight(clause_pairs['sample_weight'])
             n = clause_pairs['X'].shape[0]
             if n > 0:
                 value = 1 / n
