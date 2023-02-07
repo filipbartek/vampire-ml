@@ -498,7 +498,16 @@ class ProblemDataset:
                 max_pairs = min(max_pairs, max_pairs_from_size)
         if max_pairs is not None and n_pairs > max_pairs:
             log.debug(f'Subsampling clause pairs. Before: {n_pairs}. After: {max_pairs}.')
-            chosen_indices = self.rng.choice(n_pairs, size=max_pairs, p=ds['sample_weight'])
+            p = aggregate_sample_weight(ds['sample_weight'])
+            chosen_indices = self.rng.choice(n_pairs, size=max_pairs, p=p)
             ds['X'] = ds['X'][chosen_indices]
             del ds['sample_weight']
         return ds
+
+
+def aggregate_sample_weight(sample_weight):
+    assert np.allclose(1, sample_weight.sum(), rtol=0)
+    if isinstance(sample_weight, pd.DataFrame):
+        sample_weight = sample_weight.mean(axis=1)
+    assert np.isclose(1, sample_weight.sum(), rtol=0)
+    return sample_weight
