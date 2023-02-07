@@ -28,12 +28,19 @@ from weight import vampire
 
 class Evaluator:
     def evaluate(self, problem_weights, out_dir=None):
+        if len(problem_weights) > 1:
+            base_path = os.path.commonpath(problem_weights)
+        else:
+            problem = next(iter(problem_weights.keys()))
+            base_path = os.path.dirname(problem)
+
         def evaluate_one(problem, i, weight):
             try:
                 cur_out_dir = out_dir
                 if cur_out_dir is not None:
                     if len(problem_weights) > 1:
-                        cur_out_dir = os.path.join(cur_out_dir, problem.replace('/', '_'))
+                        relpath = os.path.relpath(problem, base_path)
+                        cur_out_dir = os.path.join(cur_out_dir, relpath)
                     if len(problem_weights[problem]) > 1:
                         cur_out_dir = os.path.join(cur_out_dir, str(i))
                 return {
