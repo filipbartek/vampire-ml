@@ -93,7 +93,7 @@ def get_pair_indices(proof_searches, n_clauses, join_searches=False):
     return df
 
 
-def get_pair_indices_one(clause_weights, normalize=True, dtype_index=np.uint32, dtype_weight=np.float32, **kwargs):
+def get_pair_indices_one(clause_weights, normalize=True, dtype_index=np.uint32, dtype_weight=np.float64, **kwargs):
     role_clauses = [np.fromiter(clause_weights[role].keys(), dtype_index, len(clause_weights[role])) for role in roles]
     pair_indices = np.meshgrid(*role_clauses, indexing='ij')
     pair_weights = np.outer(*(np.fromiter(clause_weights[role].values(), dtype=dtype_weight) for role in roles))
