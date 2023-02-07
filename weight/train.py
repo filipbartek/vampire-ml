@@ -151,7 +151,7 @@ def main(cfg):
         data = training.Dataset(problem_paths, ss.spawn(1)[0], subsets=subsets)
         tr = Training(data, model=model_logit, evaluator=eval_empirical, optimizer=optimizer, writers=writers,
                       empirical=StepTimer(**cfg.evaluation.empirical), proxy=StepTimer(**cfg.evaluation.proxy),
-                      limits=cfg.limits)
+                      limits=cfg.limits, join_searches=cfg.join_searches)
         tr.run()
 
 

@@ -36,7 +36,7 @@ class StepTimer:
 
 class Training:
     def __init__(self, dataset, model, optimizer=None, initial_design=None, evaluator=None, writers=None, epochs=None,
-                 empirical=None, proxy=None, limits=None):
+                 empirical=None, proxy=None, limits=None, join_searches=False):
         self.data = dataset
         self.model = model
         self.optimizer = optimizer
@@ -47,10 +47,12 @@ class Training:
         self.empirical = empirical or StepTimer()
         self.proxy = proxy or StepTimer()
         self.limits = limits
+        self.join_searches = join_searches
 
     def run(self):
         tf.summary.experimental.set_step(-1)
-        batches = self.data.generate_batches(subset='train', nonempty=True, **self.limits.train)
+        batches = self.data.generate_batches(subset='train', nonempty=True, join_searches=self.join_searches,
+                                             **self.limits.train)
         with tqdm(batches, unit='step', desc='Training', disable=not get_verbose()) as t:
             evaluation_stats = self.evaluate(initial=True, step=-1)
             #t.set_postfix(evaluation_stats)
@@ -174,7 +176,8 @@ class Training:
         return df
 
     def evaluate_proxy(self, problems):
-        batches = self.data.generate_batches(problems=problems, nonempty=True, exhaustive=True, **self.limits.predict)
+        batches = self.data.generate_batches(problems=problems, nonempty=True, exhaustive=True,
+                                             join_searches=self.join_searches, **self.limits.predict)
         batch_stats = defaultdict(list)
         with tqdm(batches, unit='batch', desc='Proxy evaluation', disable=not get_verbose()) as t:
             for batch in t:
@@ -387,11 +390,11 @@ class Dataset:
         if len(batch) > 0:
             yield batch
 
-    def generate_samples(self, problems=None, exhaustive=False, max_size=None, **kwargs):
+    def generate_samples(self, problems=None, exhaustive=False, max_size=None, join_searches=False, **kwargs):
         problems = self.problems(problems=problems, **kwargs)
         if not exhaustive:
             problems = self.sample_problems(problems)
-        return (self.generate_sample(problem, max_size=max_size) for problem in problems)
+        return (self.generate_sample(problem, max_size=max_size, join_searches=join_searches) for problem in problems)
 
     def sample_problems(self, problems):
         while True:
@@ -486,9 +489,9 @@ class ProblemDataset:
         self.proof_searches[step] = proof_search
         self.proof_feature_vector_indices.update(proof_search[True])
 
-    def generate_batch(self, max_pairs=None, max_size=None):
+    def generate_batch(self, max_pairs=None, max_size=None, **kwargs):
         # TODO: Fix negatives in failed proof searches.
-        ds = dataset.proofs_to_samples(self.feature_vectors, self.proof_searches)
+        ds = dataset.proofs_to_samples(self.feature_vectors, self.proof_searches, **kwargs)
         n_pairs, n_features = ds['X'].shape
         if max_size is not None:
             max_pairs_from_size = max_size // n_features
