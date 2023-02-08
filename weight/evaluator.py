@@ -66,6 +66,8 @@ class Evaluator:
                     else:
                         weight_arrays = enumerate(weight_matrix)
                 for i, weight_array in weight_arrays:
+                    if isinstance(weight_array, tf.Tensor):
+                        weight_array = weight_array.numpy()
                     yield problem, i, weight_array
 
         cases = list(gen_cases())
