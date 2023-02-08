@@ -238,7 +238,7 @@ def weight_options(weights=None, functor_weight_filename=None):
     options = {weight_name_to_option_name[weight_name]: v for weight_name, v in weights.items() if
                weight_name != 'symbol' and not tf.math.is_nan(v)}
     with functor_weight_file(weights['symbol'], functor_weight_filename) as weights_file:
-        options['functor_weight'] = weights_file.name
+        options['functor_weight'] = os.path.abspath(weights_file.name)
         yield options
 
 
