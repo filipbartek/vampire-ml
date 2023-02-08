@@ -78,16 +78,19 @@ class Training:
         if problems is None:
             problems = self.problems()
         dfs = [self.data.problem_stats(problems)]
-        if eval_empirical:
-            dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
         if eval_proxy:
             df_problem, df_proof_search = self.evaluate_proxy(problems)
             if step is not None:
                 save_df(df_proof_search, os.path.join('evaluation', 'proof_search', str(step)))
-            dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean().add_prefix('proxy_all_'))
-            with suppress(TypeError):
-                data_past = df_proof_search.loc[(slice(None), slice(None, step - 1)), :]
-                dfs.append(data_past[['loss', 'accuracy']].groupby('problem').mean().add_prefix('proxy_past_'))
+            with suppress(KeyError):
+                dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean())
+        if eval_empirical:
+            dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
+            if eval_proxy:
+                df_problem, df_proof_search = self.evaluate_proxy(problems)
+                if step is not None:
+                    save_df(df_proof_search, os.path.join('evaluation', 'proof_search_after_empirical', str(step)))
+                dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean().add_prefix('after_'))
         df = pd.concat(dfs, axis='columns', copy=False)
         for col in ['feature_weight_predicted', 'probe_solved', 'probe_unsat', 'verbose_solved', 'verbose_unsat']:
             if col in df:
@@ -107,11 +110,7 @@ class Training:
                     problem_stats['solved'] = cur_df.probe_solved.mean()
                 for k, v in problem_stats.items():
                     tf.summary.scalar(f'problems/{k}', v)
-                record = {}
-                if 'loss' in cur_df:
-                    record['loss'] = cur_df.loss.mean()
-                if 'accuracy' in cur_df:
-                    record['accuracy'] = cur_df.accuracy.mean()
+                record = {k: cur_df[k].mean() for k in ['loss', 'accuracy', 'after_loss', 'after_accuracy'] if k in cur_df}
                 for k, v in record.items():
                     tf.summary.scalar(k, v)
                 if 'solved' in problem_stats:
