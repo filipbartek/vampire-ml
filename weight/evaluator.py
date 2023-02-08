@@ -13,6 +13,7 @@ import pandas as pd
 import seaborn as sns
 import sklearn
 import tensorflow as tf
+import yaml
 
 from questions.memory import memory
 from questions.utils import timer
@@ -132,10 +133,9 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
     with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
         result['probe'] = evaluator.result_to_record(
             evaluator.runner_probe.run(problem, options, out_dir=path_join(out_dir, 'probe')))
-        if result['probe']['szs_status'] == 'OSE':
-            raise RuntimeError('OS error encountered: %s' % result['probe'].get('error'))
         assert 'activations' in result['probe'] and result['probe']['activations'] is not None
-        if evaluator.runner_verbose is not None and may_be_saturation_based_search(result['probe']['szs_status']) and result['probe']['activations'] > 0:
+        if evaluator.runner_verbose is not None and may_be_saturation_based_search(result['probe']['szs_status']) and \
+                result['probe']['activations'] > 0:
             options_verbose = options.copy()
             options_verbose['activation_limit'] = result['probe']['activations']
             if szs.is_unsat(result['probe']['szs_status']):
@@ -215,6 +215,9 @@ class Empirical(Evaluator):
         return weights, symbols
 
     def result_to_record(self, result, signature=None):
+        if result['szs_status'] in ['OSE', 'INE']:
+            data = {k: result[k] for k in ['problem', 'szs_status', 'error', 'out_dir']}
+            raise RuntimeError(f'Unexpected error during empirical evaluation:\n{yaml.dump(data)}')
         record = {k: result.get(k) for k in ['elapsed', 'szs_status', 'megainstructions', 'activations', 'memory', 'error']}
         if signature is not None:
             with timer() as t:
