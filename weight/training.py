@@ -9,6 +9,7 @@ import joblib
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import yaml
 from tqdm import tqdm
 
 from questions.utils import flatten_dict
@@ -174,6 +175,14 @@ class Training:
                ['megainstructions', 'activations', 'memory', 'unique_feature_vectors', 'clauses_proof',
                 'clauses_nonproof']}
         })
+        log.debug('Empirical evaluation done.\n%s' % yaml.dump({
+            'total': len(problems),
+            'feature_weight_predicted': df.feature_weight_predicted.sum(),
+            'probe': {
+                **{col: df[f'probe_{col}'].sum() for col in ['solved', 'unsat']},
+                'szs_status': {k: v for k, v in df.probe_szs_status.value_counts().items() if v > 0}
+            }
+        }))
         return df
 
     def evaluate_proxy(self, problems):
