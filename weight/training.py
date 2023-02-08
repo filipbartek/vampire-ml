@@ -102,12 +102,14 @@ class Training:
             cur_df = df[df.index.isin(problems)]
             with self.writers[subset].as_default():
                 problem_stats = {
-                    'with_proof_clauses': (cur_df.proof_feature_vectors > 0).mean(),
-                    'with_clauses': (cur_df.feature_vectors > 0).mean(),
+                    'total': len(cur_df),
+                    'with_proof_clauses': (cur_df.proof_feature_vectors > 0).sum(),
+                    'with_clauses': (cur_df.feature_vectors > 0).sum(),
                 }
                 if eval_empirical:
-                    problem_stats['attempted'] = cur_df.feature_weight_predicted.mean()
-                    problem_stats['solved'] = cur_df.probe_solved.mean()
+                    problem_stats['feature_weight_predicted'] = cur_df.feature_weight_predicted.sum()
+                    problem_stats['solved'] = cur_df.probe_solved.sum()
+                    problem_stats['unsat'] = cur_df.probe_unsat.sum()
                 for k, v in problem_stats.items():
                     tf.summary.scalar(f'problems/{k}', v)
                 record = {k: cur_df[k].mean() for k in ['loss', 'accuracy', 'after_loss', 'after_accuracy'] if k in cur_df}
