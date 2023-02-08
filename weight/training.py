@@ -323,6 +323,10 @@ class Training:
         grads_and_vars = self.optimizer._compute_gradients(loss, var_list=self.model.trainable_weights, tape=tape)
         if all(grad is None for grad, var in grads_and_vars):
             warnings.warn('No gradient has been computed.')
+        for grad, var in grads_and_vars:
+            if grad is not None and tf.reduce_any(tf.math.is_nan(grad)):
+                warnings.warn(f'A gradient contains a nan value. Variable: {var.name}')
+                break
         return self.optimizer.apply_gradients((grad, var) for grad, var in grads_and_vars if grad is not None)
 
     @property
