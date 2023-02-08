@@ -212,6 +212,7 @@ class Training:
                     records.append(record)
         df_ps = pd.DataFrame.from_records(records, index=['problem', 'proof_search'])
         df_ps.sort_index(inplace=True)
+        df_ps = astype(df_ps, {'clauses_nonproof': pd.UInt32Dtype(), 'clauses_proof': pd.UInt32Dtype()})
         return df, df_ps
 
     def train_step(self, batch):
@@ -288,15 +289,21 @@ class Training:
             proof_search_stats = []
             for s, cpw, cpl in zip(batch, clause_pair_weights, clause_pair_loss):
                 result = {}
-                sample_weight = s['clause_pairs']['sample_weight']
-                for k, col in sample_weight.items():
-                    assert np.isclose(1, col.sum(), rtol=0, atol=weight_sum_tol)
-                    result[k] = {
-                        'loss': tf.math.reduce_sum(cpl * col, name='proof_search_loss'),
-                        'accuracy': tf.math.reduce_sum(tf.cast(cpw > 0, dtypes['sample_weight']) * col)
+                if 'sample_weight' in s['clause_pairs']:
+                    sample_weight = s['clause_pairs']['sample_weight']
+                    for k, col in sample_weight.items():
+                        assert np.isclose(1, col.sum(), rtol=0, atol=weight_sum_tol)
+                        result[k] = {
+                            'loss': tf.math.reduce_sum(cpl * col, name='proof_search_loss'),
+                            'accuracy': tf.math.reduce_sum(tf.cast(cpw > 0, dtypes['sample_weight']) * col)
+                        }
+                        if k in s['clause_pairs']['proof_search']:
+                            result[k].update(s['clause_pairs']['proof_search'][k])
+                else:
+                    result['random_sample'] = {
+                        'loss': tf.math.reduce_mean(cpl, name='proof_search_loss'),
+                        'accuracy': tf.math.reduce_mean(tf.cast(cpw > 0, dtypes['sample_weight']))
                     }
-                    if k in s['clause_pairs']['proof_search']:
-                        result[k].update(s['clause_pairs']['proof_search'][k])
                 proof_search_stats.append(result)
             stats['proof_search'] = proof_search_stats
 
