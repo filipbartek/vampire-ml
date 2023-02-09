@@ -269,7 +269,7 @@ class Training:
             if n > 0:
                 value = 1 / n
             else:
-                value = np.nan
+                value = 0
             return np.full(n, value, dtype=dtypes['sample_weight'].as_numpy_dtype)
 
         sample_weight = to_tensor((problem_sample_weight(sample['clause_pairs']) for sample in batch),
