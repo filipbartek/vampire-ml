@@ -29,10 +29,10 @@ baseline_files: {}
 evaluation:
   empirical:
     start: -1
-    step: 1
+    step: 1000
   proxy:
     start: -1
-    step: 1
+    step: 100
 per_problem_stats: false
 join_searches: false
 loop_iterations: 10
