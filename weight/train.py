@@ -2,6 +2,7 @@ import itertools
 import logging
 import os
 import random
+import sys
 
 import joblib
 import hydra
@@ -43,7 +44,9 @@ def random_integers(rng, dtype=np.int64, **kwargs):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
+    sys.setrecursionlimit(cfg.recursionlimit)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
+    
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs), tf.device(cfg.tf.device):
         ss = np.random.SeedSequence(cfg.seed)
 
@@ -67,7 +70,7 @@ def main(cfg):
 
         log.info(f'Working directory: {os.getcwd()}')
         log.info(f'Cache directory: {memory.location}')
-        
+
         log.info(f'Recursion limit: {sys.getrecursionlimit()}')
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')

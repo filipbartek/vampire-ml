@@ -8,12 +8,13 @@ hydra:
     env_set:
       DGLBACKEND: tensorflow
       TF_CPP_MIN_LOG_LEVEL: 1
-      # Python default: 1000
-      RECURSIONLIMIT: 10000
       # TF_NUM_INTEROP_THREADS: 0
       # TF_NUM_INTRAOP_THREADS: 0
       VERBOSE: 1
   verbose: false
+
+# Python default: 3000
+recursionlimit: 10000
 
 seed: 0
 epochs: null
