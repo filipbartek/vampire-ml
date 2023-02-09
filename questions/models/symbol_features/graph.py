@@ -53,11 +53,13 @@ class Graph(SymbolFeatures):
                         readout_ntypes}
 
         # The readout values are all zeros for graphs and ntypes such that there is no ntype node in the graph.
-        # Replace such zeros with nans.
-        #for ntype in readouts:
-        #    num_nodes = batch_graph._batch_num_nodes[ntype]
-        #    mask_nan = tf.tile(tf.expand_dims(num_nodes == 0, 1), (1, 16))
-        #    readouts[ntype] = tf.where(mask_nan, math.nan, readouts[ntype])
+        # We could replace such zeros with nans. However, introducing nans into the forward pass seems to make
+        # TensorFlow derive nan gradients, even if we mask the nans out between this place and loss.
+        # For this reason, we leave the zeros in, assuming they will not affect the gradients
+        # (since they come from summation over an emtpy array) and they will not affect the empirical evaluation
+        # (since they appear in problems with e.g. no equality).
+        # Note that the corresponding feature weight may be a non-trivial number, such as 1.69 when using 1+softplus
+        # to finalize the weights.
 
         res = {
             **readouts,
