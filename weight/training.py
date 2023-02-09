@@ -320,13 +320,12 @@ class Training:
         return stats
 
     def minimize(self, loss, tape):
+        assert ~tf.math.is_nan(loss)
         grads_and_vars = self.optimizer._compute_gradients(loss, var_list=self.model.trainable_weights, tape=tape)
         if all(grad is None for grad, var in grads_and_vars):
             warnings.warn('No gradient has been computed.')
-        for grad, var in grads_and_vars:
-            if grad is not None and tf.reduce_any(tf.math.is_nan(grad)):
-                warnings.warn(f'A gradient contains a nan value. Variable: {var.name}')
-                break
+        # Optimizing the model by a nan gradient invalidates the model.
+        assert all(grad is None or tf.reduce_all(~tf.math.is_nan(grad)) for grad, var in grads_and_vars)
         return self.optimizer.apply_gradients((grad, var) for grad, var in grads_and_vars if grad is not None)
 
     @property

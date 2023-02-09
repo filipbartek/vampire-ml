@@ -38,6 +38,7 @@ class Graph(SymbolFeatures):
 
     def resolve_batch_graph(self, batch_graph, training=False):
         values = self.gcn(batch_graph, training=training)
+        assert all(tf.reduce_all(~tf.math.is_nan(v)) for v in values.values())
 
         symbol_ntypes = ['predicate', 'function']
         assert set(symbol_ntypes) <= set(values)
