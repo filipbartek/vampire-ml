@@ -143,6 +143,7 @@ class Training:
             # Contains two entries: valid, costs
             problem_weights = {}
             for problem, cost, valid in zip(problems, model_result['costs'], model_result['valid']):
+                assert problem not in problem_weights
                 if valid:
                     problem_weights[problem] = cost
                 else:
