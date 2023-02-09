@@ -67,6 +67,8 @@ def main(cfg):
 
         log.info(f'Working directory: {os.getcwd()}')
         log.info(f'Cache directory: {memory.location}')
+        
+        log.info(f'Recursion limit: {sys.getrecursionlimit()}')
 
         log.info(f'TensorFlow physical devices: \n{yaml.dump(tf.config.experimental.list_physical_devices())}')
 
