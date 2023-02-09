@@ -5,9 +5,11 @@ from collections import Counter
 from collections import defaultdict
 from contextlib import suppress
 
+import humanize
 import joblib
 import numpy as np
 import pandas as pd
+import psutil
 import tensorflow as tf
 import yaml
 from tqdm import tqdm
@@ -51,25 +53,34 @@ class Training:
         self.join_searches = join_searches
 
     def run(self):
-        tf.summary.experimental.set_step(-1)
-        batches = self.data.generate_batches(subset='train', nonempty=True, join_searches=self.join_searches,
-                                             **self.limits.train)
-        with tqdm(batches, unit='step', desc='Training', disable=not get_verbose()) as t:
-            evaluation_stats = self.evaluate(initial=True, step=-1)
-            #t.set_postfix(evaluation_stats)
-            for step, batch in enumerate(t):
-                tf.summary.experimental.set_step(step)
-                if len(batch) == 0:
-                    warnings.warn('Empty batch generated for training.')
-                with self.writers['train'].as_default():
+        with self.writers['train'].as_default():
+            tf.summary.experimental.set_step(-1)
+            batches = self.data.generate_batches(subset='train', nonempty=True, join_searches=self.join_searches,
+                                                 **self.limits.train)
+            with tqdm(batches, unit='step', desc='Training', disable=not get_verbose()) as t:
+                evaluation_stats = self.evaluate(initial=True, step=-1)
+                self.summary_cheap()
+                #t.set_postfix(evaluation_stats)
+                for step, batch in enumerate(t):
+                    tf.summary.experimental.set_step(step)
+                    if len(batch) == 0:
+                        warnings.warn('Empty batch generated for training.')
                     stats = self.train_step(batch)
                     if stats is not None:
                         stats_public = {k: tf.experimental.numpy.nanmean(stats[k]) for k in ['loss', 'accuracy']}
                         for k, v in stats_public.items():
                             tf.summary.scalar(f'batch/{k}', v)
                         t.set_postfix({k: v.numpy() for k, v in stats_public.items()})
-                evaluation_stats = self.evaluate(step=step)
-                #t.set_postfix(evaluation_stats)
+                    evaluation_stats = self.evaluate(step=step)
+                    self.summary_cheap()
+                    #t.set_postfix(evaluation_stats)
+    
+    def summary_cheap(self):
+        with self.writers['train'].as_default():
+            memory_info = psutil.Process().memory_full_info()
+            log.debug(f'Memory information:\n{yaml.dump({k: humanize.naturalsize(v, binary=True) for k, v in memory_info._asdict().items()})}')
+            for field in ['rss', 'vms', 'shared', 'uss', 'pss', 'swap']:
+                tf.summary.scalar(f'memory/{field}', getattr(memory_info, field))
 
     def evaluate(self, problems=None, initial=False, step=None):
         eval_empirical = self.empirical.is_triggered(step)
