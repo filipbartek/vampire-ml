@@ -51,10 +51,12 @@ class Graph(SymbolFeatures):
             readouts = {ntype: dgl.readout_nodes(batch_graph, 'h', ntype=ntype, op=self.readout_op) for ntype in
                         readout_ntypes}
 
-        for ntype in readouts:
-            num_nodes = batch_graph._batch_num_nodes[ntype]
-            mask_nan = tf.tile(tf.expand_dims(num_nodes == 0, 1), (1, 16))
-            readouts[ntype] = tf.where(mask_nan, math.nan, readouts[ntype])
+        # The readout values are all zeros for graphs and ntypes such that there is no ntype node in the graph.
+        # Replace such zeros with nans.
+        #for ntype in readouts:
+        #    num_nodes = batch_graph._batch_num_nodes[ntype]
+        #    mask_nan = tf.tile(tf.expand_dims(num_nodes == 0, 1), (1, 16))
+        #    readouts[ntype] = tf.where(mask_nan, math.nan, readouts[ntype])
 
         res = {
             **readouts,
