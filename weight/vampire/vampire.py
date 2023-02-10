@@ -2,7 +2,6 @@ import itertools
 import json
 import logging
 import os
-import re
 
 from . import stats
 from utils import to_str
