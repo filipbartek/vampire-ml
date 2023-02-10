@@ -14,7 +14,7 @@ hydra:
   verbose: false
 
 # Python default: 3000
-recursionlimit: 10000
+recursionlimit: null
 
 seed: 0
 epochs: null

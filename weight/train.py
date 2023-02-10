@@ -45,7 +45,8 @@ def random_integers(rng, dtype=np.int64, **kwargs):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
-    sys.setrecursionlimit(cfg.recursionlimit)
+    if cfg.recursionlimit is not None:
+        sys.setrecursionlimit(cfg.recursionlimit)
     logging.getLogger('matplotlib').setLevel(logging.INFO)
     
     with joblib.parallel_backend(cfg.parallel.backend, n_jobs=cfg.parallel.n_jobs), tf.device(cfg.tf.device):
