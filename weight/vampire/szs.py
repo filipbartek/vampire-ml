@@ -44,14 +44,11 @@ termination_reason_to_status = {
 def from_output(stdout, stderr, terminationreason=None):
     if terminationreason == 'failed':
         return {'szs_status': 'ERR', 'error': {'category': 'Failed to execute Vampire'}}
-    if terminationreason in ['walltime', 'cputime', 'cputime-soft']:
-        return {'szs_status': 'TMO'}
 
     m = re.search('^perf_event_open failed \(instruction limiting will be disabled\): Permission denied$', stderr,
                   re.MULTILINE)
     if m is not None:
         return {'szs_status': 'OSE', 'error': {'category': 'Instruction limiting is disabled', 'message': m[0]}}
-
     m = re.search('^User error: Cannot open problem file: (?P<problem>.*)$', stdout, re.MULTILINE)
     if m is not None:
         return {'szs_status': 'INE', 'error': {'category': 'Cannot open problem file', 'message': m[0]}}
@@ -59,6 +56,9 @@ def from_output(stdout, stderr, terminationreason=None):
     m = re.search('^Parsing Error on line (?P<line>\d+)\n.*$', stdout, re.MULTILINE)
     if m is not None:
         return {'szs_status': 'INE', 'error': {'category': 'Parsing error', 'message': m[0]}}
+    
+    if terminationreason in ['walltime', 'cputime', 'cputime-soft']:
+        return {'szs_status': 'TMO'}
 
     status_long = long_from_output_field(stdout)
     with suppress(KeyError):
