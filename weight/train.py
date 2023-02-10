@@ -112,7 +112,7 @@ def main(cfg):
         eval_empirical = evaluator.Empirical(runner_probe, runner_verbose=runner_verbose, clausifier=clausifier,
                                              clause_features=OmegaConf.to_container(cfg.clause_features))
 
-        graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
+        graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes, extra_fieldnames=['training'])
         output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
         # Per-node values:
         # - symbol <- predicate, function

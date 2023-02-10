@@ -34,7 +34,7 @@ class Graphifier:
     ignore = ['writer']
 
     def __init__(self, clausifier, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
-                 output_ntypes=('predicate', 'function')):
+                 output_ntypes=('predicate', 'function'), extra_fieldnames=None):
         self.clausifier = clausifier
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
@@ -44,10 +44,11 @@ class Graphifier:
         self.version = 1
         fieldnames = {'attempts': None,
                       'total': {k: None for k in ['graph_nodes', 'graph_edges']},
-                      'error': {k: None for k in [None, 'node_count', 'nodes_from_tptp_header']},
+                      'error': {k: None for k in [None, 'node_count', 'nodes_from_tptp_header', 'recursion']},
                       'clausify_cached': {k: None for k in [False, True]},
-                      'training': None,
                       'expensive': None}
+        if extra_fieldnames is not None:
+            fieldnames.update({k: None for k in extra_fieldnames})
         self.writer = CsvDictWriter(open('graphifier.csv', 'w'), fieldnames, sep='/')
         self.writer.writeheader()
 
@@ -66,7 +67,7 @@ class Graphifier:
         logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def get_graphs(self, problems, training=False, expensive=True, get_df=True):
+    def get_graphs(self, problems, expensive=True, get_df=False, write_row=True, **kwargs):
         if expensive:
             # Cache the result
             graphs_records = problems_to_graphs_list(self, problems, expensive=expensive)
@@ -79,10 +80,11 @@ class Graphifier:
             'total': df[['graph_nodes', 'graph_edges']].sum().to_dict(),
             'error': df['error'].value_counts(dropna=False).to_dict(),
             'clausify_cached': df['clausify_cached'].value_counts().to_dict(),
-            'training': training,
-            'expensive': expensive
+            'expensive': expensive,
+            **kwargs
         }
-        self.writer.writerow(stats)
+        if write_row:
+            self.writer.writerow(stats)
         logging.debug(f'Problems converted to graphs.\n%s\n%s' % (yaml.dump(stats), df[['graph_nodes', 'graph_edges', 'graph_nodes_lower_bound', 'error', 'clausify_cached']]))
         if get_df:
             return graphs, df
