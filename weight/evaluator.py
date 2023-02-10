@@ -260,7 +260,7 @@ def functor_weight_file(weights, filename=None):
             # This simplifies the integration within Vampire,
             # since the equality symbol is instantiated before the problem is loaded.
             continue
-        f.write(f'{functor} {to_str(weight)}\n')
+        f.write(f'{to_str(weight)} {functor}\n')
     f.seek(0)
     try:
         yield f
