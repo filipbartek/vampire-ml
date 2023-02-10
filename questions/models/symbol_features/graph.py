@@ -14,7 +14,7 @@ class Graph(SymbolFeatures):
         self.readout_op = readout_op
 
     def call(self, problems, training=False, expensive=True):
-        batch_graph, valid = self.problems_to_batch_graph(problems, expensive=expensive, training=training, phase=phase)
+        batch_graph, valid = self.problems_to_batch_graph(problems, expensive=expensive, training=training)
         res = self.resolve_batch_graph(batch_graph, training=training)
         return {'embeddings': res, 'valid': valid}
 
