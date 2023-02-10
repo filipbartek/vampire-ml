@@ -60,7 +60,7 @@ class Graphifier:
         return self.empty_graph().canonical_etypes
 
     def get_graphs_dict(self, problems, cache=True):
-        graphs, df = self.get_graphs(problems, cache=cache)
+        graphs, df = self.get_graphs(problems, cache=cache, get_df=True)
         records = (x[1] for x in df.iterrows())
         problem_graphs = {p: g for p, g, r in zip(problems, graphs, records) if
                           g is not None and r is not None and r['error'] is None}
