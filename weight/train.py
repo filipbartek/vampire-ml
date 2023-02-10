@@ -23,6 +23,7 @@ from questions.memory import memory
 from questions.solver import Solver
 from training import StepTimer
 from training import Training
+from utils import save_df
 from weight import evaluator
 
 log = logging.getLogger(__name__)
@@ -153,6 +154,10 @@ def main(cfg):
             'train': problem_paths[:train_count],
             'val': problem_paths[train_count:]
         }
+        
+        graphs, graphs_df = graphifier.get_graphs(problem_paths, get_df=True)
+        save_df(graphs_df, 'graphs')
+        
         data = training.Dataset(problem_paths, ss.spawn(1)[0], subsets=subsets)
         tr = Training(data, model=model_logit, evaluator=eval_empirical, optimizer=optimizer, writers=writers,
                       empirical=StepTimer(**cfg.evaluation.empirical), proxy=StepTimer(**cfg.evaluation.proxy),
