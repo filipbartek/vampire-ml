@@ -93,7 +93,7 @@ class Graphifier:
 
     def dtypes(self):
         return {
-            'clausify_returncode': 'category',
+            'clausify_returncode': pd.Int8Dtype(),
             'num_clauses': pd.UInt32Dtype(),
             'num_predicate': pd.UInt32Dtype(),
             'num_function': pd.UInt32Dtype(),
