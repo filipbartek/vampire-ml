@@ -119,38 +119,9 @@ class Proxy(Evaluator):
         }
 
 
-def may_be_saturation_based_search(status):
-    return szs.is_unsat(status) or status in ['TMO', 'MMO', 'GUP', 'INC', 'ACO', 'INO']
-
-
 @memory.cache(ignore=['out_dir'])
 def empirical_evaluate_one(evaluator, problem, weight, out_dir):
-    try:
-        weights_dict, symbols = evaluator.weight_vector_to_dict(problem, weight)
-    except RuntimeError as e:
-        warnings.warn(f'{problem}: {e}')
-        return {'error': str(e)}
-    signature = symbols.name
-    result = {}
-    with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
-        result['probe'] = evaluator.result_to_record(
-            evaluator.runner_probe.run(problem, options, out_dir=path_join(out_dir, 'probe')))
-        assert 'activations' in result['probe'] and result['probe']['activations'] is not None
-        if evaluator.runner_verbose is not None and may_be_saturation_based_search(result['probe']['szs_status']) and \
-                result['probe']['activations'] > 0:
-            options_verbose = options.copy()
-            options_verbose['activation_limit'] = result['probe']['activations']
-            if szs.is_unsat(result['probe']['szs_status']):
-                options_verbose['activation_limit'] += 1
-            result['verbose'] = evaluator.result_to_record(
-                evaluator.runner_verbose.run(problem, options_verbose, out_dir=path_join(out_dir, 'verbose')),
-                signature)
-            assert not szs.is_unsat(result['probe']['szs_status']) or (
-                    result['verbose']['szs_status'] == result['probe']['szs_status'] and result['verbose'][
-                'activations'] == result['probe']['activations'])
-            assert result['verbose']['szs_status'] != 'ACO' or result['verbose']['activations'] == result['probe'][
-                'activations']
-    return result
+    return evaluator._evaluate_one(problem, weight, out_dir)
 
 
 class Empirical(Evaluator):
@@ -202,6 +173,39 @@ class Empirical(Evaluator):
             if result['probe']['szs_status'] == 'OSE':
                 raise RuntimeError(result['probe']['error'])
         return result
+
+    def _evaluate_one(self, problem, weight, out_dir):
+        try:
+            weights_dict, symbols = self.weight_vector_to_dict(problem, weight)
+        except RuntimeError as e:
+            warnings.warn(f'{problem}: {e}')
+            return {'error': str(e)}
+        signature = symbols.name
+        result = {}
+        with weight_options(weights_dict, path_join(out_dir, 'functor_weight.txt')) as options:
+            result['probe'] = self.result_to_record(
+                self.runner_probe.run(problem, options, out_dir=path_join(out_dir, 'probe')))
+            assert 'activations' in result['probe'] and result['probe']['activations'] is not None
+            if self.runner_verbose is not None and self.run_verbose(result['probe']):
+                options_verbose = options.copy()
+                options_verbose['activation_limit'] = result['probe']['activations']
+                if szs.is_unsat(result['probe']['szs_status']):
+                    options_verbose['activation_limit'] += 1
+                result['verbose'] = self.result_to_record(
+                    self.runner_verbose.run(problem, options_verbose, out_dir=path_join(out_dir, 'verbose')),
+                    signature)
+                assert not szs.is_unsat(result['probe']['szs_status']) or (
+                        result['verbose']['szs_status'] == result['probe']['szs_status'] and result['verbose'][
+                    'activations'] == result['probe']['activations'])
+                assert result['verbose']['szs_status'] != 'ACO' or result['verbose']['activations'] == result['probe'][
+                    'activations']
+        return result
+    
+    def run_verbose(self, probe):
+        if probe['activations'] <= 0:
+            return False
+        status = probe['szs_status']
+        return szs.is_unsat(status) or status in ['TMO', 'MMO', 'GUP', 'INC', 'ACO', 'INO']
 
     def weight_vector_to_dict(self, problem, weight):
         symbols = self.clausifier.clausify(problem, get_clauses=False).symbols
