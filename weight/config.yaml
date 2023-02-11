@@ -16,11 +16,6 @@ hydra:
 # Python default: 3000
 recursionlimit: null
 
-rlimit:
-  # The maximum size of the process's virtual memory (address space) in bytes.
-  AS:
-    soft: 4e9
-
 szs_status_of_interest:
   # https://www.tptp.org/cgi-bin/SeeTPTP?Category=Documents&File=SZSOntology
   # Unsatisfiable
