@@ -125,11 +125,15 @@ def empirical_evaluate_one(evaluator, problem, weight, out_dir):
 
 
 class Empirical(Evaluator):
-    def __init__(self, runner_probe, clausifier, clause_features, runner_verbose=None, plot_max_features=0):
+    def __init__(self, runner_probe, clausifier, clause_features, runner_verbose=None, szs_status_of_interest=None,
+                 plot_max_features=0):
         self.runner_probe = runner_probe
         self.runner_verbose = runner_verbose
         self.clausifier = clausifier
         self.clause_features = clause_features
+        if szs_status_of_interest is None:
+            szs_status_of_interest = ['THM', 'CAX', 'UNS'] + ['TMO', 'MMO', 'GUP', 'INC', 'ACO', 'INO']
+        self.szs_status_of_interest = szs_status_of_interest
         self.plot_max_features = plot_max_features
 
     def evaluate_one(self, problem, weight, out_dir=None, iteration=None):
@@ -205,7 +209,7 @@ class Empirical(Evaluator):
         if probe['activations'] <= 0:
             return False
         status = probe['szs_status']
-        return szs.is_unsat(status) or status in ['TMO', 'MMO', 'GUP', 'INC', 'ACO', 'INO']
+        return status in self.szs_status_of_interest
 
     def weight_vector_to_dict(self, problem, weight):
         symbols = self.clausifier.clausify(problem, get_clauses=False).symbols
