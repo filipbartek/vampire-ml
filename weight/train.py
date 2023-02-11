@@ -54,10 +54,10 @@ def main(cfg):
         if limits is not None:
             soft = psutil.RLIM_INFINITY
             if 'soft' in limits:
-                soft = limits.soft
+                soft = int(limits.soft)
             hard = psutil.RLIM_INFINITY
             if 'hard' in limits:
-                hard = limits.hard
+                hard = int(limits.hard)
             process.rlimit(resource, (soft, hard))
             log.debug(f'{resource_full_name} after: {process.rlimit(resource)}')
     
