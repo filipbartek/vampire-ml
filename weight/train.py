@@ -8,6 +8,7 @@ import joblib
 import hydra
 import numpy as np
 import pandas as pd
+import psutil
 import scipy
 import tensorflow as tf
 import yaml
@@ -45,6 +46,21 @@ def random_integers(rng, dtype=np.int64, **kwargs):
 
 @hydra.main(config_path='.', config_name='config', version_base='1.1')
 def main(cfg):
+    process = psutil.Process()
+    for resource_name, limits in cfg.rlimit.items():
+        resource_full_name = f'RLIMIT_{resource_name}'
+        resource = getattr(psutil, resource_full_name)
+        log.debug(f'{resource_full_name} before: {process.rlimit(resource)}')
+        if limits is not None:
+            soft = psutil.RLIM_INFINITY
+            if 'soft' in limits:
+                soft = limits.soft
+            hard = psutil.RLIM_INFINITY
+            if 'hard' in limits:
+                hard = limits.hard
+            process.rlimit(resource, (soft, hard))
+            log.debug(f'{resource_full_name} after: {process.rlimit(resource)}')
+    
     if cfg.recursionlimit is not None:
         sys.setrecursionlimit(cfg.recursionlimit)
     logging.getLogger('matplotlib').setLevel(logging.INFO)

@@ -16,6 +16,11 @@ hydra:
 # Python default: 3000
 recursionlimit: null
 
+rlimit:
+  # The maximum size of the process's virtual memory (address space) in bytes.
+  AS:
+    soft: 4e9
+
 seed: 0
 epochs: null
 train_ratio: 0.5
