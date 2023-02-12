@@ -100,7 +100,7 @@ def df_to_samples(df_samples, signature, clause_features):
     result = {}
     stats = {'proof': 0, 'nonproof': 0, 'duplicate': 0, 'unique': 0}
     with tqdm(df_samples.itertuples(index=False), total=len(df_samples), unit='clause',
-              desc='Extracting clause feature vectors', postfix=stats, disable=not get_verbose()) as t:
+              desc='Extracting clause feature vectors', postfix=stats, disable=len(df_samples) < 100000) as t:
         for i, row in enumerate(t):
             if i % 100 == 0:
                 t.set_postfix(stats)
