@@ -352,9 +352,8 @@ class Training:
 
 
 class InitialDesign:
-    def __init__(self, clausifier, samples_per_problem, clause_features, dist, random_state):
+    def __init__(self, clausifier, clause_features, dist, random_state):
         self.clausifier = clausifier
-        self.samples_per_problem = samples_per_problem
         self.clause_features = clause_features
         self.dist = dist
         self.random_state = random_state
@@ -364,8 +363,8 @@ class InitialDesign:
 
     def sample_weight(self, problem):
         signature = self.clausifier.signature(problem)
-        size = (self.samples_per_problem, self.clause_features + len(signature))
-        log.debug(f'{problem}: Sampling {size[0]} random weight vectors of length {size[1]}.')
+        size = self.clause_features + len(signature)
+        log.debug(f'{problem}: Sampling random weight vector of length {size}.')
         return self.dist.rvs(size=size, random_state=self.random_state)
 
 

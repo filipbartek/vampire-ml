@@ -21,6 +21,7 @@ from questions import models
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
+from training import InitialDesign
 from training import StepTimer
 from training import Training
 from utils import save_df
@@ -100,11 +101,6 @@ def main(cfg):
 
         clausifier = Solver(options={**cfg.options.common, **cfg.options.clausify}, timeout=cfg.clausify_timeout)
 
-        def get_distribution(cfg):
-            return getattr(scipy.stats, cfg.name)(**{k: v for k, v in cfg.items() if k != 'name'})
-
-        dist = get_distribution(cfg.initial.distribution)
-        log.info(f'Random weight distribution ({cfg.initial.distribution}): mean={dist.mean()}, std={dist.std()}')
         runner_probe = evaluator.VampireRunner(
             options={**cfg.options.common, **cfg.options.probe, **cfg.options.evaluation.default},
             run_kwargs={**cfg.probe_run_args, 'vampire': cfg.vampire_cmd})
@@ -160,10 +156,19 @@ def main(cfg):
         graphs, graphs_df = graphifier.get_graphs(problem_paths, get_df=True)
         save_df(graphs_df, 'graphs')
         
+        initial_design = None
+        if cfg.initial_design is not None:
+            def get_distribution(cfg):
+                return getattr(scipy.stats, cfg.name)(**{k: v for k, v in cfg.items() if k != 'name'})
+
+            dist = get_distribution(cfg.initial_design.distribution)
+            log.info(f'Initial weight distribution ({cfg.initial_design.distribution}): mean={dist.mean()}, std={dist.std()}')
+            initial_design = InitialDesign(clausifier, len(cfg.clause_features), dist, ss.spawn(1)[0])
+        
         data = training.Dataset(problem_paths, ss.spawn(1)[0], subsets=subsets)
         tr = Training(data, model=model_logit, evaluator=eval_empirical, optimizer=optimizer, writers=writers,
                       empirical=StepTimer(**cfg.evaluation.empirical), proxy=StepTimer(**cfg.evaluation.proxy),
-                      limits=cfg.limits, join_searches=cfg.join_searches)
+                      limits=cfg.limits, join_searches=cfg.join_searches, initial_design=initial_design)
         tr.run()
 
 

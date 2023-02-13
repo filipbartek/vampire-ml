@@ -55,14 +55,13 @@ join_searches: false
 loop_iterations: 10
 
 
-initial:
+initial_design:
   distribution:
     # Choices: lognorm, norm, expon, uniform
     # https://docs.scipy.org/doc/scipy/reference/stats.html
     name: uniform
     loc: 1
     scale: 0
-  size: 1
 
 # Maximum proof output file size in bytes
 max_proof_file_size: null
