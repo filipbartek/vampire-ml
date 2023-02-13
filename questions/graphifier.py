@@ -24,8 +24,8 @@ from weight import yaml_utils
 
 
 @memory.cache(verbose=1, ignore=['expensive'])
-def problems_to_graphs_list(graphifier, problems, expensive=True):
-    return graphifier.compute_graphs(problems, expensive=expensive)
+def problems_to_graphs_list(graphifier, problems, expensive=True, return_graphs=True):
+    return graphifier.compute_graphs(problems, expensive=expensive, return_graphs=return_graphs)
 
 
 class Graphifier:
@@ -67,10 +67,10 @@ class Graphifier:
         logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def get_graphs(self, problems, expensive=True, get_df=False, write_row=True, **kwargs):
+    def get_graphs(self, problems, expensive=True, get_df=False, return_graphs=True, write_row=True, **kwargs):
         if expensive:
             # Cache the result
-            graphs_records = problems_to_graphs_list(self, problems, expensive=expensive)
+            graphs_records = problems_to_graphs_list(self, problems, expensive=expensive, return_graphs=return_graphs)
         else:
             graphs_records = self.compute_graphs(problems, expensive=expensive)
         graphs, records = zip(*graphs_records)
@@ -103,7 +103,7 @@ class Graphifier:
             'graph_edges': pd.UInt32Dtype()
         }
 
-    def compute_graphs(self, problems, expensive=True):
+    def compute_graphs(self, problems, expensive=True, return_graphs=True):
         if expensive and len(problems) > 1:
             print(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...',
                   file=sys.stderr)
@@ -113,12 +113,14 @@ class Graphifier:
             n_jobs = 1
             verbose = 0
         with set_env(CUDA_VISIBLE_DEVICES='-1'):
+            logging.debug('Graphifying. Parent: CUDA_VISIBLE_DEVICES=%s' % os.environ['CUDA_VISIBLE_DEVICES'])
             # We disable CUDA for the subprocesses so that they do not crash due to the exclusivity of access to a GPU.
             # https://github.com/tensorflow/tensorflow/issues/30594
             return Parallel(n_jobs=n_jobs, verbose=verbose)(
-                delayed(self.problem_to_graph)(problem) for problem in problems)
+                delayed(self.problem_to_graph)(problem, return_graph=return_graphs) for problem in problems)
 
-    def problem_to_graph(self, problem_name, cache=True):
+    def problem_to_graph(self, problem_name, cache=True, return_graph=True):
+        logging.debug('Graphifying. Worker: CUDA_VISIBLE_DEVICES=%s' % os.environ['CUDA_VISIBLE_DEVICES'])
         graph = None
         record = None
         if os.path.isabs(problem_name):
@@ -164,6 +166,13 @@ class Graphifier:
                 if graph is not None:
                     joblib.dump(graph, filename_graph)
         assert graph is None or self.max_number_of_nodes is None or graph.num_nodes() <= self.max_number_of_nodes
+        record['graph_loaded_from_cache'] = graph_instantiated
+        device = None
+        if graph is not None:
+            device = graph.device
+        logging.debug(f'Graphification of {problem_name} finished. Loaded from cache: {graph_instantiated}. Device: {device}.')
+        if not return_graph:
+            graph = None
         return graph, record
 
     @functools.lru_cache(maxsize=1)

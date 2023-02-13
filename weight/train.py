@@ -153,7 +153,7 @@ def main(cfg):
             'val': problem_paths[train_count:]
         }
         
-        graphs, graphs_df = graphifier.get_graphs(problem_paths, get_df=True)
+        graphs, graphs_df = graphifier.get_graphs(problem_paths, get_df=True, return_graphs=False)
         save_df(graphs_df, 'graphs')
         
         initial_design = None
