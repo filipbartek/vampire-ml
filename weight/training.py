@@ -176,7 +176,10 @@ class Training:
             weight = problem_weights[empirical_result['problem']]
             res['feature_weight_predicted'] = weight is not None
             if weight is not None:
-                res['feature_weight'] = {k: v.numpy() for k, v in zip(self.evaluator.clause_features, weight)}
+                weight_static = weight[:len(self.evaluator.clause_features)]
+                if isinstance(weight_static, tf.Tensor):
+                    weight_static = weight_static.numpy()
+                res['feature_weight'] = dict(zip(self.evaluator.clause_features, weight_static))
             return res
 
         df = pd.json_normalize((empirical_result_to_record(d) for d in empirical_results), sep='_')
