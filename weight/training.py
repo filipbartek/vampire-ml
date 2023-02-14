@@ -80,11 +80,10 @@ class Training:
                     #t.set_postfix(evaluation_stats)
     
     def summary_cheap(self):
-        with self.writers['train'].as_default():
-            memory_info = psutil.Process().memory_full_info()
-            log.debug(f'Memory information:\n{yaml.dump({k: humanize.naturalsize(v, binary=True) for k, v in memory_info._asdict().items()})}')
-            for field in ['rss', 'vms', 'shared', 'uss', 'pss', 'swap']:
-                tf.summary.scalar(f'memory/{field}', getattr(memory_info, field))
+        memory_info = psutil.Process().memory_full_info()
+        log.debug(f'Memory usage:\n{yaml.dump({k: humanize.naturalsize(v, binary=True) for k, v in memory_info._asdict().items()})}')
+        for field in ['rss', 'vms', 'shared', 'uss', 'pss', 'swap']:
+            tf.summary.scalar(f'memory/{field}', getattr(memory_info, field))
 
     def evaluate(self, problems=None, initial=False, step=None):
         eval_empirical = self.empirical.is_triggered(step)
