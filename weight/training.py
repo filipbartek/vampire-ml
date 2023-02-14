@@ -153,7 +153,8 @@ class Training:
                     problem_weights[problem] = None
         out_dir = os.path.join('evaluation', 'empirical', str(step))
         empirical_results = self.evaluator.evaluate(problem_weights, out_dir=out_dir)
-        self.data.update(empirical_results, step=step)
+        if step is not None and step < 0:
+            self.data.update(empirical_results, step=step)
 
         def empirical_result_to_record(empirical_result):
             def run_result_to_record(run_result):
