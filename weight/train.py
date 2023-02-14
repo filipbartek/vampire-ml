@@ -170,8 +170,8 @@ def main(cfg):
             'val': problem_paths[train_count:]
         }
         
-        graphs, graphs_df = graphifier.get_graphs(problem_paths, get_df=True, return_graphs=False)
-        save_df(graphs_df, 'graphs')
+        for name, pp in subsets.items():
+            np.savetxt(os.path.join('problems', f'subset_{name}.txt'), pp, fmt='%s')
         
         initial_design = None
         if cfg.initial_design is not None:
