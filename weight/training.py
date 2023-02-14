@@ -63,6 +63,10 @@ class Training:
                 #t.set_postfix(evaluation_stats)
                 for step, batch in enumerate(t):
                     tf.summary.experimental.set_step(step)
+                    tf.summary.scalar('batch/samples/total', len(batch))
+                    tf.summary.scalar('batch/samples/subsampled', sum('sample_weight' not in s['clause_pairs'] for s in batch))
+                    tf.summary.scalar('batch/size/total', sum(np.prod(s['clause_pairs']['X'].shape) for s in batch))
+                    tf.summary.scalar('batch/size/nnz', sum(s['clause_pairs']['X'].nnz for s in batch))
                     if len(batch) == 0:
                         warnings.warn('Empty batch generated for training.')
                     stats = self.train_step(batch)
