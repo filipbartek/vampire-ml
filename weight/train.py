@@ -147,6 +147,23 @@ def main(cfg):
 
         model_logit.compile(optimizer=optimizer)
 
+        graphs, graphs_df = graphifier.get_graphs(problem_paths, get_df=True, return_graphs=False)
+        save_df(graphs_df, 'graphs')
+
+        os.makedirs('problems', exist_ok=True)
+        np.savetxt(os.path.join('problems', 'all.txt'), problem_paths, fmt='%s')
+
+        problem_paths = graphs_df.index[graphs_df.error.isna()]
+        log.info(f'Removing problems with too many nodes:\n%s' % yaml.dump({
+            'total': {
+                'before': len(graphs_df),
+                'after': len(problem_paths),
+            },
+            'error': graphs_df.error.value_counts(dropna=False).to_dict()
+        }))
+        
+        np.savetxt(os.path.join('problems', 'graphified.txt'), problem_paths, fmt='%s')
+
         train_count = int(len(problem_paths) * cfg.train_ratio)
         subsets = {
             'train': problem_paths[:train_count],
