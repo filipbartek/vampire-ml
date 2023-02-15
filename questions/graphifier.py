@@ -18,8 +18,8 @@ from questions.memory import memory
 from questions.utils import dataframe_from_records
 from questions.utils import CsvDictWriter
 from questions.utils import py_str
-from questions.utils import set_env
 from questions.utils import timer
+from utils import get_parallel
 from weight import yaml_utils
 
 
@@ -112,12 +112,9 @@ class Graphifier:
         else:
             n_jobs = 1
             verbose = 0
-        with set_env(CUDA_VISIBLE_DEVICES='-1'):
+        with get_parallel(len(problems), n_jobs=n_jobs, verbose=verbose) as parallel:
             logging.debug('Graphifying. Parent: CUDA_VISIBLE_DEVICES=%s' % os.environ['CUDA_VISIBLE_DEVICES'])
-            # We disable CUDA for the subprocesses so that they do not crash due to the exclusivity of access to a GPU.
-            # https://github.com/tensorflow/tensorflow/issues/30594
-            return Parallel(n_jobs=n_jobs, verbose=verbose)(
-                delayed(self.problem_to_graph)(problem, return_graph=return_graphs) for problem in problems)
+            return parallel(delayed(self.problem_to_graph)(problem, return_graph=return_graphs) for problem in problems)
 
     def problem_to_graph(self, problem_name, cache=True, return_graph=True):
         logging.debug('Graphifying. Worker: CUDA_VISIBLE_DEVICES=%s' % os.environ['CUDA_VISIBLE_DEVICES'])
