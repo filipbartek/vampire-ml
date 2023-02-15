@@ -260,7 +260,9 @@ def get_parallel(n_tasks, n_jobs=None, verbose=None, **kwargs):
         verbose = get_verbose()
     parallel = joblib.Parallel(n_jobs=n_jobs, verbose=verbose, **kwargs)
     new_verbose = verbose and parallel.n_jobs == 1
-    with set_verbose(new_verbose):
+    # We disable CUDA for the subprocesses so that they do not crash due to the exclusivity of access to a GPU.
+    # https://github.com/tensorflow/tensorflow/issues/30594
+    with set_verbose(new_verbose), set_env(CUDA_VISIBLE_DEVICES=-1):
         yield parallel
 
 
