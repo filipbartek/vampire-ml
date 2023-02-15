@@ -250,11 +250,14 @@ def set_verbose(verbose):
 
 
 @contextmanager
-def get_parallel(n_tasks, **kwargs):
-    n_jobs = None
+def get_parallel(n_tasks, n_jobs=None, verbose=None, **kwargs):
     if n_tasks < (joblib.parallel.get_active_backend()[1] or 1):
-        n_jobs = max(n_tasks, 1)
-    verbose = get_verbose()
+        if n_jobs is not None:
+            n_jobs = min(n_jobs, max(n_tasks, 1))
+        else:
+            n_jobs = max(n_tasks, 1)
+    if verbose is None:
+        verbose = get_verbose()
     parallel = joblib.Parallel(n_jobs=n_jobs, verbose=verbose, **kwargs)
     new_verbose = verbose and parallel.n_jobs == 1
     with set_verbose(new_verbose):
