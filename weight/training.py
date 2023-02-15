@@ -16,6 +16,7 @@ from tqdm import tqdm
 
 from questions.utils import flatten_dict
 from questions.utils import py_str
+from questions.utils import timer
 from utils import astype
 from utils import get_verbose
 from utils import save_df
@@ -51,39 +52,86 @@ class Training:
         self.proxy = proxy or StepTimer()
         self.limits = limits
         self.join_searches = join_searches
+        self.stats = {}
+        self.t = None
 
     def run(self):
         with self.writers['train'].as_default():
             tf.summary.experimental.set_step(-1)
             batches = self.data.generate_batches(subset='train', nonempty=True, join_searches=self.join_searches,
                                                  **self.limits.train)
-            with tqdm(batches, unit='step', desc='Training', disable=not get_verbose()) as t:
-                evaluation_stats = self.evaluate(initial=True, step=-1)
+            stats = {}
+            with tqdm(batches, unit='step', desc='Training', disable=not get_verbose(), postfix=stats) as self.t:
+                with timer() as time:
+                    self.evaluate(initial=True, step=-1)
+                self.update_stats({'time/eval': time.elapsed})
                 self.summary_cheap()
-                #t.set_postfix(evaluation_stats)
-                for step, batch in enumerate(t):
-                    tf.summary.experimental.set_step(step)
-                    tf.summary.scalar('batch/samples/total', len(batch))
-                    tf.summary.scalar('batch/samples/subsampled', sum('sample_weight' not in s['clause_pairs'] for s in batch))
-                    tf.summary.scalar('batch/size/total', sum(np.prod(s['clause_pairs']['X'].shape) for s in batch))
-                    tf.summary.scalar('batch/size/nnz', sum(s['clause_pairs']['X'].nnz for s in batch))
-                    if len(batch) == 0:
-                        warnings.warn('Empty batch generated for training.')
-                    stats = self.train_step(batch)
-                    if stats is not None:
-                        stats_public = {k: tf.experimental.numpy.nanmean(stats[k]) for k in ['loss', 'accuracy']}
-                        for k, v in stats_public.items():
-                            tf.summary.scalar(f'batch/{k}', v)
-                        t.set_postfix({k: v.numpy() for k, v in stats_public.items()})
-                    evaluation_stats = self.evaluate(step=step)
-                    self.summary_cheap()
-                    #t.set_postfix(evaluation_stats)
+                for step, batch in enumerate(self.t):
+                    with timer() as time_step:
+                        tf.summary.experimental.set_step(step)
+                        self.update_stats({'batch': {
+                            'samples': {
+                                'total': len(batch),
+                                'subsampled': sum('sample_weight' not in s['clause_pairs'] for s in batch)
+                            },
+                            'size': {
+                                'total': sum(np.prod(s['clause_pairs']['X'].shape) for s in batch),
+                                'nnz': sum(s['clause_pairs']['X'].nnz for s in batch)
+                            }
+                        }})
+                        if len(batch) == 0:
+                            warnings.warn('Empty batch generated for training.')
+                        with timer() as time:
+                            self.train_step(batch)
+                        self.update_stats({'time/train': time.elapsed})
+                        with timer() as time:
+                            self.evaluate(step=step)
+                        self.update_stats({'time/eval': time.elapsed})
+                        self.summary_cheap()
+                    self.update_stats({'time/step': time_step.elapsed})
+    
+    def update_stats(self, stats, subset=None):
+        writer = subset
+        if writer is None:
+            writer = 'train'
+        with self.writers[writer].as_default():
+            for k, v in flatten_dict(stats, sep='/').items():
+                tf.summary.scalar(k, v)
+        global_stats = stats
+        if subset is not None:
+            global_stats = {subset: stats}
+        self.stats.update(flatten_dict(global_stats, sep='/'))
+        self.t.set_postfix(self.progress_stats())
+    
+    def progress_stats(self):
+        result = {}
+        for subset in ['train', 'val']:
+            try:
+                solved_rate = self.stats[f'{subset}/eval/problems/solved'] / self.stats[f'{subset}/eval/problems/total']
+            except KeyError:
+                solved_rate = None
+            except ZeroDivisionError:
+                solved_rate = np.nan
+            result.update({
+                f'eval/{subset}/solved_rate': solved_rate,
+                f'eval/{subset}/acc': self.stats.get(f'{subset}/eval/accuracy'),
+                f'eval/{subset}/loss': self.stats.get(f'{subset}/eval/loss')
+            })
+        result.update({
+            'train/acc': self.stats.get('train/train/accuracy'),
+            'train/loss': self.stats.get('train/train/loss/mean')
+        })
+        for k in ['train/acc', 'train/loss']:
+            if result[k] is not None:
+                result[k] = result[k].numpy()
+        return result
+                    
     
     def summary_cheap(self):
         memory_info = psutil.Process().memory_full_info()
         log.debug(f'Memory usage:\n{yaml.dump({k: humanize.naturalsize(v, binary=True) for k, v in memory_info._asdict().items()})}')
-        for field in ['rss', 'vms', 'shared', 'uss', 'pss', 'swap']:
-            tf.summary.scalar(f'memory/{field}', getattr(memory_info, field))
+        fields = ['rss', 'vms', 'shared', 'uss', 'pss', 'swap']
+        self.update_stats({'memory': {field: getattr(memory_info, field) for field in fields}})
 
     def evaluate(self, problems=None, initial=False, step=None):
         eval_empirical = self.empirical.is_triggered(step)
@@ -94,13 +142,17 @@ class Training:
             problems = self.problems()
         dfs = [self.data.problem_stats(problems)]
         if eval_proxy:
-            df_problem, df_proof_search = self.evaluate_proxy(problems)
+            with timer() as time:
+                df_problem, df_proof_search = self.evaluate_proxy(problems)
+            self.update_stats({'time/eval/proxy': time.elapsed})
             if step is not None:
                 save_df(df_proof_search, os.path.join('evaluation', 'proof_search', str(step)))
             with suppress(KeyError):
                 dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean())
         if eval_empirical:
-            dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
+            with timer() as time:
+                dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
+            self.update_stats({'time/eval/empirical': time.elapsed})
             if eval_proxy:
                 df_problem, df_proof_search = self.evaluate_proxy(problems)
                 if step is not None:
@@ -112,7 +164,6 @@ class Training:
                 df[col].fillna(False, inplace=True)
         if step is not None:
             save_df(df, os.path.join('evaluation', 'problem', str(step)))
-        stats = {}
         for subset, problems in self.data.subsets.items():
             cur_df = df[df.index.isin(problems)]
             with self.writers[subset].as_default():
@@ -125,16 +176,9 @@ class Training:
                     problem_stats['feature_weight_predicted'] = cur_df.feature_weight_predicted.sum()
                     problem_stats['solved'] = cur_df.probe_solved.sum()
                     problem_stats['unsat'] = cur_df.probe_unsat.sum()
-                for k, v in problem_stats.items():
-                    tf.summary.scalar(f'problems/{k}', v)
                 record = {k: cur_df[k].mean() for k in ['loss', 'accuracy', 'after_loss', 'after_accuracy'] if k in cur_df}
-                for k, v in record.items():
-                    tf.summary.scalar(k, v)
-                if 'solved' in problem_stats:
-                    record['solved'] = problem_stats['solved']
-                stats[subset] = record
-        log.info(f'Evaluation result: {stats}')
-        return flatten_dict(stats, sep='_')
+                record['problems'] = problem_stats
+                self.update_stats({'eval': record}, subset=subset)
 
     def evaluate_empirical(self, problems=None, initial=False, step=None):
         if initial and self.initial_design is not None:
@@ -251,7 +295,13 @@ class Training:
                 return None
             total_loss = tf.experimental.numpy.nansum(stats['loss'])
         self.minimize(total_loss, tape)
-        return stats
+        self.update_stats({'train': {
+            'loss': {
+                'sum': total_loss,
+                'mean': tf.experimental.numpy.nanmean(stats['loss'])
+            },
+            'accuracy': tf.experimental.numpy.nanmean(stats['accuracy'])
+        }}, subset='train')
 
     def test_step(self, batch, training=False):
         if len(batch) == 0:
