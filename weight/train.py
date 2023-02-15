@@ -96,8 +96,6 @@ def main(cfg):
             problem_paths = problem_paths[:cfg.max_problem_count]
 
         log.info(f'Number of problems: {len(problem_paths)}')
-        with writers['train'].as_default():
-            tf.summary.scalar('problems/grand_total', len(problem_paths))
 
         clausifier = Solver(options={**cfg.options.common, **cfg.options.clausify}, timeout=cfg.clausify_timeout)
 
