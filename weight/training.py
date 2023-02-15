@@ -154,7 +154,9 @@ class Training:
                 dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
             self.update_stats({'time/eval/empirical': time.elapsed})
             if eval_proxy:
-                df_problem, df_proof_search = self.evaluate_proxy(problems)
+                with timer() as time:
+                    df_problem, df_proof_search = self.evaluate_proxy(problems)
+                self.update_stats({'time/eval/proxy_after': time.elapsed})
                 if step is not None:
                     save_df(df_proof_search, os.path.join('evaluation', 'proof_search_after_empirical', str(step)))
                 dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean().add_prefix('after_'))
