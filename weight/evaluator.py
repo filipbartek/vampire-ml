@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import sys
 import tempfile
@@ -27,55 +28,48 @@ from weight import proof
 from weight import vampire
 
 
+def evaluate_one(evaluator, problem, weight, cur_out_dir):
+    try:
+        with timer() as t:
+            result = {
+                'problem': problem,
+                'weight': weight,
+                'out_dir': cur_out_dir,
+                **evaluator.evaluate_one(problem, weight, out_dir=cur_out_dir)
+            }
+        result['time'] = t.elapsed
+        return result
+    except Exception as e:
+        raise RuntimeError(f'Problem: {problem}') from e
+
+
 class Evaluator:
     def evaluate(self, problem_weights, out_dir=None):
-        if len(problem_weights) > 1:
-            base_path = os.path.commonpath(problem_weights)
+        problems, weights = zip(*problem_weights)
+        if len(problems) > 1:
+            base_path = os.path.commonpath(problems)
         else:
-            problem = next(iter(problem_weights.keys()))
-            base_path = os.path.dirname(problem)
+            base_path = os.path.dirname(problems[0])
 
-        def evaluate_one(problem, i, weight):
-            try:
-                cur_out_dir = out_dir
-                if cur_out_dir is not None:
-                    if len(problem_weights) > 1:
-                        relpath = os.path.relpath(problem, base_path)
-                        cur_out_dir = os.path.join(cur_out_dir, relpath)
-                    if len(problem_weights[problem]) > 1:
-                        cur_out_dir = os.path.join(cur_out_dir, str(i))
-                return {
-                    'problem': problem,
-                    'weight_idx': i,
-                    'weight': weight,
-                    'out_dir': cur_out_dir,
-                    **self.evaluate_one(problem, weight, out_dir=cur_out_dir)
-                }
-            except Exception as e:
-                raise RuntimeError(f'Problem: {problem}. Weight index: {i}.') from e
-
-        def gen_cases():
-            for problem, weight_matrix in problem_weights.items():
-                if weight_matrix is None:
-                    continue
-                if isinstance(weight_matrix, dict):
-                    weight_arrays = weight_matrix.items()
-                else:
-                    if len(weight_matrix.shape) == 1:
-                        weight_arrays = enumerate([weight_matrix])
-                    else:
-                        weight_arrays = enumerate(weight_matrix)
-                for i, weight_array in weight_arrays:
-                    if isinstance(weight_array, tf.Tensor):
-                        weight_array = weight_array.numpy()
-                    yield problem, i, weight_array
-
-        cases = list(gen_cases())
+        allunique = len(set(problems)) == len(problems)
+        
+        def get_out_dir(problem, i):
+            if out_dir is None:
+                return None
+            result = os.path.join(out_dir, os.path.relpath(problem, base_path))
+            if not allunique:
+                result = os.path.join(result, str(i))
+            return result
+        
+        cases = list(zip(problems, weights, (get_out_dir(problem, i) for i, problem in enumerate(problems))))
 
         if get_verbose():
-            print(f'Evaluating {len(cases)} weight vectors on {len(problem_weights)} problems', file=sys.stderr)
-        with get_parallel(len(cases)) as parallel:
-            return parallel(joblib.delayed(evaluate_one)(problem, i, weight) for problem, i, weight in cases)
+            print(f'Evaluating {len(problem_weights)} weight vectors', file=sys.stderr)
+        with get_parallel(len(problem_weights)) as parallel:
+            with timer() as t:
+                result = parallel(joblib.delayed(evaluate_one)(self, problem, weight, cur_out_dir) for problem, weight, cur_out_dir in cases)
+            logging.debug(f'Time to evaluate {len(problem_weights)} weight vectors: {t.elapsed}')
+            return result
 
     def evaluate_one(self, problem, weight, out_dir=None, iteration=None):
         raise NotImplemented
