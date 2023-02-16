@@ -55,7 +55,7 @@ def main(cfg):
 
         rng_seeds = np.random.default_rng(ss.spawn(1)[0])
         # For an unknown reason, nondeterminism from `random` is introduced somewhere in the process.
-        random.seed(random_integers(rng_seeds))
+        random.seed(random_integers(rng_seeds, dtype=int))
         # Seeding `np.random` is just a precaution.
         np.random.seed(random_integers(rng_seeds, dtype=np.uint32))
         tf.random.set_seed(random_integers(rng_seeds))
