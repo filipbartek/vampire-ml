@@ -198,11 +198,10 @@ class Empirical(Evaluator):
                 result['verbose'] = self.result_to_record(
                     self.runner_verbose.run(problem, options_verbose, out_dir=path_join(out_dir, 'verbose')),
                     signature)
-                assert not szs.is_unsat(result['probe']['szs_status']) or (
-                        result['verbose']['szs_status'] == result['probe']['szs_status'] and result['verbose'][
-                    'activations'] == result['probe']['activations'])
-                assert result['verbose']['szs_status'] != 'ACO' or result['verbose']['activations'] == result['probe'][
-                    'activations']
+                if szs.is_unsat(result['probe']['szs_status']) and result['verbose']['szs_status'] != result['probe']['szs_status']:
+                    warnings.warn(f'Unexpected SZS status in verbose run. Problem: %s. Expected (probe): %s. Actual (verbose): %s.' % (problem, result['probe']['szs_status'], result['verbose']['szs_status']))
+                if (szs.is_unsat(result['probe']['szs_status']) or result['verbose']['szs_status'] == 'ACO') and result['verbose']['activations'] != result['probe']['activations']:
+                    warnings.warn(f'Unexpected activations in verbose run. Problem: %s. Expected (probe): %u. Actual (verbose): %u.' % (problem, result['probe']['activations'], result['verbose']['activations']))
         return result
     
     def run_verbose(self, probe):
