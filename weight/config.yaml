@@ -147,8 +147,8 @@ batch:
   count: 1
 
 parallel:
-  # Choices: loky, threading
-  backend: loky
+  # Choices: loky, threading, multiprocessing
+  backend: multiprocessing
   n_jobs: 1
 
 gcn:
@@ -177,6 +177,7 @@ embedding_to_cost:
   # to the weight of a corresponding clause feature (symbol occurrence count, variable occurrence count,
   # equality occurrence count).
   # TODO: Support deeper MLPs.
+  # TODO: Accept additional special input: number of nodes that were aggregated.
   activation: softplus
   output_bias: 1
   regularization:
