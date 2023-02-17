@@ -5,6 +5,7 @@ defaults:
 
 hydra:
   job:
+    chdir: true
     env_set:
       DGLBACKEND: tensorflow
       TF_CPP_MIN_LOG_LEVEL: 1

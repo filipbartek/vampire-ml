@@ -44,7 +44,7 @@ def random_integers(rng, dtype=np.int64, **kwargs):
     return rng.integers(low=ii.min, high=ii.max, dtype=dtype, endpoint=True, **kwargs)
 
 
-@hydra.main(config_path='.', config_name='config', version_base='1.1')
+@hydra.main(config_path='.', config_name='config', version_base=None)
 def main(cfg):
     if cfg.recursionlimit is not None:
         sys.setrecursionlimit(cfg.recursionlimit)
