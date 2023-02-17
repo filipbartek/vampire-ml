@@ -81,16 +81,37 @@ def main(cfg):
         with writers['train'].as_default():
             tf.summary.text('path/cwd', os.getcwd())
             tf.summary.text('path/cache', memory.location)
-
-        if isinstance(cfg.problem.names, str):
-            raise RuntimeError('The option problem.names should be a list, not a string.')
-        problem_name_lists = [(questions.config.full_problem_path(p) for p in cfg.problem.names)]
-        for list_file in cfg.problem.lists:
-            dir = os.path.dirname(list_file)
-            list = pd.read_csv(hydra.utils.to_absolute_path(list_file), names=['problem']).problem
-            abs_paths = (questions.config.full_problem_path(p, [dir]) for p in list)
-            problem_name_lists.append(abs_paths)
-        problem_paths = sorted(set(itertools.chain.from_iterable(problem_name_lists)))
+        
+        def get_problem_set(cfg):
+            if cfg is None:
+                return set()
+            names = []
+            if 'names' in cfg:
+                names = cfg.names
+                if isinstance(cfg.names, str):
+                    names = [names]
+            abs_path_generators = [(questions.config.full_problem_path(p) for p in names)]
+            if 'lists' in cfg:
+                for list_file in cfg.lists:
+                    dir = os.path.dirname(list_file)
+                    list = pd.read_csv(hydra.utils.to_absolute_path(list_file), names=['problem']).problem
+                    abs_paths = (questions.config.full_problem_path(p, [dir]) for p in list)
+                    abs_path_generators.append(abs_paths)
+            return set(itertools.chain.from_iterable(abs_path_generators))
+        
+        def get_problems(cfg):
+            include = get_problem_set(cfg.include)
+            exclude = get_problem_set(cfg.exclude)
+            left = include - exclude
+            log.info('Problems:\n%s' % yaml.dump({
+                'include': len(include),
+                'exclude': len(exclude),
+                'include & exclude': len(include & exclude),
+                'include - exclude': len(left)
+            }))
+            return sorted(left)
+        
+        problem_paths = get_problems(cfg.problem)
         problem_paths = rng.permutation(problem_paths)
         if cfg.max_problem_count is not None:
             problem_paths = problem_paths[:cfg.max_problem_count]

@@ -88,8 +88,14 @@ clause_features:
 
 vampire_cmd: vampire
 problem:
-  lists: []
-  names: []
+  include:
+    lists: []
+    names: []
+  exclude:
+    names:
+      # The problems SYN000-2 and SYN000+2 contain elements that are not supported by Vampire, namely the unit type 'assumption'.
+      - SYN000-2
+      - SYN000+2
 tptp_path: ${oc.env:TPTP}
 
 evaluation_problems:
