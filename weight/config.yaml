@@ -105,7 +105,7 @@ options:
     saturation_algorithm: discount
     age_weight_ratio: "1:5"
     statistics: full
-    time_limit: 0
+    time_limit: 300
   probe:
     proof: "off"
     instruction_limit: 50000
@@ -122,14 +122,14 @@ options:
     #  age_weight_ratio: "1:9"
   clausify: {}
 
-clausify_timeout: 300
+clausify_timeout: 310
 
 probe_run_args:
   # Choices: subprocess, benchexec
   backend: subprocess
 
   # subprocess: The parameters are passed to `subprocess.run`.
-  timeout: 300
+  timeout: 310
 
   # BenchExec: The arguments are passed to `benchexec.runexecutor.RunExecutor.execute_run`.
   # Notable parameters: softtimelimit, hardtimelimit, walltimelimit
