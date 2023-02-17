@@ -219,7 +219,7 @@ class Training:
                 return res
 
             res = {
-                'problem': empirical_result['problem'],
+                **{k: empirical_result[k] for k in ['problem', 'time']},
                 **{k: run_result_to_record(empirical_result[k]) for k in ['probe', 'verbose'] if k in empirical_result}
             }
 
