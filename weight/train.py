@@ -63,7 +63,18 @@ def main(cfg):
         rng = np.random.default_rng(ss.spawn(1)[0])
 
         tf.config.run_functions_eagerly(cfg.tf.run_eagerly)
-        tf.debugging.set_log_device_placement(cfg.tf.log_device_placement)
+        
+        # Configure TensorFlow debugging
+        tf.debugging.set_log_device_placement(cfg.tf.debugging.log_device_placement)
+        if cfg.tf.debugging.traceback_filtering:
+            tf.debugging.enable_traceback_filtering()
+        else:
+            tf.debugging.disable_traceback_filtering()
+        if cfg.tf.debugging.check_numerics:
+            tf.debugging.enable_check_numerics()
+        else:
+            tf.debugging.disable_check_numerics()
+        
         tf.summary.experimental.set_step(-1)
 
         writers = {

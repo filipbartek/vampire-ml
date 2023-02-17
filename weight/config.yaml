@@ -194,7 +194,10 @@ learning_rate: 0.001
 tf:
   device: null
   run_eagerly: false
-  log_device_placement: false
+  debugging:
+    log_device_placement: true
+    traceback_filtering: true
+    check_numerics: true
 
 tensorboard:
   # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/TensorBoard
