@@ -74,8 +74,9 @@ class Classifier(tf.keras.Model):
     def costs_decorated_to_logits(cls, symbol_costs_decorated, questions):
         symbol_costs_valid = tf.ragged.boolean_mask(symbol_costs_decorated['costs'], symbol_costs_decorated['valid'])
         questions_valid = tf.ragged.boolean_mask(questions, symbol_costs_decorated['valid'])
-        # If a weight failed to be predicted e.g. because there are no nodes of the supporting type, we default its value to 1.
-        symbol_costs_valid = tf.where(tf.math.is_nan(symbol_costs_valid), 1.0, symbol_costs_valid)
+        # Note: `tf.debugging.assert_all_finite` does not support ragged tensors.
+        # Note: `tf.debugging.Assert` requires at least one non-ragged data tensor in non-eager mode.
+        tf.debugging.assert_equal(True, tf.reduce_all(tf.math.is_finite(symbol_costs_valid)))
         logits_valid = cls.costs_to_logits(symbol_costs_valid, questions_valid)
         index_mask = tf.repeat(symbol_costs_decorated['valid'], questions.row_lengths())
         indices_all = tf.range(questions.row_splits[-1])
