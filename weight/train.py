@@ -126,6 +126,8 @@ def main(cfg):
         problem_paths = rng.permutation(problem_paths)
         if cfg.max_problem_count is not None:
             problem_paths = problem_paths[:cfg.max_problem_count]
+        if len(problem_paths) == 0:
+            raise RuntimeError('No problems to train on.')
 
         log.info(f'Number of problems: {len(problem_paths)}')
 
@@ -191,6 +193,8 @@ def main(cfg):
             },
             'error': graphs_df.error.value_counts(dropna=False).to_dict()
         }))
+        if len(problem_paths) == 0:
+            raise RuntimeError('No problems to train on.')
         
         np.savetxt(os.path.join('problems', 'graphified.txt'), problem_paths, fmt='%s')
 
