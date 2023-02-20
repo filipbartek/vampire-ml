@@ -64,7 +64,7 @@ class Evaluator:
         cases = list(zip(problems, weights, (get_out_dir(problem, i) for i, problem in enumerate(problems))))
 
         if get_verbose():
-            print(f'Evaluating {len(problem_weights)} weight vectors', file=sys.stderr)
+            print(f'Evaluating {len(problem_weights)} weight vectors...', file=sys.stderr)
         with get_parallel(len(problem_weights)) as parallel:
             with timer() as t:
                 result = parallel(joblib.delayed(evaluate_one)(self, problem, weight, cur_out_dir) for problem, weight, cur_out_dir in cases)
