@@ -75,6 +75,9 @@ class Graphifier:
             graphs_records = self.compute_graphs(problems, expensive=expensive)
         graphs, records = zip(*graphs_records)
         df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
+        for col in ['graph_nodes', 'graph_edges', 'error', 'clausify_cached']:
+            if col not in df:
+                df[col] = pd.Series([pd.NA] * len(df), dtype=self.dtypes().get(col))
         stats = {
             'attempts': len(df),
             'total': df[['graph_nodes', 'graph_edges']].sum().to_dict(),
