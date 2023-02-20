@@ -12,6 +12,10 @@ hydra:
       # TF_NUM_INTEROP_THREADS: 0
       # TF_NUM_INTRAOP_THREADS: 0
       VERBOSE: 1
+      # We need to use a recursion limit sufficient for the deepest problems.
+      # Otherwise, there are issues with disk caching of the problem clause structures.
+      # See https://github.com/joblib/joblib/issues/1401
+      RECURSIONLIMIT: 10000
   verbose: false
 
 # Python default: 3000
