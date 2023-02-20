@@ -270,3 +270,31 @@ def range_count(stop, *args, **kwargs):
     if stop is None:
         return itertools.count(*args, **kwargs)
     return range(stop, *args, **kwargs)
+
+
+class with_cardinality:
+    # Inspiration: `more_itertools.countable`, `tf.data.Dataset`
+
+    # See `tf.data.INFINITE_CARDINALITY`
+    INFINITE = -1
+    # See `tf.data.UNKNOWN_CARDINALITY`
+    UNKNOWN = -2
+
+    def __init__(self, iterable, n):
+        self._it = iter(iterable)
+        self.cardinality = n
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return next(self._it)
+
+    def __len__(self):
+        if self.cardinality >= 0:
+            return self.cardinality
+        else:
+            raise TypeError(f'Cardinality: {self.cardinality}')
+
+    def is_finite(self):
+        return self.cardinality >= 0

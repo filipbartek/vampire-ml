@@ -1,3 +1,4 @@
+import itertools
 import logging
 import os
 import warnings
@@ -22,6 +23,7 @@ from utils import get_verbose
 from utils import save_df
 from utils import sparse_equal
 from utils import to_tensor
+from utils import with_cardinality
 from vampire import szs
 from weight import dataset
 
@@ -58,17 +60,21 @@ class Training:
     def run(self):
         with self.writers['train'].as_default():
             tf.summary.experimental.set_step(-1)
-            batches = self.data.generate_batches(subset='train', nonempty=True, join_searches=self.join_searches,
-                                                 **self.limits.train)
             stats = {}
-            with tqdm(batches, unit='step', desc='Training', disable=not get_verbose(), postfix=stats) as self.t:
-                with timer() as time:
-                    self.evaluate(initial=True, step=-1)
-                self.update_stats({'time/eval': time.elapsed})
+            with tqdm(itertools.count(), unit='step', desc='Training', disable=not get_verbose(),
+                      postfix=stats) as self.t:
+                # Initial evaluation - bootstrap training data and establish baseline performance
+                self.evaluate(initial=True)
+                self.evaluate(step=-1)
                 self.summary_cheap()
-                for step, batch in enumerate(self.t):
+
+                for step in self.t:
                     with timer() as time_step:
                         tf.summary.experimental.set_step(step)
+                        # We need to generate batch afresh to integrate new training data.
+                        # TODO: Make the batch generation more efficient: join steps into epochs.
+                        batch = self.data.generate_batch(subset='train', nonempty=True,
+                                                         join_searches=self.join_searches, **self.limits.train)
                         self.update_stats({'batch': {
                             'samples': {
                                 'total': len(batch),
@@ -84,9 +90,7 @@ class Training:
                         with timer() as time:
                             self.train_step(batch)
                         self.update_stats({'time/train': time.elapsed})
-                        with timer() as time:
-                            self.evaluate(step=step)
-                        self.update_stats({'time/eval': time.elapsed})
+                        self.evaluate(step=step)
                         self.summary_cheap()
                     self.update_stats({'time/step': time_step.elapsed})
     
@@ -125,8 +129,7 @@ class Training:
             if result[k] is not None:
                 result[k] = result[k].numpy()
         return result
-                    
-    
+
     def summary_cheap(self):
         memory_info = psutil.Process().memory_full_info()
         log.debug(f'Memory usage:\n{yaml.dump({k: humanize.naturalsize(v, binary=True) for k, v in memory_info._asdict().items()})}')
@@ -134,56 +137,67 @@ class Training:
         self.update_stats({'memory': {field: getattr(memory_info, field) for field in fields}})
 
     def evaluate(self, problems=None, initial=False, step=None):
-        eval_empirical = self.empirical.is_triggered(step)
-        eval_proxy = self.proxy.is_triggered(step)
-        if not (eval_empirical or eval_proxy):
-            return None
-        if problems is None:
-            problems = self.problems()
-        dfs = [self.data.problem_stats(problems)]
-        if eval_proxy:
-            with timer() as time:
-                df_problem, df_proof_search = self.evaluate_proxy(problems)
-            self.update_stats({'time/eval/proxy': time.elapsed})
-            if step is not None:
-                save_df(df_proof_search, os.path.join('evaluation', 'proof_search', str(step)))
-            with suppress(KeyError):
-                dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean())
-        if eval_empirical:
-            with timer() as time:
-                dfs.append(self.evaluate_empirical(problems, initial=initial, step=step))
-            self.update_stats({'time/eval/empirical': time.elapsed})
+        with timer() as time_eval:
+            if initial:
+                eval_empirical = True
+                eval_proxy = True
+                name = 'initial'
+            else:
+                eval_empirical = self.empirical.is_triggered(step)
+                eval_proxy = self.proxy.is_triggered(step)
+                name = 'eval'
+            if not (eval_empirical or eval_proxy):
+                return None
+            if problems is None:
+                problems = self.problems()
+            dfs = [self.data.problem_stats(problems)]
             if eval_proxy:
                 with timer() as time:
                     df_problem, df_proof_search = self.evaluate_proxy(problems)
-                self.update_stats({'time/eval/proxy_after': time.elapsed})
-                if step is not None:
-                    save_df(df_proof_search, os.path.join('evaluation', 'proof_search_after_empirical', str(step)))
-                dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean().add_prefix('after_'))
-        df = pd.concat(dfs, axis='columns', copy=False)
-        for col in ['feature_weight_predicted', 'probe_solved', 'probe_unsat', 'verbose_solved', 'verbose_unsat']:
-            if col in df:
-                df[col].fillna(False, inplace=True)
-        if step is not None:
-            save_df(df, os.path.join('evaluation', 'problem', str(step)))
-        for subset, problems in self.data.subsets.items():
-            cur_df = df[df.index.isin(problems)]
-            with self.writers[subset].as_default():
-                problem_stats = {
-                    'total': len(cur_df),
-                    'with_proof_clauses': (cur_df.proof_feature_vectors > 0).sum(),
-                    'with_clauses': (cur_df.feature_vectors > 0).sum(),
-                }
-                if eval_empirical:
-                    problem_stats['feature_weight_predicted'] = cur_df.feature_weight_predicted.sum()
-                    problem_stats['solved'] = cur_df.probe_solved.sum()
-                    problem_stats['unsat'] = cur_df.probe_unsat.sum()
-                record = {k: cur_df[k].mean() for k in ['loss', 'accuracy', 'after_loss', 'after_accuracy'] if k in cur_df}
-                record['problems'] = problem_stats
-                self.update_stats({'eval': record}, subset=subset)
+                self.update_stats({f'time/{name}/proxy': time.elapsed})
+                save_df(df_proof_search, os.path.join(name, 'proxy', str(step)))
+                with suppress(KeyError):
+                    dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean())
+            if eval_empirical:
+                # TODO: Allow update in a later step. Add a trigger.
+                do_update = initial
+                out_dir = os.path.join(name, 'empirical', str(step))
+                with timer() as time:
+                    dfs.append(self.evaluate_empirical(problems, initial=initial, step=step, do_update=do_update,
+                                                       out_dir=out_dir))
+                self.update_stats({f'time/{name}/empirical': time.elapsed})
+                if eval_proxy:
+                    with timer() as time:
+                        df_problem, df_proof_search = self.evaluate_proxy(problems)
+                    self.update_stats({f'time/{name}/proxy_after': time.elapsed})
+                    save_df(df_proof_search, os.path.join(name, 'proxy_after_empirical', str(step)))
+                    dfs.append(df_proof_search[['loss', 'accuracy']].groupby('problem').mean().add_prefix('after_'))
+            df = pd.concat(dfs, axis='columns', copy=False)
+            for col in ['feature_weight_predicted', 'probe_solved', 'probe_unsat', 'verbose_solved', 'verbose_unsat']:
+                if col in df:
+                    df[col].fillna(False, inplace=True)
+            if step is not None:
+                save_df(df, os.path.join(name, 'problem', str(step)))
+            for subset, problems in self.data.subsets.items():
+                cur_df = df[df.index.isin(problems)]
+                with self.writers[subset].as_default():
+                    problem_stats = {
+                        'total': len(cur_df),
+                        'with_proof_clauses': (cur_df.proof_feature_vectors > 0).sum(),
+                        'with_clauses': (cur_df.feature_vectors > 0).sum(),
+                    }
+                    if eval_empirical:
+                        problem_stats['feature_weight_predicted'] = cur_df.feature_weight_predicted.sum()
+                        problem_stats['solved'] = cur_df.probe_solved.sum()
+                        problem_stats['unsat'] = cur_df.probe_unsat.sum()
+                    record = {k: cur_df[k].mean() for k in ['loss', 'accuracy', 'after_loss', 'after_accuracy'] if
+                              k in cur_df}
+                    record['problems'] = problem_stats
+                    self.update_stats({name: record}, subset=subset)
+        self.update_stats({f'time/{name}': time_eval.elapsed})
 
-    def evaluate_empirical(self, problems=None, initial=False, step=None):
-        if initial and self.initial_design is not None:
+    def evaluate_empirical(self, problems=None, initial=False, step=None, do_update=True, out_dir=None):
+        if initial:
             problem_weights = self.initial_design.sample_weights(problems)
         else:
             print(f'Empirical evaluation: Predicting clause feature weights for {len(problems)} problems...')
@@ -197,9 +211,8 @@ class Training:
                     problem_weights[problem] = cost
                 else:
                     problem_weights[problem] = None
-        out_dir = os.path.join('evaluation', 'empirical', str(step))
         empirical_results = self.evaluator.evaluate(problem_weights.items(), out_dir=out_dir)
-        if step is not None and step < 0:
+        if do_update:
             self.data.update(empirical_results, step=step)
 
         def empirical_result_to_record(empirical_result):
@@ -460,6 +473,34 @@ class Dataset:
         if max_sample_size is None or (max_batch_size is not None and max_sample_size > max_batch_size):
             max_sample_size = max_batch_size
         samples = self.generate_samples(problems, exhaustive=exhaustive, max_size=max_sample_size, **kwargs)
+        if not samples.is_finite():
+            cardinality = samples.cardinality
+        elif max_batch_size is None and max_batch_samples is not None:
+            cardinality = ((len(samples) - 1) // max_batch_samples) + 1
+        else:
+            cardinality = with_cardinality.UNKNOWN
+        batches = self.batch_samples(samples, max_batch_samples=max_batch_samples, max_batch_size=max_batch_size)
+        return with_cardinality(batches, cardinality)
+
+    def generate_batch(self, problems=None, max_batch_samples=None, max_batch_size=None, max_sample_size=None, **kwargs):
+        if max_sample_size is None or (max_batch_size is not None and max_sample_size > max_batch_size):
+            max_sample_size = max_batch_size
+        samples = self.generate_samples(problems, max_size=max_sample_size, **kwargs)
+        batch = []
+        batch_size = 0
+        for sample in samples:
+            sample_size = np.prod(sample['clause_pairs']['X'].shape)
+            if sample_size == 0:
+                continue
+            # TODO: Limit the batch by number of graph nodes and graph edges.
+            if (max_batch_samples is not None and len(batch) + 1 > max_batch_samples) or (
+                    max_batch_size is not None and batch_size + sample_size > max_batch_size):
+                return batch
+            batch.append(sample)
+            batch_size += sample_size
+
+    def batch_samples(self, samples, max_batch_samples=None, max_batch_size=None):
+        # TODO: Use `more_itertools.constrained_batches`.
         batch = []
         batch_size = 0
         for sample in samples:
@@ -478,9 +519,13 @@ class Dataset:
 
     def generate_samples(self, problems=None, exhaustive=False, max_size=None, join_searches=False, **kwargs):
         problems = self.problems(problems=problems, **kwargs)
+        cardinality = len(problems)
         if not exhaustive:
             problems = self.sample_problems(problems)
-        return (self.generate_sample(problem, max_size=max_size, join_searches=join_searches) for problem in problems)
+            cardinality = with_cardinality.INFINITE
+        samples = (self.generate_sample(problem, max_size=max_size, join_searches=join_searches) for problem in
+                   problems)
+        return with_cardinality(samples, cardinality)
 
     def sample_problems(self, problems):
         while True:
