@@ -104,7 +104,7 @@ class Solver:
                     result = memo_result.get()
                 except KeyError as e:
                     raise RuntimeError(
-                        f'Problem {problem}: Attempt {i}: Failed to get memoized result. Try to increase the recursion limit.') from e
+                        f'Problem {problem}: Attempt {i}: Failed to get memoized result. Try increasing the recursion limit.') from e
                 if result is not None:
                     if get_symbols and result.returncode == 0 and result.symbols is None:
                         warnings.warn(f'Problem {problem}: Attempt {i}: Failed to fetch symbols.')
