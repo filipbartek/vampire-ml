@@ -84,7 +84,7 @@ limits:
   predict:
     max_batch_samples: 64
     max_batch_size: null
-    max_sample_size: 1000000
+    max_sample_size: 10000
 
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
