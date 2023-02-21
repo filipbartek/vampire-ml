@@ -82,8 +82,10 @@ def load_proof_samples(stdout_path, signature, clause_features):
 
 def stdout_to_proof_samples(stdout, signature, clause_features):
     # Raises `ValueError` if no proof is found.
-    df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active'])
-    df_samples = df_formulas.loc[df_formulas.role_active.notna(), ['string', 'role_proof', 'extra_goal']]
+    df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active', 'selected'])
+    mask_active = df_formulas.role_active.notna()
+    mask_weight_selected = df_formulas.extra_selection_queue == 'w'
+    df_samples = df_formulas.loc[mask_active & mask_weight_selected, ['string', 'role_proof', 'extra_goal']]
     df_samples = pd.concat([df_samples.loc[:, ['string', 'extra_goal']], df_samples.role_proof.notna()], axis='columns')
     feature_vectors = df_to_samples(df_samples, signature, clause_features)
     return feature_vectors
