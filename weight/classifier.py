@@ -70,7 +70,7 @@ class Classifier(tf.keras.Model):
             raise RuntimeError(f'Exception occurred when processing problems: {problems_str}') from e
 
     @classmethod
-    @tf.function
+    @tf.function(reduce_retracing=True)
     def costs_decorated_to_logits(cls, symbol_costs_decorated, questions):
         symbol_costs_valid = tf.ragged.boolean_mask(symbol_costs_decorated['costs'], symbol_costs_decorated['valid'])
         questions_valid = tf.ragged.boolean_mask(questions, symbol_costs_decorated['valid'])
