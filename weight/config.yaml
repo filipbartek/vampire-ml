@@ -80,11 +80,11 @@ limits:
     # Maximum size of the tensor that represents one training proof search.
     # The size of the tensor is `proof_clauses * nonproof_clauses * symbols`.
     # Proof searches are subsampled to meet this limit.
-    max_sample_size: 10000
+    max_sample_size: 100000
   predict:
     max_batch_samples: 64
     max_batch_size: null
-    max_sample_size: 10000
+    max_sample_size: 100000
 
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
