@@ -141,7 +141,7 @@ def main(cfg):
             run_kwargs={**cfg.probe_run_args, 'vampire': cfg.vampire_cmd})
         eval_empirical = evaluator.Empirical(runner_probe, runner_verbose=runner_verbose, clausifier=clausifier,
                                              clause_features=OmegaConf.to_container(cfg.clause_features),
-                                             szs_status_of_interest=cfg.szs_status_of_interest)
+                                             szs_status_of_interest=OmegaConf.to_container(cfg.szs_status_of_interest))
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes, extra_fieldnames=['training'])
         output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
