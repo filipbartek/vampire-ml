@@ -200,9 +200,9 @@ tf:
   device: null
   run_eagerly: false
   debugging:
-    log_device_placement: true
-    traceback_filtering: true
-    check_numerics: true
+    log_device_placement: false
+    traceback_filtering: false
+    check_numerics: false
 
 tensorboard:
   # https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/TensorBoard
