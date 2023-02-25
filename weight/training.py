@@ -58,41 +58,40 @@ class Training:
         self.t = None
 
     def run(self):
-        with self.writers['train'].as_default():
-            tf.summary.experimental.set_step(-1)
-            stats = {}
-            with tqdm(itertools.count(), unit='step', desc='Training', disable=not get_verbose(),
-                      postfix=stats) as self.t:
-                # Initial evaluation - bootstrap training data and establish baseline performance
-                self.evaluate(initial=True)
-                self.evaluate(step=-1)
-                self.summary_cheap()
+        tf.summary.experimental.set_step(-1)
+        stats = {}
+        with tqdm(itertools.count(), unit='step', desc='Training', disable=not get_verbose(),
+                  postfix=stats) as self.t:
+            # Initial evaluation - bootstrap training data and establish baseline performance
+            self.evaluate(initial=True)
+            self.evaluate(step=-1)
+            self.summary_cheap()
 
-                for step in self.t:
-                    with timer() as time_step:
-                        tf.summary.experimental.set_step(step)
-                        # We need to generate batch afresh to integrate new training data.
-                        # TODO: Make the batch generation more efficient: join steps into epochs.
-                        batch = self.data.generate_batch(subset='train', nonempty=True,
-                                                         join_searches=self.join_searches, **self.limits.train)
-                        self.update_stats({'batch': {
-                            'samples': {
-                                'total': len(batch),
-                                'subsampled': sum('sample_weight' not in s['clause_pairs'] for s in batch)
-                            },
-                            'size': {
-                                'total': sum(np.prod(s['clause_pairs']['X'].shape) for s in batch),
-                                'nnz': sum(s['clause_pairs']['X'].nnz for s in batch)
-                            }
-                        }})
-                        if len(batch) == 0:
-                            warnings.warn('Empty batch generated for training.')
-                        with timer() as time:
-                            self.train_step(batch)
-                        self.update_stats({'time/train': time.elapsed})
-                        self.evaluate(step=step)
-                        self.summary_cheap()
-                    self.update_stats({'time/step': time_step.elapsed})
+            for step in self.t:
+                with timer() as time_step:
+                    tf.summary.experimental.set_step(step)
+                    # We need to generate batch afresh to integrate new training data.
+                    # TODO: Make the batch generation more efficient: join steps into epochs.
+                    batch = self.data.generate_batch(subset='train', nonempty=True,
+                                                     join_searches=self.join_searches, **self.limits.train)
+                    self.update_stats({'batch': {
+                        'samples': {
+                            'total': len(batch),
+                            'subsampled': sum('sample_weight' not in s['clause_pairs'] for s in batch)
+                        },
+                        'size': {
+                            'total': sum(np.prod(s['clause_pairs']['X'].shape) for s in batch),
+                            'nnz': sum(s['clause_pairs']['X'].nnz for s in batch)
+                        }
+                    }})
+                    if len(batch) == 0:
+                        warnings.warn('Empty batch generated for training.')
+                    with timer() as time:
+                        self.train_step(batch)
+                    self.update_stats({'time/train': time.elapsed})
+                    self.evaluate(step=step)
+                    self.summary_cheap()
+                self.update_stats({'time/step': time_step.elapsed})
     
     def update_stats(self, stats, subset=None):
         writer = subset
