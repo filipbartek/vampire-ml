@@ -487,7 +487,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
         for functor, weight in weights['symbol'].items():
             if functor == '=':
                 continue
-            weights_file.write(f'{functor} {to_str(weight)}\n')
+            weights_file.write(f'{to_str(weight)} {functor}\n')
         weights_file.seek(0)
         options['functor_weight'] = weights_file.name
     result = vampire.run(problem_path, options, *args, **kwargs)
