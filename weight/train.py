@@ -369,6 +369,24 @@ def main(cfg):
             baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
                             cfg.baseline_files.items()}
             baseline_df = baseline_dfs['default']
+        
+        ckpt = tf.train.Checkpoint(model_logit)
+
+        epoch_tf = tf.Variable(-1)
+        manager = tf.train.CheckpointManager(ckpt, step_counter=epoch_tf, **cfg.checkpoint.manager)
+
+        restore_path = cfg.checkpoint.restore
+        if restore_path is None:
+            restore_path = manager.latest_checkpoint
+        else:
+            restore_path = hydra.utils.to_absolute_path(restore_path)
+        if restore_path:
+            ckpt.restore(restore_path)
+            log.info(f'Restored checkpoint: {os.path.abspath(restore_path)}')
+        else:
+            log.info('Initializing from scratch')
+            save_path = manager.save()
+            log.info(f'Saved initial checkpoint: {os.path.abspath(save_path)}')
 
         start = 0
         if cfg.eval.initial:
@@ -376,6 +394,7 @@ def main(cfg):
         with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t, writers[
             'train'].as_default():
             for epoch in t:
+                epoch_tf.assign(epoch)
                 tf.summary.experimental.set_step(epoch)
                 if epoch >= 0:
                     train_df = evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
@@ -394,6 +413,8 @@ def main(cfg):
                         if baseline_df is not None:
                             df = df.join(baseline_df, rsuffix='_baseline')
                         save_df(df, os.path.join(eval_dir, 'problems'))
+                save_path = manager.save()
+                log.info(f'Saved checkpoint for epoch {epoch}: {os.path.abspath(save_path)}')
 
 
 def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):

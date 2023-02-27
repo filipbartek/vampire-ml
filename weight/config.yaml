@@ -27,6 +27,14 @@ empirical:
   step: 1
 per_problem_stats: false
 
+checkpoint:
+  # Path to checkpoint to initialize the model with
+  restore: null
+  manager:
+    # https://www.tensorflow.org/api_docs/python/tf/train/CheckpointManager
+    directory: tf_ckpts
+    max_to_keep: 3
+
 proof:
   # Maximum proof output file size in bytes
   max_size: 100000000
