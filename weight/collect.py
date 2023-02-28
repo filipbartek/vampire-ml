@@ -18,7 +18,7 @@ from weight import vampire
 log = logging.getLogger(__name__)
 
 
-@hydra.main(config_path='.', config_name='config')
+@hydra.main(config_path='.', config_name='config', version_base=None)
 def main(cfg):
     log.info(f'cwd: {os.getcwd()}')
     log.info(f'Workspace directory: {cfg.workspace_dir}')
