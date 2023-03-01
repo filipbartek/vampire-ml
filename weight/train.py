@@ -106,8 +106,8 @@ def main(cfg):
         problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
 
         def generate_verbose_paths(problem='*'):
-            return glob.glob(
-                os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose'))
+            pattern = os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose')
+            return glob.glob(pattern)
 
         train_count = int(len(problem_names) * cfg.train_ratio)
         problem_name_datasets = {
