@@ -7,6 +7,7 @@ import sys
 import tempfile
 import warnings
 from collections import defaultdict
+from contextlib import suppress
 from itertools import count
 
 import joblib
@@ -356,7 +357,8 @@ def main(cfg):
                         if col in cur_df:
                             tf.summary.histogram(f'{summary_prefix}/{col}', cur_df[col][cur_df.success])
                     for feature in cfg.clause_features:
-                        tf.summary.histogram(f'{summary_prefix}/feature_weight/{feature}', cur_df[f'weight_{feature}'])
+                        with suppress(KeyError):
+                            tf.summary.histogram(f'{summary_prefix}/feature_weight/{feature}', cur_df[f'weight_{feature}'])
             return df
 
         baseline_df = None
