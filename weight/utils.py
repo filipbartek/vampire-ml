@@ -82,6 +82,8 @@ def is_compatible(data, dtype):
         return True
     if isinstance(data, list):
         return all(is_compatible(d, dtype) for d in data)
+    if any(s == 0 for s in data.shape):
+        return True
     # Pandas
     if pd.api.types.is_bool_dtype(dtype):
         return data.isin([0, 1]).all()
