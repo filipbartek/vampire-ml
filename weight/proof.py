@@ -20,24 +20,16 @@ from weight import vampire
 log = logging.getLogger(__name__)
 
 
-@memory.cache(ignore=['parallel'], verbose=2)
-def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, parallel=None, ss=None):
-    # `ss` generates seeds to subsample clauses.
-    if clausifier is None:
-        clausifier = Solver()
-    if parallel is None:
-        parallel = joblib.Parallel()
-    if ss is None:
-        ss = np.random.SeedSequence(0)
+def get_signature(problem, clausifier):
+    try:
+        # Raises `RuntimeError` when clausification fails
+        return clausifier.signature(problem).tolist()
+    except RuntimeError:
+        return None
 
-    def get_signature(problem):
-        try:
-            # Raises `RuntimeError` when clausification fails
-            return clausifier.signature(problem).tolist()
-        except RuntimeError:
-            return None
 
-    def load_one(path, seed):
+def load_one(path, seed, clausifier, clause_features, cfg):
+    try:
         log.debug(f'Loading proof: {path}')
         with open(os.path.join(path, 'meta.json')) as f:
             meta = json.load(f)
@@ -46,7 +38,7 @@ def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, parallel
         if meta['szs_status'] in ['THM', 'CAX', 'UNS']:
             # We only care about successful refutation proofs.
             stdout_path = os.path.join(path, 'stdout.txt')
-            signature = get_signature(problem)
+            signature = get_signature(problem, clausifier)
             result['signature'] = signature
             # Assert that every symbol name is unique.
             assert len(signature) == len(set(signature))
@@ -60,9 +52,21 @@ def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, parallel
             except (RuntimeError, ValueError) as e:
                 log.warning(f'{stdout_path}: Failed to load proof: {str(e)}')
         return result
+    except KeyError as e:
+        raise RuntimeError(f'Failed to load proof: {path}') from e
 
+
+@memory.cache(verbose=2)
+def load_proofs(paths, clausifier=None, clause_features=None, cfg=None, ss=None):
+    # `ss` generates seeds to subsample clauses.
+    if clausifier is None:
+        clausifier = Solver()
+    if ss is None:
+        ss = np.random.SeedSequence(0)
+
+    parallel = joblib.Parallel(verbose=1)
     print(f'Loading {len(paths)} proofs', file=sys.stderr)
-    return parallel(joblib.delayed(load_one)(path, seed) for path, seed in zip(paths, ss.spawn(len(paths))))
+    return parallel(joblib.delayed(load_one)(path, seed, clausifier, clause_features, cfg) for path, seed in zip(paths, ss.spawn(len(paths))))
 
 
 def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):

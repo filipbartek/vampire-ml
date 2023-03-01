@@ -142,7 +142,7 @@ def main(cfg):
         proof_paths = list(generate_paths(sorted(active_problem_names)))
         proof_traces = proof.load_proofs(proof_paths, clausifier,
                                          OmegaConf.to_container(cfg.clause_features),
-                                         cfg=OmegaConf.to_container(cfg.proof), parallel=parallel, ss=ss.spawn(1)[0])
+                                         cfg=OmegaConf.to_container(cfg.proof), ss=ss.spawn(1)[0])
 
         proof_records = []
         for proof_path, t in zip(proof_paths, proof_traces):
