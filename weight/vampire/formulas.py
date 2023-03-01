@@ -38,6 +38,8 @@ def extract_df(output, roles=None):
         df_formulas.extra_goal.fillna(0, inplace=True)
     else:
         df_formulas['extra_goal'] = False
+    if 'extra_selection_queue' not in df_formulas:
+        df_formulas['extra_selection_queue'] = pd.NA
     if roles is not None:
         for role in roles:
             col = f'role_{role}'
