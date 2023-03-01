@@ -1,5 +1,7 @@
 import itertools
 import re
+import warnings
+from contextlib import suppress
 
 import numpy as np
 import pandas as pd
@@ -11,7 +13,8 @@ role_to_operations = {
     'input': [('PP', 'input')],
     'new': [('SA', 'new')],
     'passive': [('SA', 'passive')],
-    'active': [('SA', 'active')]
+    'active': [('SA', 'active')],
+    'selected': [('SA', 'selected')]
 }
 operation_to_role = invert_dict_of_lists(role_to_operations)
 supported_roles = ['proof'] + list(role_to_operations)
@@ -45,9 +48,12 @@ def extract_df(output, roles=None):
         'w': pd.UInt64Dtype(),
         'nSel': pd.UInt8Dtype(),
         'thAx': pd.UInt64Dtype(),
-        'allAx': pd.UInt64Dtype(),
-        'thDist': pd.Int64Dtype(),
-        'goal': bool
+        # Seems to be positive integer with one exception: INT_MIN.
+        'allAx': pd.Int64Dtype(),
+        # Seems to be negative integer with one exception: -inf.
+        'thDist': float,
+        'goal': bool,
+        'selection_queue': pd.CategoricalDtype(['a', 'w'])
     }.items()}
     dtype.update({f'role_{role}': pd.UInt64Dtype() for role in roles})
     df_formulas = astype(df_formulas, dtype, copy=False)
@@ -59,7 +65,10 @@ def extract(output, roles=None):
     # We extract proof formulas first to fail early in case the proof segment of `output` is missing or incomplete.
     if roles is None or 'proof' in roles:
         formula_operation_generators.append(extract_operations_proof(output))
-    formula_operation_generators.append(extract_operations_nonproof(output, roles))
+    formula_operation_generators.append(
+        extract_operations_nonproof(output, [r for r in roles if r not in ['proof', 'selected']]))
+    if 'selected' in roles:
+        formula_operation_generators.append(extract_operations(fr'^{selected_pattern}$', output, roles=['selected']))
     formulas = {}
     operations = []
     for op in itertools.chain(*formula_operation_generators):
@@ -72,9 +81,13 @@ def extract(output, roles=None):
             for k in extra:
                 if k not in formulas[formula_id]['extra']:
                     formulas[formula_id]['extra'][k] = extra[k]
-                assert extra[k] == formulas[formula_id]['extra'][k]
-        assert op['role'] not in formulas[formula_id]['role']
-        formulas[formula_id]['role'][op['role']] = op['span']['start']
+                expected = formulas[formula_id]['extra'][k]
+                if not are_equal(extra[k], expected):
+                    warnings.warn(f'Clause extra information mismatch: formula={formula_id}, key={k}, expected={expected}, actual={extra[k]}')
+        role = op['role']
+        if role in formulas[formula_id]['role']:
+            raise RuntimeError(f'Formula {formula_id} encountered in role {role} more than once.')
+        formulas[formula_id]['role'][role] = op['span']['start']
         operations.append({
             'formula_id': formula_id,
             **{k: v for k, v in op.items() if k != 'formula'}
@@ -82,8 +95,19 @@ def extract(output, roles=None):
     return formulas, operations
 
 
-formula_pattern = r'(?P<formula_id>\d+)\. (?P<formula>.+) \[(?P<inference_rule>[a-z ]*)(?: (?P<inference_parents>[\d,]+))?\](?: \{(?P<extra>[\w,:-]*)\})?'
+def are_equal(a, b, equal_nan=True):
+    if equal_nan:
+        with suppress(TypeError):
+            if np.isnan(a) and np.isnan(b):
+                return True
+    if a == b:
+        return True
+    return False
+
+
+formula_pattern = r'(?P<formula_id>\d+)\. (?P<formula>.+) \[(?P<inference_rule>[a-z ]*)(?: (?P<inference_parents>[\d,]+))?\](?: \{(?P<extra>[\w,:\-\.]*)\})?'
 operation_pattern = fr'\[(?P<phase>\w+)\] (?P<operation>[\w ]+): {formula_pattern}'
+selected_pattern = r'\[(?P<phase>\w+)\] (?P<operation>[\w ]+): (?P<formula_id>\d+)\. \{(?P<extra>[\w,:\-\.]*)\}'
 
 
 def extract_operations_nonproof(output, roles=None):
@@ -96,8 +120,10 @@ def extract_operations_nonproof(output, roles=None):
 
 
 def extract_operations_proof(output):
-    return extract_operations(fr'^{formula_pattern}$', output, default_role='proof',
-                              pos=extract_proof_start(output), endpos=extract_proof_end(output))
+    with suppress(ValueError):
+        return extract_operations(fr'^{formula_pattern}$', output, default_role='proof',
+                                  pos=extract_proof_start(output), endpos=extract_proof_end(output))
+    return []
 
 
 def extract_proof_start(output):
@@ -128,25 +154,26 @@ def extract_operations(pattern, string, default_role=None, roles=None, **kwargs)
             continue
         if roles is not None and role not in roles:
             continue
-        inference_parents = []
-        if m['inference_parents'] is not None:
-            inference_parents = list(map(int, m['inference_parents'].split(',')))
-        yield {
+        result = {
             'formula': {
                 'id': int(m['formula_id']),
-                'string': m['formula'],
                 'extra': extract_extra(m['extra'])
             },
             'role': role,
-            'inference': {
-                'rule': m['inference_rule'],
-                'parents': inference_parents
-            },
+            'inference': {},
             'span': {
                 'start': m.start(),
                 'end': m.end()
             }
         }
+        with suppress(IndexError):
+            result['formula']['string'] = m['formula']
+        with suppress(IndexError):
+            result['inference']['rule'] = m['inference_rule']
+        with suppress((IndexError, AttributeError)):
+            # `m['inference_parents'].split()` raises AttributeError if `m['inference_parents']` is None.
+            result['inference']['parents'] = list(map(int, m['inference_parents'].split(',')))
+        yield result
 
 
 def extract_extra(extra_str):
@@ -154,4 +181,14 @@ def extract_extra(extra_str):
         return {}
     pair_strings = (p.strip() for p in extra_str.split(','))
     string_pairs = (p.split(':', 1) for p in pair_strings)
-    return {k: int(v) for k, v in string_pairs}
+    return {k: cast_extra_value(k, v) for k, v in string_pairs}
+
+
+def cast_extra_value(k, v):
+    if k == 'wCS':
+        return float(v)
+    with suppress(ValueError):
+        return int(v)
+    with suppress(ValueError):
+        return float(v)
+    return v
