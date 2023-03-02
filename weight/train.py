@@ -370,7 +370,7 @@ def main(cfg):
         elif cfg.baseline_files is not None:
             baseline_dfs = {name: pd.read_pickle(hydra.utils.to_absolute_path(path)) for name, path in
                             cfg.baseline_files.items()}
-            baseline_df = baseline_dfs['default']
+            baseline_df = baseline_dfs.get('default')
         
         ckpt = tf.train.Checkpoint(model_logit)
 
