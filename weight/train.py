@@ -29,6 +29,7 @@ from questions.callbacks import TensorBoard
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
+from questions.utils import flatten_dict
 from questions.utils import py_str
 from utils import astype
 from utils import save_df
@@ -393,6 +394,7 @@ def main(cfg):
         start = 0
         if cfg.eval.initial:
             start = -1
+        stats = {}
         with tqdm(range_count(cfg.epochs, start=start), unit='epoch', desc='Training') as t, writers[
             'train'].as_default():
             for epoch in t:
@@ -400,8 +402,11 @@ def main(cfg):
                 tf.summary.experimental.set_step(epoch)
                 if epoch >= 0:
                     train_df = evaluate_proxy_one(model_logit, datasets_batched['train'], train_step)
-                    t.set_postfix({col: train_df[col].mean() for col in train_df})
+                    stats['train'] = {col: train_df[col].mean() for col in train_df}
+                    t.set_postfix(flatten_dict(stats, sep='/'))
                 res = evaluate_proxy(model_logit, datasets_batched, test_step)
+                stats['proxy'] = {name: {col: df[col].mean() for col in df} for name, df in res.items() if df is not None}
+                t.set_postfix(flatten_dict(stats, sep='/'))
                 if cfg.empirical.step is not None:
                     epoch_rel = epoch - cfg.empirical.start
                     if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
@@ -415,6 +420,16 @@ def main(cfg):
                         if baseline_df is not None:
                             df = df.join(baseline_df, rsuffix='_baseline')
                         save_df(df, os.path.join(eval_dir, 'problems'))
+                        for name in ['train', 'val']:
+                            cur_df = df[df[f'dataset_{name}'] & df.valid]
+                            if len(cur_df) == 0:
+                                continue
+                            if 'empirical' not in stats:
+                                stats['empirical'] = {}
+                            if name not in stats['empirical']:
+                                stats['empirical'][name] = {}
+                            stats['empirical'][name]['uns'] = cur_df.success_uns.mean()
+                        t.set_postfix(flatten_dict(stats, sep='/'))
                 save_path = manager.save()
                 log.info(f'Saved checkpoint for epoch {epoch}: {os.path.abspath(save_path)}')
 
