@@ -410,8 +410,9 @@ def main(cfg):
                 if cfg.empirical.step is not None:
                     epoch_rel = epoch - cfg.empirical.start
                     if epoch_rel >= 0 and epoch_rel % cfg.empirical.step == 0:
+                        save_path = ckpt.save(os.path.join(cfg.checkpoint.directory, 'empirical', str(epoch)))
+                        log.info(f'Saved checkpoint for empirical evaluation after epoch {epoch}: {os.path.abspath(save_path)}')
                         print(f'Empirical evaluation after epoch {epoch}...')
-                        # TODO: Save checkpoint.
                         eval_dir = os.path.join('epoch', str(epoch), 'eval')
                         df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names,
                                                 problem_name_datasets, eval_dir)

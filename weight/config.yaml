@@ -31,9 +31,10 @@ per_problem_stats: false
 checkpoint:
   # Path to checkpoint to initialize the model with
   restore: null
+  directory: tf_ckpts
   manager:
     # https://www.tensorflow.org/api_docs/python/tf/train/CheckpointManager
-    directory: tf_ckpts
+    directory: ${checkpoint.directory}/latest
     max_to_keep: 3
 
 proof:
