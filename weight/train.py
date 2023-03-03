@@ -249,10 +249,12 @@ def main(cfg):
                 os.path.join(ckpt_dir, 'acc', 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
                 save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True))
 
-        def range_count(stop, *args, **kwargs):
+        def range_count(stop, start=None):
+            if start is None:
+                start = 0
             if stop is None:
-                return count(*args, **kwargs)
-            return range(stop, *args, **kwargs)
+                return count(start)
+            return range(start, stop)
 
         def minimize(optimizer, loss, var_list, tape):
             grads_and_vars = optimizer._compute_gradients(loss, var_list=var_list, tape=tape)
