@@ -104,8 +104,6 @@ def main(cfg):
         with writers['train'].as_default():
             tf.summary.scalar('problems/grand_total', len(problem_names))
 
-        problem_path_to_name = {questions.config.full_problem_path(name): name for name in problem_names}
-
         def generate_verbose_paths(problem='*'):
             pattern = os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose')
             return glob.glob(pattern)
@@ -177,7 +175,7 @@ def main(cfg):
             if 'clauses' not in res:
                 continue
             samples = res['clauses']
-            problem_samples[problem_path_to_name[res['problem']]].append(samples)
+            problem_samples[questions.config.full_problem_path(res['problem'])].append(samples)
 
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
         for dataset_name, dataset_problems in problem_name_datasets.items():
