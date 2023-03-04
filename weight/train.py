@@ -439,8 +439,10 @@ def main(cfg):
                 log.info(f'Saved checkpoint for epoch {epoch}: {os.path.abspath(save_path)}')
 
 
-def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options, parallel, out_dir=None):
+def evaluate_options(model_result, problems, clausifier, cfg, eval_options, parallel, out_dir=None):
     options = {**cfg.options.common, **cfg.options.probe, **eval_options}
+    
+    problem_common_path = os.path.commonpath(problems)
 
     def run(problem, valid, cost):
         log.debug(f'Attempting problem {problem}')
@@ -465,7 +467,8 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
             weights = None
         # result['weights'] = weights
         problem_path = questions.config.full_problem_path(problem)
-        vampire_out_dir = os.path.join(out_dir, 'problems', problem)
+        problem_name = os.path.relpath(problem, problem_common_path)
+        vampire_out_dir = os.path.join(out_dir, 'problems', problem_name)
         try:
             run_result = vampire_run(problem_path, options, weights, vampire=cfg.vampire_cmd,
                                      weights_filename=os.path.join(vampire_out_dir, 'functor_weight.properties'),
@@ -480,10 +483,10 @@ def evaluate_options(model_result, problem_names, clausifier, cfg, eval_options,
         return result
 
     if model_result is None:
-        cases = zip(problem_names, itertools.repeat(True), itertools.repeat(None))
+        cases = zip(problems, itertools.repeat(True), itertools.repeat(None))
     else:
-        cases = zip(problem_names, map(bool, model_result['valid']), map(lambda x: x.numpy(), model_result['costs']))
-    print(f'Running {len(problem_names)} cases', file=sys.stderr)
+        cases = zip(problems, map(bool, model_result['valid']), map(lambda x: x.numpy(), model_result['costs']))
+    print(f'Running {len(problems)} cases', file=sys.stderr)
     results = parallel(joblib.delayed(run)(problem, valid, cost) for problem, valid, cost in cases)
 
     if cfg.per_problem_stats:
