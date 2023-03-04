@@ -39,13 +39,16 @@ def problems_path():
         return None
 
 
-def full_problem_path(problem):
+def full_problem_path(problem, dir_paths=None):
+    if dir_paths is None:
+        dir_paths = []
+    file_paths = [os.path.join(p, problem) for p in dir_paths] + [problem]
     m = re.search(
-        r'\b(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))\b',
+        r'(?P<path>.*/)?(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))(?P<extension>\.[pq])?',
         problem)
-    if m is not None and problem == m['problem_name']:
-        problem = os.path.join(m['problem_domain'], f'{problem}.p')
-    try:
-        return os.path.join(problems_path(), problem)
-    except TypeError:
-        return problem
+    if m is not None:
+        file_paths.append(os.path.join(problems_path(), m['problem_domain'], m['problem_name'] + '.p'))
+    for result in file_paths:
+        if os.path.isfile(result):
+            return os.path.normpath(result)
+    raise RuntimeError(f'Cannot find problem: {problem}')

@@ -26,6 +26,7 @@ import questions
 from dense import Dense
 from questions import models
 from questions.callbacks import TensorBoard
+from questions.config import full_problem_path
 from questions.graphifier import Graphifier
 from questions.memory import memory
 from questions.solver import Solver
@@ -91,30 +92,35 @@ def main(cfg):
             tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
 
-        problem_name_lists = [cfg.problem.names]
+        problem_names_raw = list(cfg.problem.names)
+        abs_path_generators = [(full_problem_path(p) for p in cfg.problem.names)]
         if cfg.problem.list_file is not None:
-            problem_name_lists.append(
-                pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem)
-        problem_names = list(itertools.chain.from_iterable(problem_name_lists))
-        problem_names = np.random.default_rng(ss.spawn(1)[0]).permutation(problem_names)
+            dir = os.path.dirname(cfg.problem.list_file)
+            l = pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem
+            problem_names_raw.extend(l)
+            abs_paths = (full_problem_path(p, [dir]) for p in l)
+            abs_path_generators.append(abs_paths)
+        problem_names_raw = sorted(set(problem_names_raw))
+        problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
+        problem_paths = np.random.default_rng(ss.spawn(1)[0]).permutation(problem_paths)
         if cfg.max_problem_count is not None:
-            problem_names = problem_names[:cfg.max_problem_count]
+            problem_paths = problem_paths[:cfg.max_problem_count]
 
-        log.info(f'Number of problems: {len(problem_names)}')
+        log.info(f'Number of problems: {len(problem_paths)}')
         with writers['train'].as_default():
-            tf.summary.scalar('problems/grand_total', len(problem_names))
+            tf.summary.scalar('problems/grand_total', len(problem_paths))
 
         def generate_verbose_paths(problem='*'):
             pattern = os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose')
             return glob.glob(pattern)
 
-        train_count = int(len(problem_names) * cfg.train_ratio)
-        problem_name_datasets = {
-            'train': problem_names[:train_count],
-            'val': problem_names[train_count:]
+        train_count = int(len(problem_paths) * cfg.train_ratio)
+        problem_path_datasets = {
+            'train': problem_paths[:train_count],
+            'val': problem_paths[train_count:]
         }
-        log.info('Number of problems: %s' % {k: len(v) for k, v in problem_name_datasets.items()})
-        for dataset_name, dataset_problems in problem_name_datasets.items():
+        log.info('Number of problems: %s' % {k: len(v) for k, v in problem_path_datasets.items()})
+        for dataset_name, dataset_problems in problem_path_datasets.items():
             with writers[dataset_name].as_default():
                 tf.summary.scalar('problems/total', len(dataset_problems))
 
@@ -122,12 +128,10 @@ def main(cfg):
 
         clausifier = Solver()
 
-        active_problem_names = list(itertools.chain.from_iterable(problem_name_datasets.values()))
-
         eval_problem_names = []
         # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
         rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
-        for k, v in problem_name_datasets.items():
+        for k, v in problem_path_datasets.items():
             eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
         eval_problem_names = sorted(eval_problem_names)
 
@@ -138,7 +142,7 @@ def main(cfg):
                     yield path
 
         # We sort the problem names because `load_proofs` is cached.
-        proof_paths = list(generate_paths(sorted(active_problem_names)))
+        proof_paths = list(generate_paths(problem_names_raw))
         proof_traces = proof.load_proofs(proof_paths, clausifier,
                                          OmegaConf.to_container(cfg.clause_features),
                                          cfg=OmegaConf.to_container(cfg.proof), ss=ss.spawn(1)[0])
@@ -178,7 +182,7 @@ def main(cfg):
             problem_samples[questions.config.full_problem_path(res['problem'])].append(samples)
 
         log.info(f'Number of problems with some samples: {len(problem_samples)}')
-        for dataset_name, dataset_problems in problem_name_datasets.items():
+        for dataset_name, dataset_problems in problem_path_datasets.items():
             with writers[dataset_name].as_default():
                 tf.summary.scalar('problems/with_proof', len(set(dataset_problems) | set(problem_samples)))
 
@@ -209,7 +213,7 @@ def main(cfg):
         model_logit = classifier.Classifier(model_symbol_weight)
 
         problems_with_proofs = {dataset_name: [n for n in problem_names if len(problem_samples[n]) >= 1] for
-                                dataset_name, problem_names in problem_name_datasets.items()}
+                                dataset_name, problem_names in problem_path_datasets.items()}
         log.info('Number of problems with proofs: %s' % {k: len(v) for k, v in problems_with_proofs.items()})
 
         Optimizer = {
@@ -242,7 +246,7 @@ def main(cfg):
             tf.keras.callbacks.ReduceLROnPlateau(**cfg.reduce_lr_on_plateau)
         ]
 
-        if len(problem_name_datasets['val']) >= 1:
+        if len(problem_path_datasets['val']) >= 1:
             cbs.append(tf.keras.callbacks.ModelCheckpoint(
                 os.path.join(ckpt_dir, 'acc', 'weights.{epoch:05d}-{val_binary_accuracy:.2f}.tf'),
                 save_weights_only=True, verbose=1, monitor='val_binary_accuracy', save_best_only=True))
@@ -365,7 +369,7 @@ def main(cfg):
         baseline_df = None
         if cfg.eval.baseline:
             eval_dir = 'baseline'
-            baseline_df = evaluate_empirical(None, eval_problem_names, problem_name_datasets, eval_dir,
+            baseline_df = evaluate_empirical(None, eval_problem_names, problem_path_datasets, eval_dir,
                                              summary_prefix='baseline')
             save_df(baseline_df, os.path.join(eval_dir, 'problems'))
         elif cfg.baseline_files is not None:
@@ -415,7 +419,7 @@ def main(cfg):
                         print(f'Empirical evaluation after epoch {epoch}...')
                         eval_dir = os.path.join('epoch', str(epoch), 'eval')
                         df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names,
-                                                problem_name_datasets, eval_dir)
+                                                problem_path_datasets, eval_dir)
                         # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
                         df = df.join(pd.concat(res.values()))
                         if baseline_df is not None:
