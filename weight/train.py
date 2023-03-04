@@ -128,12 +128,12 @@ def main(cfg):
 
         clausifier = Solver()
 
-        eval_problem_names = []
+        eval_problem_paths = []
         # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
         rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
         for k, v in problem_path_datasets.items():
-            eval_problem_names.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
-        eval_problem_names = sorted(eval_problem_names)
+            eval_problem_paths.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
+        eval_problem_paths = sorted(eval_problem_paths)
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
@@ -328,24 +328,24 @@ def main(cfg):
                     res[dataset_name] = evaluate_proxy_one(model, dataset, step_fn)
             return res
 
-        def run_empirical(model, problem_names, eval_dir):
+        def run_empirical(model, problems, eval_dir):
             log.info('Empirical evaluation...')
 
             model_result = None
-            if model is not None and len(problem_names) > 0:
+            if model is not None and len(problems) > 0:
                 log.info('Evaluating a model')
                 # We convert problem names to Python strings.
                 # They may be input as numpy strings.
                 # If a list of numpy strings of length 1 is used, `tf.keras.Model.predict` is confused.
-                model_result = model.predict(list(map(str, problem_names)), batch_size=cfg.batch.size)
+                model_result = model.predict(list(map(str, problems)), batch_size=cfg.batch.size)
             else:
                 log.info('Evaluating baseline')
 
-            return evaluate_options(model_result, problem_names, clausifier, cfg, cfg.options.evaluation.default,
+            return evaluate_options(model_result, problems, clausifier, cfg, cfg.options.evaluation.default,
                                     parallel, out_dir=eval_dir)
 
-        def evaluate_empirical(model, problem_names, problem_name_datasets, eval_dir, summary_prefix='empirical'):
-            df = run_empirical(model, problem_names, eval_dir)
+        def evaluate_empirical(model, problems, problem_name_datasets, eval_dir, summary_prefix='empirical'):
+            df = run_empirical(model, problems, eval_dir)
 
             for dataset_name, pn in problem_name_datasets.items():
                 with writers[dataset_name].as_default():
@@ -369,7 +369,7 @@ def main(cfg):
         baseline_df = None
         if cfg.eval.baseline:
             eval_dir = 'baseline'
-            baseline_df = evaluate_empirical(None, eval_problem_names, problem_path_datasets, eval_dir,
+            baseline_df = evaluate_empirical(None, eval_problem_paths, problem_path_datasets, eval_dir,
                                              summary_prefix='baseline')
             save_df(baseline_df, os.path.join(eval_dir, 'problems'))
         elif cfg.baseline_files is not None:
@@ -418,7 +418,7 @@ def main(cfg):
                         log.info(f'Saved checkpoint for empirical evaluation after epoch {epoch}: {os.path.abspath(save_path)}')
                         print(f'Empirical evaluation after epoch {epoch}...')
                         eval_dir = os.path.join('epoch', str(epoch), 'eval')
-                        df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_names,
+                        df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_paths,
                                                 problem_path_datasets, eval_dir)
                         # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
                         df = df.join(pd.concat(res.values()))
