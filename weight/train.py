@@ -572,6 +572,7 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
             proof_clause_counts = np.asarray([row['proof'].sum() for row in b])
             nonproof_clause_counts = clause_counts - proof_clause_counts
             assert 0 < proof_clause_weight < 1
+            # Warning on division by zero probably does not hurt because we don't use such results.
             proof_clause_weights = proof_clause_weight / proof_clause_counts
             nonproof_clause_weights = (1 - proof_clause_weight) / nonproof_clause_counts
 
