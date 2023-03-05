@@ -82,8 +82,8 @@ def load_proof_samples(stdout_path, signature, clause_features, cfg, seed):
     # Raises `ValueError` if no proof is found.
     df_formulas, df_operations = vampire.formulas.extract_df(stdout, roles=['proof', 'active', 'selected'])
     mask_active = df_formulas.role_active.notna()
-    mask_weight_selected = df_formulas.extra_selection_queue == 'w'
-    df_samples = df_formulas.loc[mask_active & mask_weight_selected, ['string', 'role_proof', 'extra_goal']]
+    mask_queue = df_formulas.extra_selection_queue.isin(cfg.selection_queues)
+    df_samples = df_formulas.loc[mask_active & mask_queue, ['string', 'role_proof', 'extra_goal']]
     df_samples = pd.concat([df_samples.loc[:, ['string', 'extra_goal']], df_samples.role_proof.notna()], axis='columns')
 
     category_indices = {
