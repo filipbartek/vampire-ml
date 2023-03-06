@@ -134,6 +134,7 @@ max_problem_nodes: 10000
 
 embedding_to_cost:
   # TODO: Support deeper MLPs.
+  # Choices: softplus, linear, null, relu, exponential, sigmoid, tanh
   activation: softplus
   output_bias: 1
   regularization:
