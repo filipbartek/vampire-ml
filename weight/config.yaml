@@ -25,7 +25,7 @@ proof_sample_weight: 0.5
 baseline_files: {}
 empirical:
   start: -1
-  step: 1
+  step: 10
 per_problem_stats: false
 
 checkpoint:
