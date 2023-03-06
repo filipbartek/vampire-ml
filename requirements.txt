@@ -1,10 +1,13 @@
 appdirs
+attributedict
+benchexec
 binpacking
 contexttimer
 dgl
 flatten-dict
 guppy3
 hydra-core
+hydra-colorlog
 joblib
 matplotlib
 memory-profiler
