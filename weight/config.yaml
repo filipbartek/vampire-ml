@@ -60,6 +60,10 @@ vampire_cmd: vampire
 problem:
   list_file: null
   names: []
+  # If set, it should be a mapping from [train, val] to problem list filenames.
+  dataset:
+    train: null
+    val: null
 tptp_path: null
 
 evaluation_problems:

@@ -103,23 +103,29 @@ def main(cfg):
             abs_path_generators.append(abs_paths)
         problem_names_raw = sorted(set(problem_names_raw))
         problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
-        problem_paths = np.random.default_rng(ss.spawn(1)[0]).permutation(problem_paths)
-        if cfg.max_problem_count is not None:
-            problem_paths = problem_paths[:cfg.max_problem_count]
+        
+        rng_problems = np.random.default_rng(ss.spawn(1)[0])
+        if cfg.problem.dataset is not None and any(fn is not None for fn in cfg.problem.dataset.values()):
+            problem_path_datasets = {k: pd.read_csv(hydra.utils.to_absolute_path(v), names=['problem']).problem for k, v in cfg.problem.dataset.items()}
+            problem_paths_new = sorted(set(itertools.chain.from_iterable(problem_path_datasets.values())))
+            if problem_paths != problem_paths_new:
+                warnings.warn(f'The problem datasets do not match the problem set. Whole: {len(problem_paths)}. Datasets: {len(problem_paths_new)}.')
+            problem_paths = rng_problems.permutation(problem_paths_new)
+        else:
+            problem_paths = rng_problems.permutation(problem_paths)
+            if cfg.max_problem_count is not None:
+                problem_paths = problem_paths[:cfg.max_problem_count]
+    
+            log.info(f'Number of problems: {len(problem_paths)}')
+            with writers['train'].as_default():
+                tf.summary.scalar('problems/grand_total', len(problem_paths))
+    
+            train_count = int(len(problem_paths) * cfg.train_ratio)
+            problem_path_datasets = {
+                'train': problem_paths[:train_count],
+                'val': problem_paths[train_count:]
+            }
 
-        log.info(f'Number of problems: {len(problem_paths)}')
-        with writers['train'].as_default():
-            tf.summary.scalar('problems/grand_total', len(problem_paths))
-
-        def generate_verbose_paths(problem='*'):
-            pattern = os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose')
-            return glob.glob(pattern)
-
-        train_count = int(len(problem_paths) * cfg.train_ratio)
-        problem_path_datasets = {
-            'train': problem_paths[:train_count],
-            'val': problem_paths[train_count:]
-        }
         log.info('Number of problems: %s' % {k: len(v) for k, v in problem_path_datasets.items()})
         for dataset_name, dataset_problems in problem_path_datasets.items():
             with writers[dataset_name].as_default():
@@ -135,6 +141,10 @@ def main(cfg):
         for k, v in problem_path_datasets.items():
             eval_problem_paths.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
         eval_problem_paths = sorted(eval_problem_paths)
+
+        def generate_verbose_paths(problem='*'):
+            pattern = os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose')
+            return glob.glob(pattern)
 
         def generate_paths(problem_names):
             for problem_name in problem_names:
@@ -610,6 +620,11 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
         tf.RaggedTensorSpec(shape=(None, None), dtype=dtypes['sample_weight'])
     )
     return tf.data.Dataset.from_generator(gen, output_signature=output_signature)
+
+
+def save_list(l, filename):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    np.savetxt(filename, l, fmt='%s')
 
 
 if __name__ == '__main__':
