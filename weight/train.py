@@ -130,6 +130,7 @@ def main(cfg):
         for dataset_name, dataset_problems in problem_path_datasets.items():
             with writers[dataset_name].as_default():
                 tf.summary.scalar('problems/total', len(dataset_problems))
+            save_list(dataset_problems, os.path.join('problems', f'{dataset_name}.txt'))
 
         parallel = joblib.Parallel(verbose=cfg.parallel.verbose)
 
