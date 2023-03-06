@@ -48,6 +48,7 @@ proof:
     # Only use clauses selected from the specified queues.
     # Options: w, a
     - w
+    - a
 
 # Choices: literal_positive, literal_negative, equality, inequality, variable_occurrence, variable_count, number
 clause_features:
