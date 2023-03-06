@@ -21,8 +21,8 @@ from questions.utils import timer
 
 
 @memory.cache(verbose=1)
-def problems_to_graphs_list(graphifier, problems):
-    return graphifier.compute_graphs(problems)
+def problems_to_graphs_list(graphifier, problems, return_graphs=True):
+    return graphifier.compute_graphs(problems, return_graphs=return_graphs)
 
 
 class Graphifier:
@@ -50,11 +50,11 @@ class Graphifier:
         logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def get_graphs(self, problems, cache=True, get_df=True):
+    def get_graphs(self, problems, cache=True, get_df=True, return_graphs=True):
         if cache:
-            graphs_records = problems_to_graphs_list(self, problems)
+            graphs_records = problems_to_graphs_list(self, problems, return_graphs=return_graphs)
         else:
-            graphs_records = self.compute_graphs(problems, cache=cache)
+            graphs_records = self.compute_graphs(problems, cache=cache, return_graphs=return_graphs)
         graphs, records = zip(*graphs_records)
         if get_df:
             df = dataframe_from_records(records, index='problem', dtypes=self.dtypes())
@@ -74,7 +74,7 @@ class Graphifier:
             'graph_edges': pd.UInt32Dtype()
         }
 
-    def compute_graphs(self, problems, cache=True):
+    def compute_graphs(self, problems, cache=True, return_graphs=True):
         if len(problems) > 1:
             print(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...',
                   file=sys.stderr)
@@ -86,9 +86,9 @@ class Graphifier:
             # https://github.com/tensorflow/tensorflow/issues/30594
             os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
             return Parallel(verbose=verbose)(
-                delayed(self.problem_to_graph)(problem, cache=cache) for problem in problems)
+                delayed(self.problem_to_graph)(problem, cache=cache, return_graph=return_graphs) for problem in problems)
 
-    def problem_to_graph(self, problem_name, cache=True):
+    def problem_to_graph(self, problem_name, cache=True, return_graph=True):
         graph = None
         record = None
         if os.path.isabs(problem_name):
@@ -135,6 +135,8 @@ class Graphifier:
                 if graph is not None:
                     joblib.dump(graph, filename_graph)
         assert graph is None or self.max_number_of_nodes is None or graph.num_nodes() <= self.max_number_of_nodes
+        if not return_graph:
+            graph = None
         return graph, record
 
     @functools.lru_cache(maxsize=1)

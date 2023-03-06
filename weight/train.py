@@ -25,6 +25,7 @@ import classifier
 import questions
 from dense import Dense
 from questions import models
+from questions import tptp
 from questions.callbacks import TensorBoard
 from questions.config import full_problem_path
 from questions.graphifier import Graphifier
@@ -187,6 +188,20 @@ def main(cfg):
                 tf.summary.scalar('problems/with_proof', len(set(dataset_problems) | set(problem_samples)))
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
+
+        problem_proof_counts = proof_df.problem.value_counts()
+        problem_records = ({
+            'path': p,
+            **tptp.problem_properties(p),
+            **{f'dataset_{k}': p in v for k, v in problem_path_datasets.items()},
+            'proofs': problem_proof_counts.get(p, 0)
+        } for p in problem_paths)
+        dtype = {**tptp.property_types, **{f'dataset_{k}': bool for k in problem_path_datasets}}
+        problems_df = pd.DataFrame.from_records(problem_records, index='path').astype(dtype)
+        graphs, graphs_df = graphifier.get_graphs(problem_paths, cache=True, get_df=True, return_graphs=False)
+        problems_df = problems_df.join(graphs_df, rsuffix='_graph')
+        save_df(problems_df, 'problems')
+        
         output_ntypes = ['predicate', 'function', 'variable', 'atom', 'equality']
         # Per-node values:
         # - symbol <- predicate, function
