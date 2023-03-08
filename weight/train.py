@@ -549,7 +549,7 @@ def vampire_run(problem_path, options, weights, *args, weights_filename=None, **
             'equality': 'equality_weight'
         }
         options.update({weight_name_to_option_name[weight_name]: v for weight_name, v in weights.items() if
-                        weight_name != 'symbol'})
+                        weight_name != 'symbol' and weight_name_to_option_name[weight_name] not in options})
         if weights_filename is None:
             weights_file = tempfile.NamedTemporaryFile('w+', suffix='.txt',
                                                        prefix=os.path.join('vampire_functor_weights_'))
