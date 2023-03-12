@@ -78,7 +78,7 @@ options:
     # The default saturation algorithm LRS does not currently support custom functor weights.
     saturation_algorithm: discount
     age_weight_ratio: "1:5"
-    nongoal_weight_coefficient: 5
+    nongoal_weight_coefficient: 1
     statistics: full
     time_limit: 300
   probe:
