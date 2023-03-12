@@ -123,6 +123,8 @@ def main(cfg):
                 'train': problem_paths[:train_count],
                 'val': problem_paths[train_count:]
             }
+        # Since some evaluation calls are cached, we prefer the problem paths list to be canonical.
+        problem_paths = sorted(problem_paths)
 
         log.info('Number of problems: %s' % {k: len(v) for k, v in problem_path_datasets.items()})
         for dataset_name, dataset_problems in problem_path_datasets.items():
