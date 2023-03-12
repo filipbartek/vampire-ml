@@ -66,10 +66,6 @@ problem:
     val: null
 tptp_path: null
 
-evaluation_problems:
-  train: null
-  val: null
-
 options:
   common:
     include: ${tptp_path}

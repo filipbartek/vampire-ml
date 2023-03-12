@@ -136,13 +136,6 @@ def main(cfg):
 
         clausifier = Solver()
 
-        eval_problem_paths = []
-        # We spawn a fresh RNG to ensure that changing the number of datasets does not affect subsequent samplings.
-        rng_subsamples = np.random.default_rng(ss.spawn(1)[0])
-        for k, v in problem_path_datasets.items():
-            eval_problem_paths.extend(subsample(v, cfg.evaluation_problems[k], rng_subsamples))
-        eval_problem_paths = sorted(eval_problem_paths)
-
         def generate_verbose_paths(problem='*'):
             pattern = os.path.join(hydra.utils.to_absolute_path(cfg.workspace_dir), 'runs', problem, '*', 'verbose')
             return glob.glob(pattern)
@@ -395,7 +388,7 @@ def main(cfg):
         baseline_df = None
         if cfg.eval.baseline:
             eval_dir = 'baseline'
-            baseline_df = evaluate_empirical(None, eval_problem_paths, problem_path_datasets, eval_dir,
+            baseline_df = evaluate_empirical(None, problem_paths, problem_path_datasets, eval_dir,
                                              summary_prefix='baseline')
             save_df(baseline_df, os.path.join(eval_dir, 'problems'))
         elif cfg.baseline_files is not None:
@@ -444,7 +437,7 @@ def main(cfg):
                         log.info(f'Saved checkpoint for empirical evaluation after epoch {epoch}: {os.path.abspath(save_path)}')
                         print(f'Empirical evaluation after epoch {epoch}...')
                         eval_dir = os.path.join('epoch', str(epoch), 'eval')
-                        df = evaluate_empirical(model_logit.symbol_weight_model, eval_problem_paths,
+                        df = evaluate_empirical(model_logit.symbol_weight_model, problem_paths,
                                                 problem_path_datasets, eval_dir)
                         # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
                         df = df.join(pd.concat(res.values()))
