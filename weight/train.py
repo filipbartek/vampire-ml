@@ -105,17 +105,15 @@ def main(cfg):
         problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
         
         rng_problems = np.random.default_rng(ss.spawn(1)[0])
+        problem_paths = rng_problems.permutation(problem_paths)
+        if cfg.max_problem_count is not None:
+            problem_paths = problem_paths[:cfg.max_problem_count]
         if cfg.problem.dataset is not None and any(fn is not None for fn in cfg.problem.dataset.values()):
             problem_path_datasets = {k: pd.read_csv(hydra.utils.to_absolute_path(v), names=['problem']).problem for k, v in cfg.problem.dataset.items()}
-            problem_paths_new = sorted(set(itertools.chain.from_iterable(problem_path_datasets.values())))
-            if problem_paths != problem_paths_new:
+            problem_paths_new = set(itertools.chain.from_iterable(problem_path_datasets.values()))
+            if set(problem_paths) != problem_paths_new:
                 warnings.warn(f'The problem datasets do not match the problem set. Whole: {len(problem_paths)}. Datasets: {len(problem_paths_new)}.')
-            problem_paths = rng_problems.permutation(problem_paths_new)
         else:
-            problem_paths = rng_problems.permutation(problem_paths)
-            if cfg.max_problem_count is not None:
-                problem_paths = problem_paths[:cfg.max_problem_count]
-    
             log.info(f'Number of problems: {len(problem_paths)}')
             with writers['train'].as_default():
                 tf.summary.scalar('problems/grand_total', len(problem_paths))
