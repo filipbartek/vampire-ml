@@ -201,7 +201,7 @@ def main(cfg):
             'proofs': problem_proof_counts.get(p, 0)
         } for p in problem_paths)
         dtype = {**tptp.property_types, **{f'dataset_{k}': bool for k in problem_path_datasets}}
-        problems_df = pd.DataFrame.from_records(problem_records, index='path').astype(dtype)
+        problems_df = astype(pd.DataFrame.from_records(problem_records, index='path'), dtype)
         graphs, graphs_df = graphifier.get_graphs(problem_paths, cache=True, get_df=True, return_graphs=False)
         problems_df = problems_df.join(graphs_df, rsuffix='_graph')
         save_df(problems_df, 'problems')
