@@ -110,7 +110,10 @@ def dataset_is_empty(dataset):
 
 
 def flatten_dict(d, **kwargs):
-    return pd.json_normalize(d, **kwargs).to_dict(orient='records')[0]
+    records = pd.json_normalize(d, **kwargs).to_dict(orient='records')
+    if len(records) == 0:
+        return {}
+    return records[0]
 
 
 def timer(*args, **kwargs):

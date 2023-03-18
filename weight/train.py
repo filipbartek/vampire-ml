@@ -148,52 +148,58 @@ def main(cfg):
 
         # We sort the problem names because `load_proofs` is cached.
         proof_paths = list(generate_paths(problem_names_raw))
-        proof_traces = proof.load_proofs(proof_paths, clausifier,
-                                         OmegaConf.to_container(cfg.clause_features),
-                                         cfg=OmegaConf.to_container(cfg.proof), ss=ss.spawn(1)[0])
-
-        proof_records = []
-        for proof_path, t in zip(proof_paths, proof_traces):
-            rec = {
-                'proof': proof_path,
-                'problem': t['problem']
-            }
-            if 'signature' in t:
-                rec['symbols'] = len(t['signature'])
-            if 'clauses' in t:
-                rec['clauses'] = {
-                    'total': t['clauses']['token_counts'].shape[0],
-                    'proof': t['clauses']['proof'].nnz,
-                    'nonproof': t['clauses']['token_counts'].shape[0] - t['clauses']['proof'].nnz,
-                    'goal': t['clauses']['goal'].nnz
+        if len(proof_paths) > 0:
+            proof_traces = proof.load_proofs(proof_paths, clausifier,
+                                             OmegaConf.to_container(cfg.clause_features),
+                                             cfg=OmegaConf.to_container(cfg.proof), ss=ss.spawn(1)[0])
+    
+            proof_records = []
+            for proof_path, t in zip(proof_paths, proof_traces):
+                rec = {
+                    'proof': proof_path,
+                    'problem': t['problem']
                 }
-                rec['clauses']['proof_x_nonproof'] = rec['clauses']['proof'] * rec['clauses']['nonproof']
-                rec['max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in enumerate(cfg.clause_features)}
-                rec['clause_features'] = t['clauses']['token_counts'].shape[1]
-                rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
-                rec['clauses_x_clause_features'] = rec['clauses']['total'] * rec['clause_features']
-            proof_records.append(rec)
-        proof_df = pd.json_normalize(proof_records, sep='_')
-        proof_df.set_index('proof', inplace=True)
-        proof_df = astype(proof_df, {k: pd.UInt32Dtype() for k in ['symbols', 'clauses_.*', 'max_.*']})
-        save_df(proof_df, 'proofs')
-        print(proof_df.describe(include='all'))
+                if 'signature' in t:
+                    rec['symbols'] = len(t['signature'])
+                if 'clauses' in t:
+                    rec['clauses'] = {
+                        'total': t['clauses']['token_counts'].shape[0],
+                        'proof': t['clauses']['proof'].nnz,
+                        'nonproof': t['clauses']['token_counts'].shape[0] - t['clauses']['proof'].nnz,
+                        'goal': t['clauses']['goal'].nnz
+                    }
+                    rec['clauses']['proof_x_nonproof'] = rec['clauses']['proof'] * rec['clauses']['nonproof']
+                    rec['max'] = {k: t['clauses']['token_counts'][:, i].max() for i, k in enumerate(cfg.clause_features)}
+                    rec['clause_features'] = t['clauses']['token_counts'].shape[1]
+                    rec['symbols_x_clauses'] = rec['symbols'] * rec['clauses']['total']
+                    rec['clauses_x_clause_features'] = rec['clauses']['total'] * rec['clause_features']
+                proof_records.append(rec)
+            proof_df = pd.json_normalize(proof_records, sep='_')
+            proof_df.set_index('proof', inplace=True)
+            proof_df = astype(proof_df, {k: pd.UInt32Dtype() for k in ['symbols', 'clauses_.*', 'max_.*']})
+            save_df(proof_df, 'proofs')
+            print(proof_df.describe(include='all'))
 
-        problem_samples = defaultdict(list)
-        for res in proof_traces:
-            if 'clauses' not in res:
-                continue
-            samples = res['clauses']
-            problem_samples[questions.config.full_problem_path(res['problem'])].append(samples)
+            problem_samples = defaultdict(list)
+            for res in proof_traces:
+                if 'clauses' not in res:
+                    continue
+                samples = res['clauses']
+                problem_samples[questions.config.full_problem_path(res['problem'])].append(samples)
 
-        log.info(f'Number of problems with some samples: {len(problem_samples)}')
-        for dataset_name, dataset_problems in problem_path_datasets.items():
-            with writers[dataset_name].as_default():
-                tf.summary.scalar('problems/with_proof', len(set(dataset_problems) | set(problem_samples)))
+            log.info(f'Number of problems with some samples: {len(problem_samples)}')
+            for dataset_name, dataset_problems in problem_path_datasets.items():
+                with writers[dataset_name].as_default():
+                    tf.summary.scalar('problems/with_proof', len(set(dataset_problems) | set(problem_samples)))
+        else:
+            proof_df = None
+            problem_samples = None
 
         graphifier = Graphifier(clausifier, max_number_of_nodes=cfg.max_problem_nodes)
 
-        problem_proof_counts = proof_df.problem.value_counts()
+        problem_proof_counts = {}
+        if proof_df is not None:
+            problem_proof_counts = proof_df.problem.value_counts()
         problem_records = ({
             'path': p,
             **tptp.problem_properties(p),
@@ -231,8 +237,11 @@ def main(cfg):
                                                            l2=cfg.symbol_cost.l2)
         model_logit = classifier.Classifier(model_symbol_weight)
 
-        problems_with_proofs = {dataset_name: [n for n in problem_names if len(problem_samples[n]) >= 1] for
-                                dataset_name, problem_names in problem_path_datasets.items()}
+        if problem_samples is not None:
+            problems_with_proofs = {dataset_name: [n for n in problem_names if len(problem_samples[n]) >= 1] for
+                                    dataset_name, problem_names in problem_path_datasets.items()}
+        else:
+            problems_with_proofs = {dataset_name: [] for dataset_name in problem_path_datasets}
         log.info('Number of problems with proofs: %s' % {k: len(v) for k, v in problems_with_proofs.items()})
 
         Optimizer = {
@@ -440,7 +449,9 @@ def main(cfg):
                         df = evaluate_empirical(model_logit.symbol_weight_model, problem_paths,
                                                 problem_path_datasets, eval_dir)
                         # Note: Some of `res.values()` may be `None`. `pd.concat` ignores such concatenands.
-                        df = df.join(pd.concat(res.values()))
+                        with suppress(ValueError):
+                            # Raises ValueError if all the res values are None.
+                            df = df.join(pd.concat(res.values()))
                         if baseline_df is not None:
                             df = df.join(baseline_df, rsuffix='_baseline')
                         save_df(df, os.path.join(eval_dir, 'problems'))
