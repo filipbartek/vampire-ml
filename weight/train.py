@@ -535,8 +535,12 @@ def evaluate_options(model_result, problems, clausifier, cfg, eval_options, para
 
     df = pd.json_normalize(results, sep='_')
     df.set_index('problem', inplace=True)
-    df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
-    df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
+    if 'szs_status' in df:
+        df['success_uns'] = df.szs_status.isin(['THM', 'CAX', 'UNS'])
+        df['success_sat'] = df.szs_status.isin(['SAT', 'CSA'])
+    else:
+        df['success_uns'] = False
+        df['success_sat'] = False
     df['success'] = df.success_uns | df.success_sat
     return df
 
