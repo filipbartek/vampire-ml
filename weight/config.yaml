@@ -64,7 +64,7 @@ problem:
   dataset:
     train: null
     val: null
-tptp_path: null
+tptp_path: ${oc.env:TPTP}
 
 options:
   common:
