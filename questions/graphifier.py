@@ -96,14 +96,14 @@ class Graphifier:
             cache = self.cache
         graph = None
         record = None
-        if os.path.isabs(problem_name):
-            cache_dir_full = os.path.join(self.cache_dir(), hashlib.md5(problem_name.encode()).hexdigest())
-        else:
-            cache_dir_full = os.path.join(self.cache_dir(), problem_name)
-        filename_graph = os.path.join(cache_dir_full, 'graph.joblib')
-        filename_record = os.path.join(cache_dir_full, 'record.json')
         graph_instantiated = False
         if cache:
+            if os.path.isabs(problem_name):
+                cache_dir_full = os.path.join(self.cache_dir(), hashlib.md5(problem_name.encode()).hexdigest())
+            else:
+                cache_dir_full = os.path.join(self.cache_dir(), problem_name)
+            filename_graph = os.path.join(cache_dir_full, 'graph.joblib')
+            filename_record = os.path.join(cache_dir_full, 'record.json')
             try:
                 with open(filename_record) as fp:
                     record = json.load(fp)
