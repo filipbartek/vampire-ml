@@ -93,16 +93,7 @@ def main(cfg):
             tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
 
-        problem_names_raw = list(cfg.problem.names)
-        abs_path_generators = [(full_problem_path(p) for p in cfg.problem.names)]
-        if cfg.problem.list_file is not None:
-            dir = os.path.dirname(cfg.problem.list_file)
-            l = pd.read_csv(hydra.utils.to_absolute_path(cfg.problem.list_file), names=['problem']).problem
-            problem_names_raw.extend(l)
-            abs_paths = (full_problem_path(p, [dir]) for p in l)
-            abs_path_generators.append(abs_paths)
-        problem_names_raw = sorted(set(problem_names_raw))
-        problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
+        problem_paths, problem_names_raw = get_problems(cfg.problem)
         
         rng_problems = np.random.default_rng(ss.spawn(1)[0])
         problem_paths = rng_problems.permutation(problem_paths)
@@ -467,6 +458,20 @@ def main(cfg):
                         t.set_postfix(flatten_dict(stats, sep='/'))
                 save_path = manager.save()
                 log.info(f'Saved checkpoint for epoch {epoch}: {os.path.abspath(save_path)}')
+
+
+def get_problems(cfg):
+    problem_names_raw = list(cfg.names)
+    abs_path_generators = [(full_problem_path(p) for p in cfg.names)]
+    if cfg.list_file is not None:
+        dir = os.path.dirname(cfg.list_file)
+        l = pd.read_csv(hydra.utils.to_absolute_path(cfg.list_file), names=['problem']).problem
+        problem_names_raw.extend(l)
+        abs_paths = (full_problem_path(p, [dir]) for p in l)
+        abs_path_generators.append(abs_paths)
+    problem_names_raw = sorted(set(problem_names_raw))
+    problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
+    return problem_paths, problem_names_raw
 
 
 def evaluate_options(model_result, problems, clausifier, cfg, eval_options, parallel, out_dir=None):
