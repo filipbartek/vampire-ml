@@ -29,20 +29,21 @@ class Graphifier:
     """Stateless. Can be reused to create multiple graphs."""
 
     def __init__(self, clausifier, arg_order=True, arg_backedge=True, equality=True, max_number_of_nodes=None,
-                 output_ntypes=('predicate', 'function')):
+                 output_ntypes=('predicate', 'function'), cache=True):
         self.clausifier = clausifier
         self.arg_order = arg_order
         self.arg_backedge = arg_backedge
         self.equality = equality
         self.max_number_of_nodes = max_number_of_nodes
         self.output_ntypes = output_ntypes
+        self.cache = cache
         self.version = 1
 
     @property
     def canonical_etypes(self):
         return self.empty_graph().canonical_etypes
 
-    def get_graphs_dict(self, problems, cache=True):
+    def get_graphs_dict(self, problems, cache=None):
         graphs, df = self.get_graphs(problems, cache=cache)
         records = (x[1] for x in df.iterrows())
         problem_graphs = {p: g for p, g, r in zip(problems, graphs, records) if
@@ -50,7 +51,9 @@ class Graphifier:
         logging.info(f'Problems graphified. {len(problem_graphs)}/{len(df)} graphified successfully.')
         return problem_graphs, df
 
-    def get_graphs(self, problems, cache=True, get_df=True, return_graphs=True):
+    def get_graphs(self, problems, cache=None, get_df=True, return_graphs=True):
+        if cache is None:
+            cache = self.cache
         if cache:
             graphs_records = problems_to_graphs_list(self, problems, return_graphs=return_graphs)
         else:
@@ -74,7 +77,7 @@ class Graphifier:
             'graph_edges': pd.UInt32Dtype()
         }
 
-    def compute_graphs(self, problems, cache=True, return_graphs=True):
+    def compute_graphs(self, problems, cache=None, return_graphs=True):
         if len(problems) > 1:
             print(f'Graphifying {len(problems)} problems of at most {self.max_number_of_nodes} nodes...',
                   file=sys.stderr)
@@ -88,7 +91,9 @@ class Graphifier:
             return Parallel(verbose=verbose)(
                 delayed(self.problem_to_graph)(problem, cache=cache, return_graph=return_graphs) for problem in problems)
 
-    def problem_to_graph(self, problem_name, cache=True, return_graph=True):
+    def problem_to_graph(self, problem_name, cache=None, return_graph=True):
+        if cache is None:
+            cache = self.cache
         graph = None
         record = None
         if os.path.isabs(problem_name):
@@ -161,7 +166,9 @@ class Graphifier:
         prop_names = ['atoms', 'predicates', 'functors', 'variables']
         return sum(props.get(k, 0) for k in prop_names)
 
-    def graphify(self, problem, cache=True):
+    def graphify(self, problem, cache=None):
+        if cache is None:
+            cache = self.cache
         # TODO: Time the whole call (all inclusive).
         problem = py_str(problem)
         logging.debug(f'Graphifying problem {problem}...')

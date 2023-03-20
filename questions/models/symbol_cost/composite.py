@@ -11,7 +11,7 @@ class Composite(SymbolCostModel):
         self.l2 = l2
         self.symbol_cost_metrics = []
 
-    def call(self, problems, training=False, cache=True):
+    def call(self, problems, training=False, cache=None):
         # `Model.test_step` pads `problems` with a length 1 axis.
         if len(problems.shape) == 2:
             problems = tf.squeeze(problems, axis=1)
