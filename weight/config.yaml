@@ -56,7 +56,7 @@ clause_features:
   - equality
 
 workspace_dir: null
-vampire_cmd: vampire
+vampire_cmd: ${oc.env:VAMPIRE}
 problem:
   list_file: ${workspace_dir}/problems.txt
   names: []
