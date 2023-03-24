@@ -136,7 +136,7 @@ gcn:
     train: 100000
     val: 100000
 
-max_problem_nodes: 10000
+max_problem_nodes: 100000
 
 embedding_to_cost:
   # TODO: Support deeper MLPs.
