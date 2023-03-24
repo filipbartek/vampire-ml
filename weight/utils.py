@@ -1,15 +1,20 @@
+import glob
 import itertools
 import logging
 import os
 import sys
+import warnings
 from contextlib import suppress
 from decimal import Decimal
 from enum import Enum
 
+import hydra
 import numpy as np
 import pandas as pd
 import scipy
 import tensorflow as tf
+
+from questions.config import full_problem_path
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +48,11 @@ def save_df(df, basename, **kwargs):
     with np.printoptions(threshold=sys.maxsize, linewidth=sys.maxsize):
         df.to_csv(f'{basename}.csv', **kwargs)
     df.to_pickle(f'{basename}.pkl')
+
+
+def save_list(l, filename):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    np.savetxt(filename, l, fmt='%s')
 
 
 def invert_dict_of_lists(d):
@@ -182,4 +192,48 @@ def to_str(value, precision=4):
 def subsample(a, size=None, rng=None):
     if size is None or size >= len(a):
         return a
+    if rng is None:
+        warnings.warn('Using the default numpy random number generator.')
+        rng = np.random.default_rng()
     return rng.choice(a, size, replace=False)
+
+
+def get_problems(cfg, rng=None):
+    abs_path_generators = [(full_problem_path(p, [cfg.root_dir]) for p in cfg.names)]
+    if cfg.list_file is not None:
+        path = hydra.utils.to_absolute_path(cfg.list_file)
+        try:
+            l = pd.read_csv(path, names=['problem']).problem
+            dir = os.path.dirname(path)
+            abs_path_generators.append((full_problem_path(p, [dir, cfg.root_dir]) for p in l))
+        except FileNotFoundError:
+            warnings.warn(f'Problem list file not found: {path}')
+    if cfg.patterns is not None:
+        for pattern in cfg.patterns:
+            if cfg.root_dir is not None:
+                pattern = os.path.join(cfg.root_dir, pattern)
+            pathnames = glob.glob(pattern, recursive=True)
+            if len(pathnames) == 0:
+                warnings.warn(f'Problem path pattern {pattern} did not match any files.')
+            abs_path_generators.append((os.path.abspath(pathname) for pathname in pathnames))
+    problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
+    root_dir = commonpath(problem_paths)
+    if cfg.root_dir is not None:
+        if not is_subpath(root_dir, cfg.root_dir):
+            raise RuntimeError(f'Some of the problems lie outside of root directory {cfg.root_dir}. Problem common path: {root_dir}')
+        root_dir = cfg.root_dir
+    if cfg.max_count is not None:
+        problem_paths = sorted(subsample(problem_paths, size=cfg.max_count, rng=rng))
+    return problem_paths, root_dir
+
+
+def is_subpath(path, start):
+    return os.path.commonpath([path, start]) == start
+
+
+def commonpath(paths):
+    if len(paths) >= 2:
+        return os.path.commonpath(paths)
+    if len(paths) == 1:
+        return os.path.dirname(paths[0])
+    raise ValueError('At least one path is required to compute common sub-path.')

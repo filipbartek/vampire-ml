@@ -34,8 +34,9 @@ from questions.solver import Solver
 from questions.utils import flatten_dict
 from questions.utils import py_str
 from utils import astype
+from utils import get_problems
 from utils import save_df
-from utils import subsample
+from utils import save_list
 from utils import to_str
 from utils import to_tensor
 from weight import proof
@@ -93,12 +94,8 @@ def main(cfg):
             tf.summary.text('path/workspace', hydra.utils.to_absolute_path(cfg.workspace_dir))
             tf.summary.text('path/cache', memory.location)
 
-        problem_paths, problem_names_raw = get_problems(cfg.problem)
-        
         rng_problems = np.random.default_rng(ss.spawn(1)[0])
-        problem_paths = rng_problems.permutation(problem_paths)
-        if cfg.max_problem_count is not None:
-            problem_paths = problem_paths[:cfg.max_problem_count]
+        problem_paths, problem_root_dir = get_problems(cfg.problem, rng=rng_problems)
         if cfg.problem.dataset is not None and any(fn is not None for fn in cfg.problem.dataset.values()):
             problem_path_datasets = {k: pd.read_csv(hydra.utils.to_absolute_path(v), names=['problem']).problem for k, v in cfg.problem.dataset.items()}
             problem_paths_new = set(itertools.chain.from_iterable(problem_path_datasets.values()))
@@ -110,12 +107,13 @@ def main(cfg):
                 tf.summary.scalar('problems/grand_total', len(problem_paths))
     
             train_count = int(len(problem_paths) * cfg.train_ratio)
+            problem_paths_shuffled = rng_problems.permutation(problem_paths)
             problem_path_datasets = {
-                'train': problem_paths[:train_count],
-                'val': problem_paths[train_count:]
+                'train': problem_paths_shuffled[:train_count],
+                'val': problem_paths_shuffled[train_count:]
             }
         # Since some evaluation calls are cached, we prefer the problem paths list to be canonical.
-        problem_paths = sorted(problem_paths)
+        assert problem_paths == sorted(problem_paths)
 
         log.info('Number of problems: %s' % {k: len(v) for k, v in problem_path_datasets.items()})
         for dataset_name, dataset_problems in problem_path_datasets.items():
@@ -137,9 +135,11 @@ def main(cfg):
                 for path in generate_verbose_paths(problem_name):
                     yield path
 
-        # We sort the problem names because `load_proofs` is cached.
+        problem_names_raw = [os.path.relpath(problem, problem_root_dir) for problem in problem_paths]
         proof_paths = list(generate_paths(problem_names_raw))
         if len(proof_paths) > 0:
+            # We sort the problem names because `load_proofs` is cached.
+            assert proof_paths == sorted(proof_paths)
             proof_traces = proof.load_proofs(proof_paths, clausifier,
                                              OmegaConf.to_container(cfg.clause_features),
                                              cfg=OmegaConf.to_container(cfg.proof), ss=ss.spawn(1)[0])
@@ -460,20 +460,6 @@ def main(cfg):
                 log.info(f'Saved checkpoint for epoch {epoch}: {os.path.abspath(save_path)}')
 
 
-def get_problems(cfg):
-    problem_names_raw = list(cfg.names)
-    abs_path_generators = [(full_problem_path(p) for p in cfg.names)]
-    if cfg.list_file is not None:
-        dir = os.path.dirname(cfg.list_file)
-        l = pd.read_csv(hydra.utils.to_absolute_path(cfg.list_file), names=['problem']).problem
-        problem_names_raw.extend(l)
-        abs_paths = (full_problem_path(p, [dir]) for p in l)
-        abs_path_generators.append(abs_paths)
-    problem_names_raw = sorted(set(problem_names_raw))
-    problem_paths = sorted(set(itertools.chain.from_iterable(abs_path_generators)))
-    return problem_paths, problem_names_raw
-
-
 def evaluate_options(model_result, problems, clausifier, cfg, eval_options, parallel, out_dir=None):
     options = {**cfg.options.common, **cfg.options.probe, **eval_options}
     
@@ -634,11 +620,6 @@ def dict_to_batches(problems, batch_size, proof_clause_weight=0.5):
         tf.RaggedTensorSpec(shape=(None, None), dtype=dtypes['sample_weight'])
     )
     return tf.data.Dataset.from_generator(gen, output_signature=output_signature)
-
-
-def save_list(l, filename):
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    np.savetxt(filename, l, fmt='%s')
 
 
 if __name__ == '__main__':

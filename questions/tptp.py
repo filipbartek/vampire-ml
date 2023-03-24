@@ -90,7 +90,6 @@ def problem_header_properties(content, form=None):
 def match_and_cast(pattern, string):
     m = re.search(pattern, string, re.MULTILINE)
     if m is None:
-        warnings.warn(f'Match failed on pattern {pattern}.')
         return {}
     return {name: cast_value(name, string_value) for name, string_value in m.groupdict().items() if string_value is not None}
 

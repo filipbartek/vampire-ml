@@ -58,8 +58,15 @@ clause_features:
 workspace_dir: null
 vampire_cmd: vampire
 problem:
-  list_file: null
+  list_file: ${workspace_dir}/problems.txt
   names: []
+  patterns: []
+  # If null, use the longest common sub-path of all the problem paths.
+  # If not null, must be a sub-path of all problem paths.
+  # Problem paths may be specified as relative with respect to root.
+  root_dir: null
+  # If not null, subsample the problems to at most this number.
+  max_count: null
   # If set, it should be a mapping from [train, val] to problem list filenames.
   dataset:
     train: null
@@ -68,7 +75,6 @@ tptp_path: ${oc.env:TPTP}
 
 options:
   common:
-    include: ${tptp_path}
     input_syntax: tptp
     avatar: "off"
     # The default saturation algorithm LRS does not currently support custom functor weights.
