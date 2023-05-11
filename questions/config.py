@@ -1,5 +1,6 @@
 import os
 import re
+from contextlib import suppress
 
 import appdirs
 
@@ -42,12 +43,13 @@ def problems_path():
 def full_problem_path(problem, dir_paths=None):
     if dir_paths is None:
         dir_paths = []
-    file_paths = [os.path.join(p, problem) for p in dir_paths] + [problem]
+    file_paths = [os.path.join(p, problem) for p in dir_paths if p is not None] + [problem]
     m = re.search(
         r'(?P<path>.*/)?(?P<problem_name>(?P<problem_domain>[A-Z]{3})(?P<problem_number>[0-9]{3})(?P<problem_form>[-+^=_])(?P<problem_version>[1-9])(?P<problem_size_parameters>[0-9]*(\.[0-9]{3})*))(?P<extension>\.[pq])?',
         problem)
     if m is not None:
-        file_paths.append(os.path.join(problems_path(), m['problem_domain'], m['problem_name'] + '.p'))
+        with suppress(TypeError):
+            file_paths.append(os.path.join(problems_path(), m['problem_domain'], m['problem_name'] + '.p'))
     for result in file_paths:
         if os.path.isfile(result):
             return os.path.normpath(result)
