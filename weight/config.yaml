@@ -136,6 +136,11 @@ gcn:
     train: 100000
     val: 100000
 
+# Readout operator for the aggregation of node embeddings.
+# Choices: sum, max, min, mean
+# See https://docs.dgl.ai/generated/dgl.readout_nodes.html
+readout_op: sum
+
 max_problem_nodes: 100000
 
 embedding_to_cost:

@@ -217,7 +217,7 @@ def main(cfg):
         gcn = models.symbol_features.GCN(cfg.gcn, graphifier.canonical_etypes, graphifier.ntype_in_degrees,
                                          graphifier.ntype_feat_sizes, output_ntypes=output_ntypes)
         # Outputs an embedding for each token.
-        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn)
+        model_symbol_embedding = models.symbol_features.Graph(graphifier, gcn, readout_op=cfg.readout_op)
         embedding_to_weight = {
             name: Dense(1, name=name, activation=cfg.embedding_to_cost.activation,
                         output_bias=cfg.embedding_to_cost.output_bias,
